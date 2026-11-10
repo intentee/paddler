@@ -1,7 +1,7 @@
 use reqwest::Client;
 use reqwest::StatusCode;
 
-use paddler_balancer::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
+use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
 use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -15,7 +15,7 @@ async fn typesafe_system_one_answers_a_body_that_is_not_json_as_unprocessable() 
         .post(
             cluster
                 .balancer
-                .compat_typesafe_url(TypeSafeApiPath::SYSTEM_ONE)
+                .compat_typesafe_url(TYPESAFE_API_PATH_SYSTEM_ONE)
                 .expect("the cluster serves TypeSafe"),
         )
         .header("content-type", "application/json")

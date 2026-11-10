@@ -51,7 +51,9 @@ async fn openai_chat_completion_non_streaming_emits_tool_calls_for_function_tool
         "expected exactly one structured tool call in non-streaming response"
     );
 
-    let first_call = &tool_calls[0];
+    let first_call = tool_calls
+        .first()
+        .expect("the response must carry the structured tool call");
 
     assert_eq!(
         first_call.pointer("/type").and_then(Value::as_str),

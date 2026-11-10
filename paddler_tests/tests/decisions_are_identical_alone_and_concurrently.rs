@@ -7,16 +7,16 @@ use paddler_messaging::request_params::decide_params::raw_decide_params::RawDeci
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const CONCURRENT_DECISIONS: usize = 5;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decisions_are_identical_alone_and_concurrently() {
-    let cluster = start_decision_cluster(DecisionClusterParams {
+    let cluster = DecisionClusterParams {
         agents: vec![AgentConfig::single(2)],
         ..DecisionClusterParams::default()
-    })
+    }
+    .start_cluster()
     .await
     .expect("the cluster must start");
     let decisions: Vec<RawDecideParams> = (0..CONCURRENT_DECISIONS)

@@ -10,8 +10,8 @@ use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::error::Result;
 use crate::format_api_url::format_api_url;
+use crate::result::Result;
 use crate::send_checked_request::send_checked_request;
 use crate::stream::sse::Sse;
 
@@ -34,6 +34,9 @@ impl HttpClient {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read.
     pub async fn get(&self, cancellation_token: CancellationToken, path: &str) -> Result<Response> {
         let api_url = format_api_url(&self.url, path);
         let request_builder = self.reqwest_client.get(&api_url);
@@ -41,6 +44,9 @@ impl HttpClient {
         send_checked_request(cancellation_token, api_url, request_builder).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, or when the response body is not the expected JSON.
     pub async fn get_json<TResponse: DeserializeOwned>(
         &self,
         cancellation_token: CancellationToken,
@@ -49,6 +55,9 @@ impl HttpClient {
         Ok(self.get(cancellation_token, path).await?.json().await?)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read.
     pub async fn get_sse_json<TItem: DeserializeOwned + Send + 'static>(
         &self,
         cancellation_token: CancellationToken,
@@ -61,6 +70,9 @@ impl HttpClient {
         Ok(Box::pin(items))
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, or when the response body cannot be read.
     pub async fn get_text(
         &self,
         cancellation_token: CancellationToken,
@@ -69,6 +81,9 @@ impl HttpClient {
         response_text(self.get(cancellation_token, path).await?).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, including when the request body cannot be serialized.
     pub async fn post_json<TBody: Serialize + Sync + ?Sized>(
         &self,
         cancellation_token: CancellationToken,
@@ -81,6 +96,9 @@ impl HttpClient {
         send_checked_request(cancellation_token, api_url, request_builder).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, including when the request body cannot be serialized.
     pub async fn put_json<TBody: Serialize + Sync + ?Sized>(
         &self,
         cancellation_token: CancellationToken,
@@ -107,7 +125,12 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use url::Url;
 
-    use paddler_messaging::api_path::ApiPath;
+    use paddler_messaging::constants::API_PATH_AGENTS;
+    use paddler_messaging::constants::API_PATH_AGENTS_STREAM;
+    use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
+    use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
+    use paddler_messaging::constants::API_PATH_HEALTH;
+    use paddler_messaging::constants::API_PATH_METRICS;
 
     use super::HttpClient;
     use super::response_text;
@@ -131,7 +154,7 @@ mod tests {
     async fn an_unreachable_server_maps_to_the_connect_variant() {
         assert!(matches!(
             unreachable_client()
-                .get(CancellationToken::new(), ApiPath::HEALTH)
+                .get(CancellationToken::new(), API_PATH_HEALTH)
                 .await,
             Err(Error::Connect { url, .. }) if url == format!("{UNREACHABLE_BASE_URL}/health")
         ));
@@ -141,9 +164,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_json_request() {
         assert!(matches!(
             unreachable_client()
-                .get_json::<String>(cancelled_token(), ApiPath::AGENTS)
+                .get_json::<String>(cancelled_token(), API_PATH_AGENTS)
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::AGENTS)
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_AGENTS}")
         ));
     }
 
@@ -151,9 +174,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_server_sent_event_request() {
         assert!(matches!(
             unreachable_client()
-                .get_sse_json::<String>(cancelled_token(), ApiPath::AGENTS_STREAM)
+                .get_sse_json::<String>(cancelled_token(), API_PATH_AGENTS_STREAM)
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::AGENTS_STREAM)
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_AGENTS_STREAM}")
         ));
     }
 
@@ -161,7 +184,7 @@ mod tests {
     async fn a_cancelled_token_rejects_a_text_request() {
         assert!(matches!(
             unreachable_client()
-                .get_text(cancelled_token(), ApiPath::METRICS)
+                .get_text(cancelled_token(), API_PATH_METRICS)
                 .await,
             Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}/metrics")
         ));
@@ -173,11 +196,11 @@ mod tests {
             unreachable_client()
                 .post_json(
                     cancelled_token(),
-                    ApiPath::CONTINUE_FROM_RAW_PROMPT,
+                    API_PATH_CONTINUE_FROM_RAW_PROMPT,
                     "body"
                 )
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::CONTINUE_FROM_RAW_PROMPT)
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_CONTINUE_FROM_RAW_PROMPT}")
         ));
     }
 
@@ -185,9 +208,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_put_request() {
         assert!(matches!(
             unreachable_client()
-                .put_json(cancelled_token(), ApiPath::BALANCER_DESIRED_STATE, "body")
+                .put_json(cancelled_token(), API_PATH_BALANCER_DESIRED_STATE, "body")
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::BALANCER_DESIRED_STATE)
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_BALANCER_DESIRED_STATE}")
         ));
     }
 

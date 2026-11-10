@@ -11,7 +11,9 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::collected_embedding_results::CollectedEmbeddingResults;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_spreads_an_embedding_burst_across_every_agent() {
@@ -57,8 +59,8 @@ async fn balancer_spreads_an_embedding_burst_across_every_agent() {
 
     let producers_across_streams: BTreeSet<&str> = collected_streams
         .iter()
-        .flat_map(|collected| collected.embeddings.iter())
-        .filter_map(|produced| produced.generated_by.as_deref())
+        .flat_map(|CollectedEmbeddingResults { embeddings, .. }| embeddings.iter())
+        .filter_map(|EmbeddingWithProducer { generated_by, .. }| generated_by.as_deref())
         .collect();
 
     assert_eq!(

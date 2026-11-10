@@ -1,8 +1,7 @@
 use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_pointer_head::pointer_head_delimiters::PointerHeadDelimiters;
 use paddler_agent_pointer_head::pointer_head_input_normalization::PointerHeadInputNormalization;
-
-use crate::fixture_path::fixture_path;
+use paddler_test_cluster_harness::fixture_path::fixture_path;
 
 #[test]
 fn loading_the_synthetic_pointer_head_reads_its_dimensions_scale_temperature_delimiters_and_input_normalization()

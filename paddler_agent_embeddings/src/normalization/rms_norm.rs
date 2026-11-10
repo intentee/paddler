@@ -1,5 +1,8 @@
 use std::num::TryFromIntError;
 
+/// # Errors
+///
+/// Returns a [`TryFromIntError`] when the embedding has more dimensions than sixteen bits count.
 pub fn rms_norm(embedding: &mut [f32], eps: f32) -> Result<(), TryFromIntError> {
     let embedding_length = u16::try_from(embedding.len())?;
 
@@ -39,13 +42,14 @@ mod tests {
 
     #[test]
     fn divides_mixed_values_by_their_root_mean_square() {
-        let mut embedding = vec![1.0, 3.0];
+        let mut embedding = [1.0, 3.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
         let expected_rms = 5.0_f32.sqrt();
+        let [first, second] = embedding;
 
-        assert!((embedding[0] - 1.0 / expected_rms).abs() < 1e-6);
-        assert!((embedding[1] - 3.0 / expected_rms).abs() < 1e-6);
+        assert!((first - 1.0 / expected_rms).abs() < 1e-6);
+        assert!((second - 3.0 / expected_rms).abs() < 1e-6);
     }
 
     #[test]
@@ -68,20 +72,25 @@ mod tests {
 
     #[test]
     fn epsilon_dampens_the_scaling_of_tiny_values() {
-        let mut without_eps = vec![1e-10, 1e-10];
-        let mut with_eps = without_eps.clone();
+        let mut without_eps = [1e-10, 1e-10];
+        let mut with_eps = without_eps;
         rms_norm(&mut without_eps, 0.0).unwrap();
         rms_norm(&mut with_eps, 1e-6).unwrap();
 
-        assert!(with_eps[0].abs() < without_eps[0].abs());
+        let [first_without_eps, _] = without_eps;
+        let [first_with_eps, _] = with_eps;
+
+        assert!(first_with_eps.abs() < first_without_eps.abs());
     }
 
     #[test]
     fn scales_a_single_element_to_one() {
-        let mut embedding = vec![5.0];
+        let mut embedding = [5.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
-        assert!((embedding[0] - 1.0).abs() < 1e-6);
+        let [only] = embedding;
+
+        assert!((only - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -102,12 +111,13 @@ mod tests {
 
     #[test]
     fn preserves_the_sign_of_negative_values() {
-        let mut embedding = vec![-3.0, 4.0];
+        let mut embedding = [-3.0, 4.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
         let expected_rms = 12.5_f32.sqrt();
+        let [negative, positive] = embedding;
 
-        assert!((embedding[0] - (-3.0 / expected_rms)).abs() < 1e-6);
-        assert!((embedding[1] - (4.0 / expected_rms)).abs() < 1e-6);
+        assert!((negative - (-3.0 / expected_rms)).abs() < 1e-6);
+        assert!((positive - (4.0 / expected_rms)).abs() < 1e-6);
     }
 }

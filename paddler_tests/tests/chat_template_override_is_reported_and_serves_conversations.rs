@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
+use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
@@ -18,6 +18,7 @@ use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -90,7 +91,7 @@ async fn chat_template_override_is_reported_and_serves_conversations() {
     let received_tokens = collected
         .token_results
         .iter()
-        .any(|result| result.token_result.is_token());
+        .any(|TokenResultWithProducer { token_result, .. }| token_result.is_token());
 
     assert!(
         received_tokens,

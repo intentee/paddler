@@ -7,8 +7,10 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -55,14 +57,21 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(token_count > 0);
-    assert!(token_count <= 1000);
-    collected
-        .summary()
-        .expect("the generation must finish with a summary");
+    assert!(
+        token_count < 1000,
+        "thinking mode must end its multi-turn generation before max_tokens"
+    );
+    assert_eq!(
+        collected
+            .summary()
+            .expect("the generation must finish with a summary")
+            .finish,
+        GenerationFinish::EndOfGeneration
+    );
 
     cluster
         .shutdown()

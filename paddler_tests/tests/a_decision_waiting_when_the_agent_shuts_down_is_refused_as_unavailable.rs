@@ -11,19 +11,19 @@ use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 use paddler_tests::prepared_decision::PreparedDecision;
-
-use crate::kev_decision_model::KevDecisionModel;
 
 const DECISION_SEQUENCES: u16 = 2;
 
 #[test]
 fn a_decision_waiting_when_the_agent_shuts_down_is_refused_as_unavailable() {
-    let kev_decision_model = KevDecisionModel::load(DECISION_SEQUENCES);
+    let kev_decision_model =
+        KevDecisionModel::load(DECISION_SEQUENCES).expect("the kev decision model must load");
     let PreparedDecision {
         mut decision_result_rx,
         decision_stop_tx: _decision_stop_tx,
-        prepared_decision_request,
+        request: prepared_decision_request,
     } = PreparedDecision::new(
         kev_decision_model
             .runtime
@@ -40,14 +40,16 @@ fn a_decision_waiting_when_the_agent_shuts_down_is_refused_as_unavailable() {
         .expect("the decision must wait for the scheduler");
     agent_shutdown.cancel();
 
-    kev_decision_model.run_scheduler(DecisionSchedulerRun {
-        active_requests: VecDeque::new(),
-        agent_shutdown,
-        capacity_ledger: DecisionCapacityLedger::new(DECISION_SEQUENCES),
-        pending_requests: VecDeque::new(),
-        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-        sequences: DECISION_SEQUENCES,
-    });
+    kev_decision_model
+        .run_scheduler(DecisionSchedulerRun {
+            active_requests: VecDeque::new(),
+            agent_shutdown,
+            capacity_ledger: DecisionCapacityLedger::new(DECISION_SEQUENCES),
+            pending_requests: VecDeque::new(),
+            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+            sequences: DECISION_SEQUENCES,
+        })
+        .expect("the decision context must be created");
 
     assert_eq!(
         decision_result_rx.try_recv(),

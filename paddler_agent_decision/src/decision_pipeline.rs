@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -31,16 +32,19 @@ use crate::decision_request_preparer::DecisionRequestPreparer;
 use crate::decision_scheduler::DecisionScheduler;
 use crate::decision_scheduler_context::DecisionSchedulerContext;
 use crate::decision_text_tokenizer::DecisionTextTokenizer;
-use crate::loaded_pointer_head::LoadedPointerHead;
+use crate::met_decision_prerequisites::MetDecisionPrerequisites;
 
 pub struct DecisionPipeline {
     pub inference_runtime_context: InferenceRuntimeContext,
     pub loaded_llama_model: LoadedLlamaModel,
-    pub loaded_pointer_head: LoadedPointerHead,
+    pub met_decision_prerequisites: MetDecisionPrerequisites,
     pub model_runtime_parameters: ModelRuntimeParameters,
 }
 
 impl DecisionPipeline {
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::PointerHeadIncompatibleWithModel`] when the hidden size or a delimiter of the pointer head does not fit the model, [`DecisionError::DelimiterTokenizationFailed`] or [`DecisionError::DelimiterAttributesUnreadable`] when a delimiter cannot be resolved against the vocabulary, and [`DecisionError::AgentRuntime`] when the decision context cannot be created or warmed up.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,
@@ -58,7 +62,12 @@ impl DecisionPipeline {
         self.inference_runtime_context
             .slot_aggregated_status
             .register_fix(&AgentIssueFix::PointerHeadIsCompatibleWithModel(
-                ModelPath::from(self.loaded_pointer_head.pointer_head_path.as_path()),
+                ModelPath::from(
+                    self.met_decision_prerequisites
+                        .loaded_pointer_head
+                        .pointer_head_path
+                        .as_path(),
+                ),
             ));
     }
 
@@ -72,7 +81,10 @@ impl DecisionPipeline {
                 PointerHeadIncompatibleWithModelParams {
                     incompatibility: incompatibility.clone(),
                     pointer_head_path: ModelPath::from(
-                        self.loaded_pointer_head.pointer_head_path.as_path(),
+                        self.met_decision_prerequisites
+                            .loaded_pointer_head
+                            .pointer_head_path
+                            .as_path(),
                     ),
                 },
             ));
@@ -81,8 +93,11 @@ impl DecisionPipeline {
     }
 
     fn resolve_delimiter_tokens(&self) -> Result<DecisionDelimiterTokens, DecisionError> {
-        let model_hidden_size = self.loaded_llama_model.model.n_embd_out() as usize;
-        let pointer_head = &self.loaded_pointer_head.pointer_head;
+        let model_hidden_size = i64::from(self.loaded_llama_model.model.n_embd_out());
+        let pointer_head = &self
+            .met_decision_prerequisites
+            .loaded_pointer_head
+            .pointer_head;
 
         if pointer_head.hidden_size() != model_hidden_size {
             return Err(self.register_incompatibility(
@@ -113,14 +128,11 @@ impl DecisionPipeline {
     ) -> Result<(), DecisionError> {
         continue_startup_unless_shutting_down(agent_shutdown, || {
             let delimiter_tokens = self.resolve_delimiter_tokens()?;
-            let desired_slots_total = self
-                .inference_runtime_context
-                .slot_aggregated_status
-                .desired_slots_total;
+            let decision_slots = self.met_decision_prerequisites.decision_slots;
             let llama_context = DecisionLlamaContextSettings {
                 llama_context_settings: self.loaded_llama_model.llama_context_settings(
                     &self.model_runtime_parameters,
-                    u32::from(desired_slots_total),
+                    u32::from(decision_slots.get()),
                 ),
             }
             .create_llama_context(&self.loaded_llama_model, &self.inference_runtime_context)?;
@@ -128,7 +140,8 @@ impl DecisionPipeline {
             continue_startup_unless_shutting_down(agent_shutdown, || {
                 self.loaded_llama_model
                     .warm_up_and_serve(llama_context, |llama_context, batch| {
-                        let cells_per_slot = llama_context.n_ctx() / u32::from(desired_slots_total);
+                        let cells_per_slot =
+                            llama_context.n_ctx() / NonZeroU32::from(decision_slots);
                         let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
                         run_scheduler_unless_startup_abandoned(
@@ -141,6 +154,7 @@ impl DecisionPipeline {
                                         delimiter_tokens,
                                         text_tokenizer: DecisionTextTokenizer {
                                             input_normalization: self
+                                                .met_decision_prerequisites
                                                 .loaded_pointer_head
                                                 .pointer_head
                                                 .input_normalization,
@@ -157,13 +171,16 @@ impl DecisionPipeline {
                                     agent_shutdown: agent_shutdown.clone(),
                                     batch,
                                     capacity_ledger: DecisionCapacityLedger::new(
-                                        desired_slots_total,
+                                        decision_slots.get(),
                                     ),
                                     llama_context,
                                     pending_requests: VecDeque::new(),
                                     scheduler_context: DecisionSchedulerContext {
                                         agent_name: self.inference_runtime_context.agent_name,
-                                        pointer_head: self.loaded_pointer_head.pointer_head,
+                                        pointer_head: self
+                                            .met_decision_prerequisites
+                                            .loaded_pointer_head
+                                            .pointer_head,
                                     },
                                     scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
                                 }

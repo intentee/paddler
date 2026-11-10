@@ -1,5 +1,6 @@
 use crate::active_embedding_request::ActiveEmbeddingRequest;
 use crate::batched_embedding_input::BatchedEmbeddingInput;
+use crate::embedding_batch_capacity::EmbeddingBatchCapacity;
 
 #[must_use]
 pub fn next_embedding_batch(
@@ -7,34 +8,28 @@ pub fn next_embedding_batch(
     n_batch: usize,
     sequences_in_batch: u32,
 ) -> Vec<BatchedEmbeddingInput> {
+    let mut batch_capacity = EmbeddingBatchCapacity {
+        remaining_sequence_ids: 0..sequences_in_batch,
+        remaining_tokens: n_batch,
+    };
     let mut batched_inputs = Vec::new();
-    let mut batched_tokens = 0;
-    let mut next_sequence_id: u32 = 0;
 
     for (request_index, active_request) in active_requests.iter_mut().enumerate() {
-        let mut request_sequences = 0;
-
-        while request_sequences < active_request.sequences()
-            && next_sequence_id < sequences_in_batch
-        {
+        for _reserved_sequence in 0..active_request.sequences() {
             let Some(input) = active_request.pending_inputs.pop_front() else {
                 break;
             };
-
-            if batched_tokens + input.tokens.len() > n_batch {
+            let Some(sequence_id) = batch_capacity.admit(&input) else {
                 active_request.pending_inputs.push_front(input);
 
                 break;
-            }
+            };
 
-            batched_tokens += input.tokens.len();
             batched_inputs.push(BatchedEmbeddingInput {
                 input,
                 request_index,
-                sequence_id: next_sequence_id.cast_signed(),
+                sequence_id,
             });
-            request_sequences += 1;
-            next_sequence_id += 1;
         }
     }
 

@@ -1,6 +1,5 @@
 mod cmd;
-#[cfg(feature = "cuda")]
-mod cuda_disclaimer_docs;
+pub mod constants;
 
 use actix_web::rt::System;
 use anyhow::Result;
@@ -16,7 +15,7 @@ use crate::cmd::agent::Agent;
 use crate::cmd::balancer::Balancer;
 use crate::cmd::singleton::Singleton;
 #[cfg(feature = "cuda")]
-use crate::cuda_disclaimer_docs::CUDA_DISCLAIMER_DOCS;
+use crate::constants::CUDA_DISCLAIMER_DOCS;
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true), version, about, long_about = None)]
@@ -37,6 +36,9 @@ enum Commands {
     Singleton(Box<Singleton>),
 }
 
+/// # Errors
+///
+/// Fails when the shutdown signal handlers cannot be registered, or when the chosen command fails.
 pub fn run() -> Result<()> {
     System::new().block_on(async {
         Builder::from_env(Env::default().default_filter_or("info")).init();

@@ -16,6 +16,9 @@ pub struct BalancerRunner {
 }
 
 impl BalancerRunner {
+    /// # Errors
+    ///
+    /// Returns the [`BootstrapError`] of [`BalancerServiceBundle::new`] when the balancer services cannot be set up.
     pub async fn start(
         BalancerRunnerParams {
             bootstrap_config,
@@ -39,11 +42,14 @@ impl BalancerRunner {
         })
     }
 
-    pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
-        self.thread.wait_for_completion().await
-    }
-
     pub fn cancel(&self) {
         self.thread.cancel();
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`BootstrapError::ServiceRunFailed`] when running the services failed, and [`BootstrapError::ServiceThreadPanicked`] when the thread running the services panicked.
+    pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
+        self.thread.wait_for_completion().await
     }
 }

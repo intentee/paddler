@@ -1,0 +1,15 @@
+use std::thread::spawn;
+
+use paddler_agent_runtime::join_scheduler_thread::join_scheduler_thread;
+
+#[test]
+#[should_panic(expected = "the scheduler crashed")]
+fn joining_resumes_the_panic_of_the_scheduler_thread() {
+    let scheduler_thread_handle = spawn(|| {
+        "not a number"
+            .parse::<u32>()
+            .expect("the scheduler crashed");
+    });
+
+    join_scheduler_thread(scheduler_thread_handle);
+}

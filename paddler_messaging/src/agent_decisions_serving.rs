@@ -12,7 +12,7 @@ pub enum AgentDecisionsServing {
 
 impl AgentDecisionsServing {
     #[must_use]
-    pub const fn serves(&self, inference_capability: InferenceCapability) -> bool {
+    pub const fn serves(self, inference_capability: InferenceCapability) -> bool {
         match inference_capability {
             InferenceCapability::Decisions => match self {
                 Self::NotServed => false,

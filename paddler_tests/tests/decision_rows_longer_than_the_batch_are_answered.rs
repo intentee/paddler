@@ -11,7 +11,6 @@ use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const SMALL_BATCH_TOKENS: u32 = 16;
 const PROBABILITY_SUM_TOLERANCE: f32 = 1e-5;
@@ -31,13 +30,14 @@ fn long_question(id: &str) -> DecisionQuestion {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_rows_longer_than_the_batch_are_answered() {
-    let cluster = start_decision_cluster(DecisionClusterParams {
+    let cluster = DecisionClusterParams {
         desired_state: DecisionDesiredState {
             n_batch: BatchSize::try_from(SMALL_BATCH_TOKENS).expect("the batch size is valid"),
             ..DecisionDesiredState::default()
         },
         ..DecisionClusterParams::default()
-    })
+    }
+    .start_cluster()
     .await
     .expect("the cluster must start");
 

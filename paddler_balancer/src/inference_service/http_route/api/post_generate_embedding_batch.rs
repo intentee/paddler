@@ -15,7 +15,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
@@ -34,7 +34,6 @@ use crate::dispatchable_request::DispatchableRequest;
 use crate::distinct_embedding_documents::DistinctEmbeddingDocuments;
 use crate::embedding_chunk_dispatch::EmbeddingChunkDispatch;
 use crate::embedding_document_duplicates::EmbeddingDocumentDuplicates;
-use crate::forward_agent_relay::forward_agent_relay;
 use crate::inference_service::app_data::AppData;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
 
@@ -115,8 +114,7 @@ async fn respond(
             }
         };
 
-        chunk_tasks.spawn(forward_agent_relay(
-            agent_relay,
+        chunk_tasks.spawn(agent_relay.forward(
             connection_close.clone(),
             OutgoingMessageRelayReceiver {
                 request_id: request_id.clone(),
@@ -181,5 +179,5 @@ impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
 }
 
 pub fn post_generate_embedding_batch(cfg: &mut web::ServiceConfig) {
-    cfg.route(ApiPath::GENERATE_EMBEDDING_BATCH, post().to(respond));
+    cfg.route(API_PATH_GENERATE_EMBEDDING_BATCH, post().to(respond));
 }

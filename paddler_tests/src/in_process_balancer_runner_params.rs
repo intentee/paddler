@@ -12,9 +12,12 @@ use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_state_database::state_database_type::StateDatabaseType;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 use paddler_test_cluster_harness::unexpiring_shutdown_options::unexpiring_shutdown_options;
 
+/// # Errors
+///
+/// Returns an error when the state database URL of the cluster parameters cannot be parsed.
 pub fn in_process_balancer_runner_params(
     ClusterParams {
         buffered_request_timeout,

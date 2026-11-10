@@ -116,15 +116,6 @@ impl ServedModel {
         })
     }
 
-    fn serves_the_model_of(&self, desired_settings: &ModelServingSettings) -> bool {
-        self.loaded_llama_model.llama_model_settings == desired_settings.llama_model_settings()
-    }
-
-    fn runs_the_runtime_parameters_of(&self, desired_settings: &ModelServingSettings) -> bool {
-        self.model_serving_settings.model_runtime_parameters
-            == desired_settings.model_runtime_parameters
-    }
-
     #[must_use]
     pub fn serving_report(&self, uses_chat_template_override: bool) -> ServingReport {
         ServingReport {
@@ -143,6 +134,20 @@ impl ServedModel {
                 .serving_issues(),
             uses_chat_template_override,
         }
+    }
+
+    fn runs_the_runtime_parameters_of(
+        &self,
+        ModelServingSettings {
+            model_runtime_parameters,
+            ..
+        }: &ModelServingSettings,
+    ) -> bool {
+        self.model_serving_settings.model_runtime_parameters == *model_runtime_parameters
+    }
+
+    fn serves_the_model_of(&self, desired_settings: &ModelServingSettings) -> bool {
+        self.loaded_llama_model.llama_model_settings == desired_settings.llama_model_settings()
     }
 }
 

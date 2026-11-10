@@ -11,6 +11,9 @@ pub struct TemporaryStateDatabaseFile {
 }
 
 impl TemporaryStateDatabaseFile {
+    /// # Errors
+    ///
+    /// Fails when the temporary directory cannot be created, or its database file path is not valid UTF-8.
     pub fn new() -> Result<Self> {
         TempDir::new()
             .context("failed to create temp state database directory")

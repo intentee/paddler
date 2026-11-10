@@ -20,6 +20,9 @@ pub struct PointerHeadDelimiters {
 }
 
 impl PointerHeadDelimiters {
+    /// # Errors
+    ///
+    /// Returns [`PointerHeadError::KeyUnreadable`] when a delimiter key is missing from the file or does not hold a string.
     pub fn load(gguf_context: &GgufContext) -> Result<Self, PointerHeadError> {
         let mut delimiter_tokens: [String; 5] = Default::default();
 

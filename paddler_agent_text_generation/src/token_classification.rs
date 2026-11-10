@@ -9,6 +9,9 @@ pub enum TokenClassification {
 }
 
 impl TokenClassification {
+    /// # Errors
+    ///
+    /// Returns the [`ParseChatMessageError`] of the chat session when its answer classifier cannot be created.
     pub fn into_classifier(
         self,
         model: &LlamaModel,

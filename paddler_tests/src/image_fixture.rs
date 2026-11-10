@@ -8,6 +8,9 @@ pub struct ImageFixture {
 }
 
 impl ImageFixture {
+    /// # Errors
+    ///
+    /// Returns the error of [`load_fixture_data_uri`] when the image fixture cannot be read.
     pub fn data_uri(&self) -> Result<String> {
         load_fixture_data_uri(self.fixture_name, self.mime_type)
     }

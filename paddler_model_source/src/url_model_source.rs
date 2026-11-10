@@ -30,10 +30,16 @@ pub struct UrlModelSource {
 }
 
 impl UrlModelSource {
-    fn model_path(&self) -> ModelPath {
-        ModelPath {
-            model_path: self.download_url.as_str().to_owned(),
-        }
+    fn fail_cache_access(
+        &self,
+        slot_aggregated_status: &SlotAggregatedStatus,
+        path: &Path,
+        io_error: io::Error,
+    ) -> ModelSourceError {
+        self.fail_download(
+            slot_aggregated_status,
+            DownloadError::cache_failure(path.to_path_buf(), io_error),
+        )
     }
 
     fn fail_download(
@@ -52,16 +58,8 @@ impl UrlModelSource {
         }
     }
 
-    fn fail_cache_access(
-        &self,
-        slot_aggregated_status: &SlotAggregatedStatus,
-        path: &Path,
-        io_error: io::Error,
-    ) -> ModelSourceError {
-        self.fail_download(
-            slot_aggregated_status,
-            DownloadError::cache_failure(path.to_path_buf(), io_error),
-        )
+    fn model_path(&self) -> ModelPath {
+        ModelPath::from(self.download_url.as_str())
     }
 }
 
@@ -146,7 +144,6 @@ impl ResolvesModelSource for UrlModelSource {
 mod tests {
     use std::mem::discriminant;
     use std::os::unix::fs::symlink;
-    use std::path::Path;
     use std::sync::Arc;
 
     use tempfile::TempDir;
@@ -181,13 +178,9 @@ mod tests {
         }
     }
 
-    fn fresh_status() -> Arc<SlotAggregatedStatus> {
-        Arc::new(SlotAggregatedStatus::new(1))
-    }
-
-    fn cache_dir_at(path: &Path) -> CacheDir {
+    fn unresolvable_cache_dir() -> CacheDir {
         CacheDir {
-            explicit: Some(path.to_path_buf()),
+            explicit: None,
             home: None,
             xdg: None,
         }
@@ -196,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn cache_hit_returns_path_without_calling_download_manager() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/cached.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
@@ -205,7 +198,10 @@ mod tests {
             .unwrap();
 
         let resolution = url_model_source(cache_dir.clone(), url_string)
-            .resolve(&CancellationToken::new(), fresh_status())
+            .resolve(
+                &CancellationToken::new(),
+                Arc::new(SlotAggregatedStatus::new(1)),
+            )
             .await
             .unwrap();
 
@@ -218,14 +214,14 @@ mod tests {
     #[tokio::test]
     async fn lock_contention_registers_cache_cannot_acquire_lock() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/contended.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
 
         let _blocker = cached.try_acquire_download_lock().unwrap();
 
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let result = url_model_source(cache_dir.clone(), url_string)
             .resolve(&CancellationToken::new(), status.clone())
             .await;
@@ -244,12 +240,12 @@ mod tests {
     #[tokio::test]
     async fn cache_subdir_creation_failure_registers_model_cache_is_corrupted() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/subdir-blocked.gguf";
         let subdir_path = directory.path().join("downloaded-models");
         symlink(directory.path().join("missing-target"), &subdir_path).unwrap();
 
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let result = url_model_source(cache_dir.clone(), url_string)
             .resolve(&CancellationToken::new(), status.clone())
             .await;
@@ -269,13 +265,13 @@ mod tests {
     #[tokio::test]
     async fn lock_open_io_error_registers_model_cache_is_corrupted() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/lock-as-directory.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
         create_dir(&cached.lock_file_path).await.unwrap();
 
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let result = url_model_source(cache_dir.clone(), url_string)
             .resolve(&CancellationToken::new(), status.clone())
             .await;
@@ -298,13 +294,13 @@ mod tests {
         write(directory.path().join("downloaded-models"), b"blocker")
             .await
             .unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/blocked.gguf";
         let cache_file_path = CachedDownloadedModel::new(&cache_dir, url_string)
             .unwrap()
             .cache_file_path;
 
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let result = url_model_source(cache_dir.clone(), url_string)
             .resolve(&CancellationToken::new(), status.clone())
             .await;
@@ -321,20 +317,15 @@ mod tests {
         );
     }
 
-    fn unresolvable_cache_dir() -> CacheDir {
-        CacheDir {
-            explicit: None,
-            home: None,
-            xdg: None,
-        }
-    }
-
     #[tokio::test]
     async fn cache_path_resolution_failure_propagates_error() {
         let url_string = "https://host.example/unresolvable.gguf";
 
         let result = url_model_source(unresolvable_cache_dir(), url_string)
-            .resolve(&CancellationToken::new(), fresh_status())
+            .resolve(
+                &CancellationToken::new(),
+                Arc::new(SlotAggregatedStatus::new(1)),
+            )
             .await;
 
         assert_eq!(
@@ -348,7 +339,7 @@ mod tests {
     #[tokio::test]
     async fn successful_download_resolves_to_cache_file_with_downloaded_contents() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
 
         let body = b"downloaded model bytes".to_vec();
         let fixture = LocalHttpFixture::start(FixtureResponse::Ok(body.clone()))
@@ -360,7 +351,10 @@ mod tests {
         let expected_path = cached.cache_file_path.clone();
 
         let resolution = url_model_source(cache_dir.clone(), &url_string)
-            .resolve(&CancellationToken::new(), fresh_status())
+            .resolve(
+                &CancellationToken::new(),
+                Arc::new(SlotAggregatedStatus::new(1)),
+            )
             .await
             .unwrap();
 
@@ -379,11 +373,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_cancelled_token_makes_the_url_download_error_without_registering_an_issue() {
+    async fn a_cancelled_token_reports_the_url_download_as_cancelled_without_registering_an_issue()
+    {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "http://127.0.0.1:1/model.gguf".to_owned();
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let cancellation_token = CancellationToken::new();
 
         cancellation_token.cancel();

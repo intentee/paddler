@@ -1,3 +1,5 @@
+pub mod classified_token;
+pub mod constants;
 pub mod continuous_batch_active_request;
 pub mod continuous_batch_generation_step;
 pub mod continuous_batch_request_phase;
@@ -10,9 +12,11 @@ pub mod continuous_batch_terminal_outcome;
 pub mod conversation_prompt_support;
 pub mod conversation_support;
 pub mod converts_to_mtmd_bitmap;
+pub mod generating_contribution;
 pub mod generation_request_preparer;
 pub mod grammar_sampling;
 pub mod image_input;
+pub mod ingesting_contribution;
 pub mod media_marked_prompt;
 pub mod model_bos_token;
 pub mod multimodal_ingestion_progress;

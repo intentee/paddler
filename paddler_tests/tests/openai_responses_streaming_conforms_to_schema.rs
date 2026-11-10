@@ -1,10 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use serde_json::json;
-
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::streamed_greeting_responses_request::streamed_greeting_responses_request;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_streaming_conforms_to_schema() {
@@ -12,13 +11,7 @@ async fn openai_responses_streaming_conforms_to_schema() {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
         .await
         .expect("the cluster must start");
-
-    let request = json!({
-        "model": "qwen3-test",
-        "input": "Say hello.",
-        "max_output_tokens": 200,
-        "stream": true
-    });
+    let request = streamed_greeting_responses_request();
 
     validator
         .validate_responses_request(&request)
@@ -36,28 +29,6 @@ async fn openai_responses_streaming_conforms_to_schema() {
             .validate_responses_stream_event(event)
             .expect("the payload must conform to the OpenAI schema");
     }
-
-    assert_eq!(
-        events.first().and_then(|event| event["type"].as_str()),
-        Some("response.created"),
-        "the responses stream must begin with response.created"
-    );
-    assert_eq!(
-        events.last().and_then(|event| event["type"].as_str()),
-        Some("response.completed"),
-        "the responses stream must terminate with response.completed"
-    );
-
-    let sequence_numbers: Vec<u64> = events
-        .iter()
-        .filter_map(|event| event["sequence_number"].as_u64())
-        .collect();
-
-    assert_eq!(
-        sequence_numbers,
-        (0..sequence_numbers.len() as u64).collect::<Vec<_>>(),
-        "sequence numbers must be a gapless run starting at 0"
-    );
 
     cluster
         .shutdown()

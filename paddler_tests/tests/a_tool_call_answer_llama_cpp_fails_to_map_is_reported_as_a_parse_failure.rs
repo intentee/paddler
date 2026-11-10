@@ -18,9 +18,8 @@ use paddler_test_cluster_harness::model_card::ministral_3_3b_reasoning::ministra
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_tests::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
 use paddler_tests::weather_chat_session::weather_chat_session;
-
-use crate::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
 
 const WEATHER_TOOL_CALL: &str = r#"[TOOL_CALLS]get_weather[ARGS]{"location": "Paris"}"#;
 
@@ -48,6 +47,7 @@ fn a_tool_call_answer_llama_cpp_fails_to_map_is_reported_as_a_parse_failure() {
 
     assert_eq!(
         tool_call_pipeline_for_tools(&[Tool::<Value>::from(get_weather_tool())])
+            .expect("the tools must validate")
             .resolve_at_completion(
                 &reading,
                 SampledTokenSection::ToolCall,

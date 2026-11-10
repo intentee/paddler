@@ -4,13 +4,13 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failed_startup_releases_its_model_when_the_agent_shuts_down() {
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
     let model_weights_residency = serving_pipeline_arbiter
         .inference_runtime_context
         .vram_residencies
@@ -28,7 +28,8 @@ async fn a_failed_startup_releases_its_model_when_the_agent_shuts_down() {
             },
             uncompilable_chat_template(),
         ))
-        .await;
+        .await
+        .expect("the desired state must be served");
     assert!(model_weights_residency.try_occupy().is_err());
 
     serving_pipeline_arbiter.shut_down().await;

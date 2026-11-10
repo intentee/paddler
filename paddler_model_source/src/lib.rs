@@ -1,9 +1,9 @@
 pub mod agent_local_model_path;
+pub mod constants;
 pub mod desired_model_resolution;
 pub mod desired_model_resolver;
 pub mod download_error_agent_issue;
 pub mod huggingface_cache_location;
-pub mod huggingface_default_endpoint;
 pub mod huggingface_download_agent_issue;
 pub mod huggingface_download_progress;
 pub mod huggingface_hub;
@@ -15,4 +15,3 @@ pub mod model_source_error;
 pub mod resolves_model_source;
 pub mod url_download_progress;
 pub mod url_model_source;
-pub mod url_path_segment_encode_set;

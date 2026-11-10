@@ -75,12 +75,18 @@ mod tests {
 
     #[test]
     fn validation_failed_converts_to_tool_call_validation_failed_with_every_message() {
-        let validation_error = ToolCallValidationError::UnknownToolName("missing".to_owned());
-        let expected_message = validation_error.to_string();
+        let first_validation_error = ToolCallValidationError::UnknownToolName("missing".to_owned());
+        let second_validation_error =
+            ToolCallValidationError::UnknownToolName("also_missing".to_owned());
+        let expected_messages = vec![
+            first_validation_error.to_string(),
+            second_validation_error.to_string(),
+        ];
 
         assert_eq!(
-            ToolCallEvent::ValidationFailed(vec![validation_error]).into_generated_token_result(),
-            GeneratedTokenResult::ToolCallValidationFailed(vec![expected_message])
+            ToolCallEvent::ValidationFailed(vec![first_validation_error, second_validation_error])
+                .into_generated_token_result(),
+            GeneratedTokenResult::ToolCallValidationFailed(expected_messages)
         );
     }
 

@@ -6,9 +6,14 @@ use log::error;
 pub struct SequenceId(pub u16);
 
 impl SequenceId {
-    #[must_use]
-    pub fn llama_sequence_id(self) -> i32 {
-        i32::from(self.0)
+    /// # Errors
+    ///
+    /// Returns the [`MemorySeqRmError`] llama.cpp reports when it cannot remove the sequence from the KV cache.
+    pub fn clear_kv_cache_in(
+        self,
+        llama_context: &mut LlamaContext<'_>,
+    ) -> Result<(), MemorySeqRmError> {
+        llama_context.memory_seq_rm(Some(self.kv_cache_sequence_id()), None, None)
     }
 
     #[must_use]
@@ -16,11 +21,9 @@ impl SequenceId {
         u32::from(self.0)
     }
 
-    pub fn clear_kv_cache_in(
-        self,
-        llama_context: &mut LlamaContext<'_>,
-    ) -> Result<(), MemorySeqRmError> {
-        llama_context.memory_seq_rm(Some(self.kv_cache_sequence_id()), None, None)
+    #[must_use]
+    pub fn llama_sequence_id(self) -> i32 {
+        i32::from(self.0)
     }
 
     pub fn release_kv_cache_in(

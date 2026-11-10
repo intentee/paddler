@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use futures::executor::block_on;
 use hf_hub::HFResult;
 
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
+use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
@@ -43,6 +43,9 @@ pub struct ModelCard {
 }
 
 impl ModelCard {
+    /// # Errors
+    ///
+    /// Returns the [`hf_hub::HFError`] of a Hugging Face client that cannot be built, [`hf_hub::HFError::LocalEntryNotFound`] or [`hf_hub::HFError::EntryNotFound`] when the model file is not in the local Hugging Face cache, and another [`hf_hub::HFError`] when the cache cannot be read.
     pub fn cached_path(&self) -> HFResult<PathBuf> {
         HuggingFaceCacheLocation::HubDefault
             .client_builder()
@@ -58,6 +61,17 @@ impl ModelCard {
     #[must_use]
     pub fn into_agent_desired_model(self) -> AgentDesiredModel {
         ModelSource::HuggingFace(self.reference).into_agent_desired_model()
+    }
+
+    #[must_use]
+    pub fn into_decision_desired_state(
+        self,
+        pointer_head: AgentDesiredModel,
+    ) -> BalancerDesiredState {
+        BalancerDesiredState {
+            decision: DecisionSettings { pointer_head },
+            ..self.into_desired_state()
+        }
     }
 
     #[must_use]
@@ -77,6 +91,17 @@ impl ModelCard {
     }
 
     #[must_use]
+    pub fn into_desired_state_with_embedding_parameters(
+        self,
+        embedding_parameters: EmbeddingParameters,
+    ) -> BalancerDesiredState {
+        BalancerDesiredState {
+            embeddings: embedding_parameters,
+            ..self.into_desired_state()
+        }
+    }
+
+    #[must_use]
     pub fn into_desired_state_with_multimodal_projection(
         self,
         multimodal_projection: Self,
@@ -92,28 +117,6 @@ impl ModelCard {
                 ..desired_state.text_generation
             },
             ..desired_state
-        }
-    }
-
-    #[must_use]
-    pub fn into_decision_desired_state(
-        self,
-        pointer_head: AgentDesiredModel,
-    ) -> BalancerDesiredState {
-        BalancerDesiredState {
-            decision: DecisionSettings { pointer_head },
-            ..self.into_desired_state()
-        }
-    }
-
-    #[must_use]
-    pub fn into_desired_state_with_embedding_parameters(
-        self,
-        embedding_parameters: EmbeddingParameters,
-    ) -> BalancerDesiredState {
-        BalancerDesiredState {
-            embeddings: embedding_parameters,
-            ..self.into_desired_state()
         }
     }
 }

@@ -14,15 +14,15 @@ use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 use paddler_tests::prepared_decision::PreparedDecision;
-
-use crate::kev_decision_model::KevDecisionModel;
 
 const CONCURRENT_DECISIONS: u16 = 2;
 
 #[test]
 fn a_decision_arriving_while_another_is_decided_is_decided_too() {
-    let kev_decision_model = KevDecisionModel::load(CONCURRENT_DECISIONS);
+    let kev_decision_model =
+        KevDecisionModel::load(CONCURRENT_DECISIONS).expect("the kev decision model must load");
     let prepared_decision = |question_id: &str| {
         PreparedDecision::new(
             kev_decision_model
@@ -37,10 +37,7 @@ fn a_decision_arriving_while_another_is_decided_is_decided_too() {
     let second_decision = prepared_decision("second");
     let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
-    for prepared_decision_request in [
-        first_decision.prepared_decision_request,
-        second_decision.prepared_decision_request,
-    ] {
+    for prepared_decision_request in [first_decision.request, second_decision.request] {
         scheduler_message_tx
             .send(SchedulerMessage::Command(prepared_decision_request))
             .expect("the scheduler must receive the decision");
@@ -48,14 +45,16 @@ fn a_decision_arriving_while_another_is_decided_is_decided_too() {
 
     drop(scheduler_message_tx);
 
-    kev_decision_model.run_scheduler(DecisionSchedulerRun {
-        active_requests: VecDeque::new(),
-        agent_shutdown: CancellationToken::new(),
-        capacity_ledger: DecisionCapacityLedger::new(CONCURRENT_DECISIONS),
-        pending_requests: VecDeque::new(),
-        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-        sequences: CONCURRENT_DECISIONS,
-    });
+    kev_decision_model
+        .run_scheduler(DecisionSchedulerRun {
+            active_requests: VecDeque::new(),
+            agent_shutdown: CancellationToken::new(),
+            capacity_ledger: DecisionCapacityLedger::new(CONCURRENT_DECISIONS),
+            pending_requests: VecDeque::new(),
+            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+            sequences: CONCURRENT_DECISIONS,
+        })
+        .expect("the decision context must be created");
 
     let assert_decided =
         |question_id: &str, mut decision_result_rx: UnboundedReceiver<DecisionResult>| {

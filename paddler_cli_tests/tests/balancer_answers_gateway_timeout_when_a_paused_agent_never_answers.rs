@@ -3,7 +3,6 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
-use paddler_cli_tests::start_pausable_agent_cluster::start_pausable_agent_cluster;
 use paddler_client::error::Error as ClientError;
 use paddler_messaging::api_path::ApiPath;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
@@ -13,7 +12,7 @@ async fn balancer_answers_gateway_timeout_when_a_paused_agent_never_answers() {
     let PausableAgentCluster {
         cluster,
         pausable_agent,
-    } = start_pausable_agent_cluster(PausableAgentClusterParams {
+    } = PausableAgentCluster::start(PausableAgentClusterParams {
         binary_path: env!("CARGO_BIN_EXE_paddler_cluster_node").to_owned(),
         desired_state: ClusterDesiredState::KeepStored,
         expected_slots_total: 0,

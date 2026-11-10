@@ -4,6 +4,8 @@ use tokio_util::sync::CancellationToken;
 
 use std::mem::discriminant;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_model_source::model_source::ModelSource;
@@ -37,7 +39,12 @@ async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it(
         .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
         .await
         .expect("the agent must report ChatTemplateDoesNotCompile for invalid Jinja syntax");
-    let issues = &snapshot.agents[0].status.issues;
+    let issues = &snapshot
+        .agents
+        .first()
+        .expect("the snapshot must hold the agent")
+        .status
+        .issues;
 
     assert!(issues.contains(&expected_issue), "{issues:?}");
 
@@ -68,15 +75,16 @@ async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it(
 
     cluster
         .agents_watcher
-        .until_agent(&agent_id, |snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.id == agent_id
-                    && !agent
-                        .status
-                        .issues
-                        .iter()
-                        .any(|issue| discriminant(issue) == discriminant(&expected_issue))
-            })
+        .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+            agents
+                .iter()
+                .any(|AgentControllerSnapshot { id, status, .. }| {
+                    *id == agent_id
+                        && !status
+                            .issues
+                            .iter()
+                            .any(|issue| discriminant(issue) == discriminant(&expected_issue))
+                })
         })
         .await
         .expect("the agent must stay registered while reconciliation clears its template issue");

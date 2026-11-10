@@ -1,11 +1,10 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_replacement_superseded_by_its_own_state_keeps_reporting_the_model_metadata() {
@@ -17,9 +16,13 @@ async fn a_replacement_superseded_by_its_own_state_keeps_reporting_the_model_met
         decision: DecisionSettings::default(),
         ..serving_decisions.clone()
     };
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get());
+    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get())
+        .expect("the model downloader must start");
 
-    serving_pipeline_arbiter.serve(serving_decisions).await;
+    serving_pipeline_arbiter
+        .serve(serving_decisions)
+        .await
+        .expect("the desired state must be served");
 
     let served_model_metadata = serving_pipeline_arbiter
         .inference_runtime_context

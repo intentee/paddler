@@ -12,6 +12,7 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -55,7 +56,7 @@ async fn agent_streams_tokens_from_image_data_uri() {
     let received_tokens = collected
         .token_results
         .iter()
-        .any(|result| result.token_result.is_token());
+        .any(|TokenResultWithProducer { token_result, .. }| token_result.is_token());
 
     assert!(received_tokens);
 

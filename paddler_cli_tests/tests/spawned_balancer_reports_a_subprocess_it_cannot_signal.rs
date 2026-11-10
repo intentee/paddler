@@ -1,8 +1,7 @@
+use paddler_cli_tests::ephemeral_balancer_arguments::ephemeral_balancer_arguments;
 use paddler_cli_tests::signal_as_already_reaped::signal_as_already_reaped;
 use paddler_cli_tests::spawn_balancer_subprocess::spawn_balancer_subprocess;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
-
-use crate::ephemeral_balancer_arguments::ephemeral_balancer_arguments;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn spawned_balancer_reports_a_subprocess_it_cannot_signal() {

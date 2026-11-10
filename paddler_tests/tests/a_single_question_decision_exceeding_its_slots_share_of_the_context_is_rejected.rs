@@ -2,23 +2,22 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
+use paddler_tests::constants::SMALL_DECISION_CONTEXT_SIZE;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
-
-use crate::small_context_decision_cluster_params::SMALL_DECISION_CONTEXT_SIZE;
-use crate::small_context_decision_cluster_params::small_context_decision_cluster_params;
+use paddler_tests::small_context_decision_cluster_params::small_context_decision_cluster_params;
 
 const STATE_REPETITIONS_EXCEEDING_ONE_SLOTS_SHARE: usize = 5;
 const TOKENS_REQUIRED_BY_THE_REPEATED_STATE_QUESTION: usize = 159;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_single_question_decision_exceeding_its_slots_share_of_the_context_is_rejected() {
-    let cluster = start_decision_cluster(small_context_decision_cluster_params())
+    let cluster = small_context_decision_cluster_params()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let RawDecideParams { questions, state } = sample_decision();
@@ -38,7 +37,8 @@ async fn a_single_question_decision_exceeding_its_slots_share_of_the_context_is_
     assert_eq!(
         collected.terminal_result,
         DecisionResult::RequestExceedsContext(OversizedDecisionDetails {
-            context_size: SMALL_DECISION_CONTEXT_SIZE / u32::from(DECISION_SLOTS_MINIMUM.get()),
+            context_size: SMALL_DECISION_CONTEXT_SIZE.get()
+                / u32::from(DECISION_SLOTS_MINIMUM.get()),
             required_tokens: TOKENS_REQUIRED_BY_THE_REPEATED_STATE_QUESTION,
         })
     );

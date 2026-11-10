@@ -18,6 +18,13 @@ impl ConversationHistory {
     }
 
     #[must_use]
+    pub fn contains_image_url(&self) -> bool {
+        self.messages
+            .iter()
+            .any(ConversationMessage::contains_image_url)
+    }
+
+    #[must_use]
     pub fn into_chat_template_conversation(
         self,
         media_marker: &MediaMarker,
@@ -71,13 +78,6 @@ mod tests {
     use crate::image_url::ImageUrl;
     use crate::media_marker::MediaMarker;
 
-    fn make_text_message(role: &str, text: &str) -> ConversationMessage {
-        ConversationMessage::Message {
-            content: ConversationMessageContent::Text(text.to_owned()),
-            role: role.to_owned(),
-        }
-    }
-
     fn weather_tool_call() -> ConversationToolCall {
         ConversationToolCall {
             arguments: json!({ "location": "Paris" }).as_object().unwrap().clone(),
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn collects_image_urls_and_replaces_images_with_the_media_marker() {
         let history = ConversationHistory::new(vec![
-            make_text_message("assistant", "hello"),
+            ConversationMessage::from_text("assistant", "hello"),
             ConversationMessage::Message {
                 content: ConversationMessageContent::Parts(vec![
                     ConversationMessageContentPart::Text {
@@ -209,7 +209,7 @@ mod tests {
             ConversationMessage::AssistantReasoning {
                 reasoning_content: "nothing to answer yet".to_owned(),
             },
-            make_text_message("user", "hello"),
+            ConversationMessage::from_text("user", "hello"),
         ]);
 
         assert_eq!(
@@ -255,5 +255,37 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn a_conversation_of_reasoning_and_text_contains_no_image_url() {
+        let conversation_history = ConversationHistory::new(vec![
+            ConversationMessage::AssistantReasoning {
+                reasoning_content: "thinking".to_owned(),
+            },
+            ConversationMessage::Message {
+                content: ConversationMessageContent::Text("hello".to_owned()),
+                role: "user".to_owned(),
+            },
+        ]);
+
+        assert!(!conversation_history.contains_image_url());
+    }
+
+    #[test]
+    fn a_conversation_with_an_image_in_a_tool_result_contains_an_image_url() {
+        let conversation_history =
+            ConversationHistory::new(vec![ConversationMessage::ToolResult {
+                content: ConversationMessageContent::Parts(vec![
+                    ConversationMessageContentPart::ImageUrl {
+                        image_url: ImageUrl {
+                            url: "data:image/png;base64,AAAA".to_owned(),
+                        },
+                    },
+                ]),
+                tool_call_id: "call_weather".to_owned(),
+            }]);
+
+        assert!(conversation_history.contains_image_url());
     }
 }

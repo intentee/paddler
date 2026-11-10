@@ -3,8 +3,7 @@
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-
-use crate::shutdown_during_state_transition::ShutdownDuringStateTransition;
+use paddler_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_shuts_down_cleanly_while_switching_to_another_model() {
@@ -15,5 +14,6 @@ async fn agent_shuts_down_cleanly_while_switching_to_another_model() {
         slot_count: 1,
     }
     .shut_down_while_the_agent_applies_the_next_state()
-    .await;
+    .await
+    .expect("the cluster must shut down while its agent applies the next state");
 }

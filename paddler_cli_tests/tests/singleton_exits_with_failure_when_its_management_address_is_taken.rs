@@ -2,8 +2,8 @@ use std::net::TcpListener;
 use std::process::Stdio;
 
 use paddler_cli_tests::paddler_command::paddler_command;
-use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
-use paddler_test_cluster_harness::failed_run_exit_code::FAILED_RUN_EXIT_CODE;
+use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_test_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn singleton_exits_with_failure_when_its_management_address_is_taken() {

@@ -15,13 +15,17 @@ name = "integration"
 path = "tests/main.rs"
 
 [dependencies]
+futures-util = { workspace = true }
 http = { workspace = true }
 httparse = { workspace = true }
+paddler_tcp_buffer_limits = { workspace = true }
+socket2 = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
 nix = { workspace = true }
-paddler_tcp_buffer_limits = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

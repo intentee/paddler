@@ -2,6 +2,8 @@ use std::io::Write as _;
 
 use tempfile::NamedTempFile;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
@@ -31,12 +33,13 @@ async fn an_agent_whose_model_cannot_start_reports_that_it_is_stuck() {
 
     cluster
         .agents_watcher
-        .until_agent(&agent_id, |snapshot| {
-            snapshot.agents.iter().any(|registered_agent| {
-                registered_agent.id == agent_id
-                    && registered_agent.status.state_application_status
-                        == AgentStateApplicationStatus::Stuck
-            })
+        .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+            agents
+                .iter()
+                .any(|AgentControllerSnapshot { id, status, .. }| {
+                    *id == agent_id
+                        && status.state_application_status == AgentStateApplicationStatus::Stuck
+                })
         })
         .await
         .expect("the agent must report that its pipeline is stuck after retrying");

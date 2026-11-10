@@ -13,6 +13,9 @@ pub struct ChatCompletionRequestedToolCall {
 }
 
 impl ChatCompletionRequestedToolCall {
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`] when the arguments of the function are not a JSON object.
     pub fn into_conversation_tool_call(
         self,
     ) -> Result<ConversationToolCall, OpenAITranslationError> {

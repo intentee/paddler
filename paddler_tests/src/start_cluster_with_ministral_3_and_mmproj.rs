@@ -9,6 +9,9 @@ use paddler_test_cluster_harness::model_card::ministral_3_8b_reasoning_mmproj::m
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Ministral 3 with its multimodal projection cannot start.
 pub async fn start_cluster_with_ministral_3_and_mmproj(
     agents: Vec<AgentConfig>,
 ) -> Result<Cluster> {

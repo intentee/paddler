@@ -23,7 +23,9 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
     let mut stored_desired_state =
         to_value(BalancerDesiredState::default()).expect("the value must serialize");
 
-    stored_desired_state["text_generation"]["multimodal"]["image_resize_to_fit"] = json!(0);
+    *stored_desired_state
+        .pointer_mut("/text_generation/multimodal/image_resize_to_fit")
+        .expect("the stored desired state must hold the image resize parameter") = json!(0);
 
     write(
         &database.path,

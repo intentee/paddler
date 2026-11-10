@@ -4,8 +4,7 @@ use llama_cpp_bindings::gguf_context_error::GgufContextError;
 
 use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_pointer_head::pointer_head_error::PointerHeadError;
-
-use crate::fixture_path::fixture_path;
+use paddler_test_cluster_harness::fixture_path::fixture_path;
 
 #[test]
 fn an_unreadable_pointer_head_file_is_refused() {

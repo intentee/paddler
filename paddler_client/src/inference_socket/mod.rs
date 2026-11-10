@@ -8,7 +8,5 @@ pub mod open_inference_socket_exchange;
 pub mod outbound_frames;
 pub mod outbound_request;
 pub mod pool;
-pub mod response_stream;
-pub mod spawn_read_task;
-pub mod spawn_write_task;
+pub mod round_robin_connection_slots;
 pub mod url;

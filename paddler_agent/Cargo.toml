@@ -1,6 +1,5 @@
 [package]
 name = "paddler_agent"
-autotests = false
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -8,10 +7,6 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
-
-[[test]]
-name = "integration"
-path = "tests/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -50,7 +45,6 @@ nix = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 
-paddler_blocking_thread_fixture = { workspace = true }
 paddler_cache_dir = { workspace = true }
 paddler_download_manager = { workspace = true }
 paddler_local_http_fixture = { workspace = true }

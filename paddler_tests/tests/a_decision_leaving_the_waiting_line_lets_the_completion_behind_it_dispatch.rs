@@ -8,17 +8,17 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
-
-use crate::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
+use paddler_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_leaving_the_waiting_line_lets_the_completion_behind_it_dispatch() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams::default())
+    let mut cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("a decision cluster must start");
-    let slot_held_by_an_unending_generation =
-        SlotHeldByAnUnendingGeneration::hold(&mut cluster).await;
+    let slot_held_by_an_unending_generation = SlotHeldByAnUnendingGeneration::hold(&mut cluster)
+        .await
+        .expect("the unending generation must hold a slot");
     let waiting_decision = cluster
         .client_inference
         .post_decide(CancellationToken::new(), &sample_decision())
@@ -58,7 +58,10 @@ async fn a_decision_leaving_the_waiting_line_lets_the_completion_behind_it_dispa
         1
     );
 
-    slot_held_by_an_unending_generation.release().await;
+    slot_held_by_an_unending_generation
+        .release()
+        .await
+        .expect("the unending generation must release its slot");
     cluster
         .shutdown()
         .await

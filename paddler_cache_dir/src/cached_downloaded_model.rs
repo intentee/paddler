@@ -21,6 +21,9 @@ pub struct CachedDownloadedModel {
 }
 
 impl CachedDownloadedModel {
+    /// # Errors
+    ///
+    /// Returns [`CacheDirError::HomeVariableUnset`] when the cache directory cannot be resolved because `HOME` is unset.
     pub fn new(cache_dir: &CacheDir, url_string: &str) -> Result<Self, CacheDirError> {
         cache_dir.resolve().map(|cache_root| {
             let basename = sha256_lowercase_hex(url_string.as_bytes());
@@ -34,14 +37,23 @@ impl CachedDownloadedModel {
         })
     }
 
-    pub async fn is_cached(&self) -> Result<bool, Error> {
-        try_exists(&self.cache_file_path).await
-    }
-
+    /// # Errors
+    ///
+    /// Returns an I/O error when the downloaded models subdirectory, or one of its parents, cannot be created.
     pub async fn ensure_cache_subdir_exists(&self) -> Result<(), Error> {
         create_dir_all(&self.cache_subdir).await
     }
 
+    /// # Errors
+    ///
+    /// Returns an I/O error when the existence of the cached model file cannot be checked, for example because a parent directory is not readable.
+    pub async fn is_cached(&self) -> Result<bool, Error> {
+        try_exists(&self.cache_file_path).await
+    }
+
+    /// # Errors
+    ///
+    /// Returns an I/O error when the lock file cannot be opened, for example because the downloaded models subdirectory does not exist, or when locking it fails.
     pub fn try_acquire_download_lock(&self) -> Result<DownloadLockAcquisition, Error> {
         LockFile::open(&self.lock_file_path).and_then(|mut lock_file| {
             lock_file.try_lock().map(|acquired| {
@@ -60,7 +72,6 @@ mod tests {
     use std::ffi::OsStr;
     use std::io::ErrorKind;
     use std::mem::discriminant;
-    use std::path::Path;
 
     use fslock::LockFile;
     use tempfile::TempDir;
@@ -71,18 +82,10 @@ mod tests {
     use crate::cached_downloaded_model::CachedDownloadedModel;
     use crate::download_lock_acquisition::DownloadLockAcquisition;
 
-    fn cache_dir_at(path: &Path) -> CacheDir {
-        CacheDir {
-            explicit: Some(path.to_path_buf()),
-            home: None,
-            xdg: None,
-        }
-    }
-
     #[test]
     fn cache_file_basename_is_the_sha256_hex_of_a_traversal_url() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://example.com/../../etc/passwd?token=secret";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
 
@@ -106,7 +109,7 @@ mod tests {
 
         for url_string in traversal_urls {
             let directory = TempDir::new().unwrap();
-            let cache_dir = cache_dir_at(directory.path());
+            let cache_dir = CacheDir::from_explicit_path(directory.path());
             let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
             let expected_parent = directory.path().join("downloaded-models");
 
@@ -121,7 +124,7 @@ mod tests {
     #[test]
     fn cache_file_path_is_sha256_hex_under_downloaded_models() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/folder/model.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
 
@@ -136,7 +139,7 @@ mod tests {
     #[test]
     fn lock_file_path_is_hex_dot_lock_next_to_cache_file() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let url_string = "https://host.example/model.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
 
@@ -155,7 +158,7 @@ mod tests {
     #[tokio::test]
     async fn is_cached_returns_false_when_cache_file_absent() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let cached =
             CachedDownloadedModel::new(&cache_dir, "https://host.example/missing.gguf").unwrap();
 
@@ -165,7 +168,7 @@ mod tests {
     #[tokio::test]
     async fn is_cached_returns_true_when_cache_file_present() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let cached =
             CachedDownloadedModel::new(&cache_dir, "https://host.example/present.gguf").unwrap();
 
@@ -178,7 +181,7 @@ mod tests {
     #[tokio::test]
     async fn try_acquire_download_lock_succeeds_when_uncontested() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let cached =
             CachedDownloadedModel::new(&cache_dir, "https://host.example/model.gguf").unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
@@ -192,7 +195,7 @@ mod tests {
     #[tokio::test]
     async fn try_acquire_download_lock_returns_another_process_when_locked() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let cached =
             CachedDownloadedModel::new(&cache_dir, "https://host.example/model.gguf").unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
@@ -228,7 +231,7 @@ mod tests {
     #[tokio::test]
     async fn try_acquire_download_lock_returns_io_when_cache_subdir_missing() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let cached =
             CachedDownloadedModel::new(&cache_dir, "https://host.example/model.gguf").unwrap();
 
@@ -243,7 +246,7 @@ mod tests {
     #[tokio::test]
     async fn lock_releases_on_drop_so_subsequent_acquire_succeeds() {
         let directory = TempDir::new().unwrap();
-        let cache_dir = cache_dir_at(directory.path());
+        let cache_dir = CacheDir::from_explicit_path(directory.path());
         let cached =
             CachedDownloadedModel::new(&cache_dir, "https://host.example/model.gguf").unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();

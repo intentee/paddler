@@ -10,6 +10,7 @@ use paddler_messaging::embedding_vector::EmbeddingVector;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 const RMS_NORMALIZATION: EmbeddingNormalizationMethod =
@@ -42,7 +43,7 @@ async fn agent_returns_rms_normalized_embeddings_when_requested() {
         .expect("the unnormalized embedding batch must be accepted")
         .embeddings
         .into_iter()
-        .map(|produced| produced.embedding)
+        .map(|EmbeddingWithProducer { embedding, .. }| embedding)
         .next()
         .expect("the document must be embedded without normalization");
     let rms_normalized = embedding_of(RMS_NORMALIZATION)
@@ -54,15 +55,12 @@ async fn agent_returns_rms_normalized_embeddings_when_requested() {
         rms_normalized
             .embeddings
             .into_iter()
-            .map(|produced| produced.embedding)
+            .map(|EmbeddingWithProducer { embedding, .. }| embedding)
             .collect::<Vec<_>>(),
         vec![Embedding {
-            embedding: EmbeddingVector::from(
-                normalize_embedding(
-                    unnormalized_embedding.embedding.to_vec(),
-                    &RMS_NORMALIZATION
-                )
-                .expect("an embedding of the served model must fit RMS normalization")
+            vector: EmbeddingVector::from(
+                normalize_embedding(unnormalized_embedding.vector.to_vec(), &RMS_NORMALIZATION)
+                    .expect("an embedding of the served model must fit RMS normalization")
             ),
             normalization_method: RMS_NORMALIZATION,
             ..unnormalized_embedding

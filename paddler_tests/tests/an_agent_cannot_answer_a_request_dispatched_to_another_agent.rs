@@ -3,14 +3,15 @@ use std::collections::BTreeMap;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_messaging::model_metadata::ModelMetadata;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const ANSWERING_AGENT_ID: &str = "answering";
 const INJECTING_AGENT_ID: &str = "injecting";
@@ -79,13 +80,18 @@ async fn an_agent_cannot_answer_a_request_dispatched_to_another_agent() {
         .expect("the status report following the injection must be sent");
     cluster
         .agents_watcher
-        .until_agent(INJECTING_AGENT_ID, |snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.id == INJECTING_AGENT_ID
-                    && agent.status.desired_slots_total
-                        == INJECTING_AGENT_DESIRED_SLOTS_AFTER_INJECTION
-            })
-        })
+        .until_agent(
+            INJECTING_AGENT_ID,
+            |AgentControllerPoolSnapshot { agents }| {
+                agents
+                    .iter()
+                    .any(|AgentControllerSnapshot { id, status, .. }| {
+                        id == INJECTING_AGENT_ID
+                            && status.desired_slots_total
+                                == INJECTING_AGENT_DESIRED_SLOTS_AFTER_INJECTION
+                    })
+            },
+        )
         .await
         .expect("the balancer must handle everything the injecting agent sent");
     answering_agent

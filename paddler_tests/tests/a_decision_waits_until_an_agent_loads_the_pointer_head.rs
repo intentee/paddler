@@ -15,13 +15,13 @@ use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const MISSING_POINTER_HEAD_PATH: &str = "/nonexistent/pointer_head.gguf";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_waits_until_an_agent_loads_the_pointer_head() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams::default())
+    let mut cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("a decision cluster must start");
 

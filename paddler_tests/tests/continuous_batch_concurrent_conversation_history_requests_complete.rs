@@ -10,6 +10,7 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 fn user_message(text: &str) -> ConversationMessage {
@@ -54,12 +55,12 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() {
     let tokens_a = collected_a
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
     let tokens_b = collected_b
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(tokens_a > 0);

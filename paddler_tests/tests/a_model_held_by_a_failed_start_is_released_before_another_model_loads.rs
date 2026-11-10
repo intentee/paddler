@@ -11,13 +11,13 @@ use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconcil
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_model_held_by_a_failed_start_is_released_before_another_model_loads() {
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
 
     assert_eq!(
         discriminant(

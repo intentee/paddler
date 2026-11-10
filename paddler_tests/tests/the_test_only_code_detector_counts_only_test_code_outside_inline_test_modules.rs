@@ -1,7 +1,7 @@
 use syn::parse_file;
 use syn::visit::Visit as _;
 
-use crate::test_only_attribute_counter::TestOnlyAttributeCounter;
+use paddler_tests::test_only_attribute_counter::TestOnlyAttributeCounter;
 
 #[test]
 fn the_test_only_code_detector_counts_only_test_code_outside_inline_test_modules() {
@@ -26,5 +26,5 @@ fn the_test_only_code_detector_counts_only_test_code_outside_inline_test_modules
         .expect("the probe source must parse"),
     );
 
-    assert_eq!(test_only_attribute_counter.test_only_attributes, 1);
+    assert_eq!(test_only_attribute_counter.test_only_attributes.len(), 1);
 }

@@ -2,17 +2,17 @@
 
 use std::num::NonZeroU32;
 
+use paddler_cli_tests::generation_preparation_without_memory_for_the_penalty_window::GenerationPreparationWithoutMemoryForThePenaltyWindow;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_tests::conversation_generation::ConversationGeneration;
 
-use crate::generation_preparation_without_memory_for_the_penalty_window::GenerationPreparationWithoutMemoryForThePenaltyWindow;
-
 #[test]
 fn a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_conversation_preparation() {
-    let preparation = GenerationPreparationWithoutMemoryForThePenaltyWindow::load();
+    let preparation = GenerationPreparationWithoutMemoryForThePenaltyWindow::load()
+        .expect("the generation preparation must load");
     let ConversationGeneration { agent_request, .. } = ConversationGeneration::new(
         ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
@@ -33,7 +33,8 @@ fn a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_conversatio
             .clone(),
     );
 
-    GenerationPreparationWithoutMemoryForThePenaltyWindow::refuse_the_penalty_window_allocation();
+    GenerationPreparationWithoutMemoryForThePenaltyWindow::refuse_the_penalty_window_allocation()
+        .expect("the penalty window allocation must be refused");
 
     assert_eq!(
         preparation

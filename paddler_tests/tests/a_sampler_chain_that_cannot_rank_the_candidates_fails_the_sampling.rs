@@ -8,8 +8,7 @@ use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
-
-use crate::sampling_with_a_smaller_vocabulary_grammar::SamplingWithASmallerVocabularyGrammar;
+use paddler_tests::sampling_with_a_smaller_vocabulary_grammar::SamplingWithASmallerVocabularyGrammar;
 
 #[test]
 fn a_sampler_chain_that_cannot_rank_the_candidates_fails_the_sampling() {
@@ -17,7 +16,8 @@ fn a_sampler_chain_that_cannot_rank_the_candidates_fails_the_sampling() {
         &nomic_embed_text_v1_5()
             .cached_path()
             .expect("the nomic embedding model must be in the Hugging Face cache"),
-    );
+    )
+    .expect("the models must load");
 
     assert_eq!(
         sampling

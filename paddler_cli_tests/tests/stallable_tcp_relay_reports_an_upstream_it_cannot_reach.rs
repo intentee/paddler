@@ -7,8 +7,8 @@ use tokio::io::AsyncReadExt as _;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 
+use paddler_cli_tests::constants::UNREACHABLE_MANAGEMENT_ADDR;
 use paddler_cli_tests::stallable_tcp_relay::StallableTcpRelay;
-use paddler_cli_tests::unreachable_management_addr::UNREACHABLE_MANAGEMENT_ADDR;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn stallable_tcp_relay_reports_an_upstream_it_cannot_reach() {

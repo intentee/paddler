@@ -14,12 +14,15 @@ use crate::cluster_harness_error::ClusterHarnessError;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::embedding_with_producer::EmbeddingWithProducer;
 
+/// # Errors
+///
+/// Returns [`ClusterHarnessError::EmbeddingStreamFailed`] when the stream yields an error, and [`ClusterHarnessError::EmbeddingStreamMessageUnexpected`] when it carries a response that is not an embedding result.
 pub async fn collect_embedding_results(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedEmbeddingResults> {
     let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
     let mut failures: Vec<EmbeddingResult> = Vec::new();
-    let mut no_embeddings_produced_count: usize = 0;
+    let mut no_embeddings_produced_by = Vec::new();
     let mut documents_exceeding_sequence_context = Vec::new();
     let mut documents_tokenized_to_nothing = Vec::new();
     let mut oversized_documents = Vec::new();
@@ -68,7 +71,7 @@ pub async fn collect_embedding_results(
                         failures.push(failure);
                     }
                     EmbeddingResult::NoEmbeddingsProduced => {
-                        no_embeddings_produced_count += 1;
+                        no_embeddings_produced_by.push(generated_by);
                     }
                 }
             }
@@ -90,7 +93,7 @@ pub async fn collect_embedding_results(
         documents_tokenized_to_nothing,
         embeddings,
         failures,
-        no_embeddings_produced_count,
+        no_embeddings_produced_by,
         oversized_documents,
         request_ids,
         saw_done,

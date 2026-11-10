@@ -26,6 +26,55 @@ pub struct DecisionRequestPreparer {
 }
 
 impl DecisionRequestPreparer {
+    fn prepare(
+        &self,
+        AgentRequest {
+            params,
+            response_tx: decision_result_tx,
+            slot_guard,
+            stop_rx: decision_stop_rx,
+        }: AgentRequest<DecideParams, DecisionResult>,
+    ) -> Result<PreparedDecisionRequest, DecisionError> {
+        let started_at = Instant::now();
+        let reserved_context_size =
+            u32::from(slot_guard.slots().get()).checked_mul(self.cells_per_slot);
+        let DecideParams {
+            last_question,
+            leading_questions,
+            state,
+        } = params;
+        let mut tokens_by_text = HashMap::new();
+        let layout = DecisionTokenLayout::new(
+            &self.delimiter_tokens,
+            self.text_tokenizer.tokenize(&state)?,
+            leading_questions
+                .into_iter()
+                .map(|question| self.tokenize_question(&mut tokens_by_text, question))
+                .collect::<Result<Vec<_>, _>>()?,
+            self.tokenize_question(&mut tokens_by_text, last_question)?,
+        );
+        let required_tokens = layout.required_cells();
+
+        if let Some(context_size) = reserved_context_size
+            && required_tokens > context_size as usize
+        {
+            return Err(DecisionError::RequestExceedsContext {
+                details: OversizedDecisionDetails {
+                    context_size,
+                    required_tokens,
+                },
+            });
+        }
+
+        Ok(PreparedDecisionRequest {
+            decision_result_tx,
+            decision_stop_rx,
+            layout,
+            slot_guard,
+            started_at,
+        })
+    }
+
     fn tokenize_once(
         &self,
         tokens_by_text: &mut HashMap<String, Vec<LlamaToken>>,
@@ -57,52 +106,6 @@ impl DecisionRequestPreparer {
                 .into_iter()
                 .map(|option| self.tokenize_once(tokens_by_text, option))
                 .collect::<Result<Vec<_>, _>>()?,
-        })
-    }
-
-    fn prepare(
-        &self,
-        AgentRequest {
-            params,
-            response_tx: decision_result_tx,
-            slot_guard,
-            stop_rx: decision_stop_rx,
-        }: AgentRequest<DecideParams, DecisionResult>,
-    ) -> Result<PreparedDecisionRequest, DecisionError> {
-        let started_at = Instant::now();
-        let context_size = u32::from(slot_guard.slots().get()) * self.cells_per_slot;
-        let DecideParams {
-            last_question,
-            leading_questions,
-            state,
-        } = params;
-        let mut tokens_by_text = HashMap::new();
-        let layout = DecisionTokenLayout::new(
-            &self.delimiter_tokens,
-            self.text_tokenizer.tokenize(&state)?,
-            leading_questions
-                .into_iter()
-                .map(|question| self.tokenize_question(&mut tokens_by_text, question))
-                .collect::<Result<Vec<_>, _>>()?,
-            self.tokenize_question(&mut tokens_by_text, last_question)?,
-        );
-        let required_tokens = layout.required_cells();
-
-        if required_tokens > context_size as usize {
-            return Err(DecisionError::RequestExceedsContext {
-                details: OversizedDecisionDetails {
-                    context_size,
-                    required_tokens,
-                },
-            });
-        }
-
-        Ok(PreparedDecisionRequest {
-            decision_result_tx,
-            decision_stop_rx,
-            layout,
-            slot_guard,
-            started_at,
         })
     }
 }

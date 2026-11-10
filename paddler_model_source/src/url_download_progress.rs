@@ -26,8 +26,9 @@ impl UrlDownloadProgress {
                         self.model_path.clone(),
                     ));
             }
-            DownloadProgress::ChunkWritten { byte_count } => {
-                self.slot_aggregated_status.add_downloaded_bytes(byte_count);
+            DownloadProgress::ChunkWritten { downloaded_bytes } => {
+                self.slot_aggregated_status
+                    .set_downloaded_bytes(downloaded_bytes);
             }
             DownloadProgress::Finished => {
                 self.slot_aggregated_status
@@ -132,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn written_chunks_accumulate_the_downloaded_bytes() {
+    fn written_chunks_report_the_downloaded_bytes() {
         let status = Arc::new(SlotAggregatedStatus::new(1));
         let download_progress = url_download_progress(&status);
 
@@ -140,8 +141,12 @@ mod tests {
             already_downloaded_bytes: 0,
             total_bytes: Some(1000),
         });
-        download_progress.apply(DownloadProgress::ChunkWritten { byte_count: 250 });
-        download_progress.apply(DownloadProgress::ChunkWritten { byte_count: 125 });
+        download_progress.apply(DownloadProgress::ChunkWritten {
+            downloaded_bytes: 250,
+        });
+        download_progress.apply(DownloadProgress::ChunkWritten {
+            downloaded_bytes: 375,
+        });
 
         assert_eq!(
             status.make_snapshot().status.download_status,

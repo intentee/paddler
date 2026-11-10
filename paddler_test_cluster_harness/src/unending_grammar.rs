@@ -1,6 +1,6 @@
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 
-pub const UNENDING_GENERATION_CYCLE: &str = "apple banana cherry ";
+use crate::constants::UNENDING_GENERATION_CYCLE;
 
 #[must_use]
 pub fn unending_grammar() -> GrammarConstraint {

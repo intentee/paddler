@@ -9,8 +9,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_down() {
@@ -21,7 +20,8 @@ async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_d
             .into_balancer_desired_state()
             .expect("the kev desired state must name absolute paths")
     };
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
     let AgentVramResidencies {
         decisions_context,
         embeddings_context,

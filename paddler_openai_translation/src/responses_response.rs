@@ -2,7 +2,6 @@ use serde::Serialize;
 use serde::Serializer;
 
 use crate::responses_output_item::ResponsesOutputItem;
-use crate::responses_response_header::ResponsesResponseHeader;
 use crate::responses_response_progress::ResponsesResponseProgress;
 use crate::responses_response_status::ResponsesResponseStatus;
 use crate::responses_usage::ResponsesUsage;
@@ -100,8 +99,13 @@ struct SerializedResponse<'response> {
 
 #[derive(Clone, Debug)]
 pub struct ResponsesResponse {
-    pub header: ResponsesResponseHeader,
+    pub created_at: u64,
+    pub id: String,
+    pub instructions: Option<String>,
+    pub model: String,
     pub progress: ResponsesResponseProgress,
+    pub temperature: f32,
+    pub top_p: f32,
 }
 
 impl Serialize for ResponsesResponse {
@@ -113,16 +117,13 @@ impl Serialize for ResponsesResponse {
         TSerializer: Serializer,
     {
         let Self {
-            header:
-                ResponsesResponseHeader {
-                    created_at,
-                    id,
-                    instructions,
-                    model,
-                    temperature,
-                    top_p,
-                },
+            created_at,
+            id,
+            instructions,
+            model,
             progress,
+            temperature,
+            top_p,
         } = self;
 
         SerializedResponse {

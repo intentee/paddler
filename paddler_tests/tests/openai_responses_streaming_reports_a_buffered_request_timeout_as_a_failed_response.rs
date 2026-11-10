@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -25,20 +25,22 @@ async fn openai_responses_streaming_reports_a_buffered_request_timeout_as_a_fail
     assert_eq!(
         events
             .iter()
-            .map(|event| event["type"].clone())
+            .map(|event| event.pointer("/type"))
             .collect::<Vec<_>>(),
         vec![
-            json!("response.created"),
-            json!("response.in_progress"),
-            json!("response.failed")
+            Some(&json!("response.created")),
+            Some(&json!("response.in_progress")),
+            Some(&json!("response.failed"))
         ]
     );
     assert_eq!(
-        events[2]["response"]["error"],
-        json!({
+        events
+            .get(2)
+            .and_then(|failed_event| failed_event.pointer("/response/error")),
+        Some(&json!({
             "code": "server_error",
             "message": "Waiting for available slot timed out"
-        })
+        }))
     );
 
     cluster

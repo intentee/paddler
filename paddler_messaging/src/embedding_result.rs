@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn every_per_document_result_keeps_the_stream_open() {
         let embedding = Embedding {
-            embedding: EmbeddingVector::from(vec![1.0]),
+            vector: EmbeddingVector::from(vec![1.0]),
             normalization_method: EmbeddingNormalizationMethod::None,
             pooling_type: PoolingType::Mean,
             source_document_id: "doc".to_owned(),

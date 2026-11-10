@@ -1,0 +1,29 @@
+[package]
+name = "paddler_agent_runtime_tests"
+autotests = false
+authors.workspace = true
+description = "Integration tests for the Paddler agent runtime"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]
+paddler_agent_runtime = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-bindings = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_tests = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

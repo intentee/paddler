@@ -64,14 +64,11 @@ impl GeneratedTokenResult {
     }
 
     #[must_use]
-    pub fn token_text(&self) -> Option<&str> {
-        match self {
-            Self::ContentToken(text)
-            | Self::ReasoningToken(text)
-            | Self::ToolCallToken(text)
-            | Self::UndeterminableToken(text) => Some(text),
-            _ => None,
-        }
+    pub const fn is_tool_call_failure(&self) -> bool {
+        matches!(
+            self,
+            Self::ToolCallParseFailed(_) | Self::ToolCallValidationFailed(_)
+        )
     }
 
     #[must_use]
@@ -80,11 +77,14 @@ impl GeneratedTokenResult {
     }
 
     #[must_use]
-    pub const fn is_tool_call_failure(&self) -> bool {
-        matches!(
-            self,
-            Self::ToolCallParseFailed(_) | Self::ToolCallValidationFailed(_)
-        )
+    pub fn token_text(&self) -> Option<&str> {
+        match self {
+            Self::ContentToken(text)
+            | Self::ReasoningToken(text)
+            | Self::ToolCallToken(text)
+            | Self::UndeterminableToken(text) => Some(text),
+            _ => None,
+        }
     }
 }
 
@@ -195,109 +195,99 @@ impl StreamableResult for GeneratedTokenResult {
 
     fn into_step(self) -> ResultStep<GeneratedTokenPartialResult, GeneratedTokenFinalResult> {
         match self {
+            Self::AnswerClassificationFailed(detail) => {
+                GeneratedTokenFinalResult::AnswerClassificationFailed(detail).into()
+            }
             Self::BatchAssemblyFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::BatchAssemblyFailed(detail))
+                GeneratedTokenFinalResult::BatchAssemblyFailed(detail).into()
             }
             Self::ChatTemplateError(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::ChatTemplateError(detail))
+                GeneratedTokenFinalResult::ChatTemplateError(detail).into()
             }
-            Self::ContentToken(text) => {
-                ResultStep::Partial(GeneratedTokenPartialResult::ContentToken(text))
-            }
-            Self::DecodeFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::DecodeFailed(detail))
-            }
+            Self::ContentToken(text) => GeneratedTokenPartialResult::ContentToken(text).into(),
+            Self::DecodeFailed(detail) => GeneratedTokenFinalResult::DecodeFailed(detail).into(),
             Self::DetokenizationFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::DetokenizationFailed(detail))
+                GeneratedTokenFinalResult::DetokenizationFailed(detail).into()
             }
-            Self::AnswerClassificationFailed(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::AnswerClassificationFailed(detail),
-            ),
-            Self::Done(summary) => ResultStep::Final(GeneratedTokenFinalResult::Done(summary)),
-            Self::GrammarIncompatibleWithThinking(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::GrammarIncompatibleWithThinking(detail),
-            ),
-            Self::GrammarInitializationFailed(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::GrammarInitializationFailed(detail),
-            ),
-            Self::GrammarRejectedModelOutput(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::GrammarRejectedModelOutput(detail),
-            ),
+            Self::Done(summary) => GeneratedTokenFinalResult::Done(summary).into(),
+            Self::GrammarIncompatibleWithThinking(detail) => {
+                GeneratedTokenFinalResult::GrammarIncompatibleWithThinking(detail).into()
+            }
+            Self::GrammarInitializationFailed(detail) => {
+                GeneratedTokenFinalResult::GrammarInitializationFailed(detail).into()
+            }
+            Self::GrammarRejectedModelOutput(detail) => {
+                GeneratedTokenFinalResult::GrammarRejectedModelOutput(detail).into()
+            }
             Self::GrammarSyntaxError(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::GrammarSyntaxError(detail))
+                GeneratedTokenFinalResult::GrammarSyntaxError(detail).into()
             }
             Self::ImageDecodingFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::ImageDecodingFailed(detail))
+                GeneratedTokenFinalResult::ImageDecodingFailed(detail).into()
             }
             Self::KvCacheClearFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::KvCacheClearFailed(detail))
+                GeneratedTokenFinalResult::KvCacheClearFailed(detail).into()
             }
             Self::MediaExceedsMicroBatch(details) => {
-                ResultStep::Final(GeneratedTokenFinalResult::MediaExceedsMicroBatch(details))
+                GeneratedTokenFinalResult::MediaExceedsMicroBatch(details).into()
             }
-            Self::MediaMicroBatchCheckFailed(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::MediaMicroBatchCheckFailed(detail),
-            ),
+            Self::MediaMicroBatchCheckFailed(detail) => {
+                GeneratedTokenFinalResult::MediaMicroBatchCheckFailed(detail).into()
+            }
             Self::ModelNotLoaded(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::ModelNotLoaded(detail))
+                GeneratedTokenFinalResult::ModelNotLoaded(detail).into()
             }
             Self::MultimodalIngestionFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::MultimodalIngestionFailed(detail))
+                GeneratedTokenFinalResult::MultimodalIngestionFailed(detail).into()
             }
             Self::MultimodalNotSupported(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::MultimodalNotSupported(detail))
+                GeneratedTokenFinalResult::MultimodalNotSupported(detail).into()
             }
-            Self::MultimodalTokenizationFailed(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::MultimodalTokenizationFailed(detail),
-            ),
+            Self::MultimodalTokenizationFailed(detail) => {
+                GeneratedTokenFinalResult::MultimodalTokenizationFailed(detail).into()
+            }
             Self::NoSequenceSlotAvailable(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::NoSequenceSlotAvailable(detail))
+                GeneratedTokenFinalResult::NoSequenceSlotAvailable(detail).into()
             }
             Self::PromptExceedsContextSize(details) => {
-                ResultStep::Final(GeneratedTokenFinalResult::PromptExceedsContextSize(details))
+                GeneratedTokenFinalResult::PromptExceedsContextSize(details).into()
             }
             Self::PromptTokenizationFailed(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::PromptTokenizationFailed(detail))
+                GeneratedTokenFinalResult::PromptTokenizationFailed(detail).into()
             }
             Self::PromptTokenizedToNothing(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::PromptTokenizedToNothing(detail))
+                GeneratedTokenFinalResult::PromptTokenizedToNothing(detail).into()
             }
-            Self::ReasoningToken(text) => {
-                ResultStep::Partial(GeneratedTokenPartialResult::ReasoningToken(text))
+            Self::ReasoningToken(text) => GeneratedTokenPartialResult::ReasoningToken(text).into(),
+            Self::SamplerChainCreationFailed(detail) => {
+                GeneratedTokenFinalResult::SamplerChainCreationFailed(detail).into()
             }
-            Self::SamplerChainCreationFailed(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::SamplerChainCreationFailed(detail),
-            ),
-            Self::SamplerError(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::SamplerError(detail))
+            Self::SamplerError(detail) => GeneratedTokenFinalResult::SamplerError(detail).into(),
+            Self::SamplingCandidatesExhausted(detail) => {
+                GeneratedTokenFinalResult::SamplingCandidatesExhausted(detail).into()
             }
-            Self::SamplingCandidatesExhausted(detail) => ResultStep::Final(
-                GeneratedTokenFinalResult::SamplingCandidatesExhausted(detail),
-            ),
             Self::SchedulerUnavailable(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::SchedulerUnavailable(detail))
+                GeneratedTokenFinalResult::SchedulerUnavailable(detail).into()
             }
             Self::ToolCallParseFailed(detail) => {
-                ResultStep::Partial(GeneratedTokenPartialResult::ToolCallParseFailed(detail))
+                GeneratedTokenPartialResult::ToolCallParseFailed(detail).into()
             }
             Self::ToolCallParsed(parsed_calls) => {
-                ResultStep::Partial(GeneratedTokenPartialResult::ToolCallParsed(parsed_calls))
+                GeneratedTokenPartialResult::ToolCallParsed(parsed_calls).into()
             }
-            Self::ToolCallToken(text) => {
-                ResultStep::Partial(GeneratedTokenPartialResult::ToolCallToken(text))
+            Self::ToolCallToken(text) => GeneratedTokenPartialResult::ToolCallToken(text).into(),
+            Self::ToolCallValidationFailed(validation_errors) => {
+                GeneratedTokenPartialResult::ToolCallValidationFailed(validation_errors).into()
             }
-            Self::ToolCallValidationFailed(validation_errors) => ResultStep::Partial(
-                GeneratedTokenPartialResult::ToolCallValidationFailed(validation_errors),
-            ),
             Self::ToolSchemaInvalid(detail) => {
-                ResultStep::Final(GeneratedTokenFinalResult::ToolSchemaInvalid(detail))
+                GeneratedTokenFinalResult::ToolSchemaInvalid(detail).into()
             }
             Self::UndeterminableToken(text) => {
-                ResultStep::Partial(GeneratedTokenPartialResult::UndeterminableToken(text))
+                GeneratedTokenPartialResult::UndeterminableToken(text).into()
             }
-            Self::UnrecognizedToolCallFormat(raw_tokens) => ResultStep::Partial(
-                GeneratedTokenPartialResult::UnrecognizedToolCallFormat(raw_tokens),
-            ),
+            Self::UnrecognizedToolCallFormat(raw_tokens) => {
+                GeneratedTokenPartialResult::UnrecognizedToolCallFormat(raw_tokens).into()
+            }
         }
     }
 }
@@ -391,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn tool_call_parsed_is_not_done() {
+    fn tool_call_parsed_is_a_parsed_tool_call_that_keeps_the_stream_open() {
         let event = GeneratedTokenResult::ToolCallParsed(vec![]);
 
         assert!(keeps_the_stream_open(&event));
@@ -418,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn unrecognized_tool_call_format_is_not_done_and_not_classified_as_token() {
+    fn unrecognized_tool_call_format_keeps_the_stream_open_as_neither_token_nor_tool_call() {
         let event = GeneratedTokenResult::UnrecognizedToolCallFormat(RawToolCallTokens {
             text: "raw output".to_owned(),
             expected_format: "peg-native".to_owned(),

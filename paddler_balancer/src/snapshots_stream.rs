@@ -57,6 +57,7 @@ mod tests {
 
     use super::snapshots_stream;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::buffered_request_count_guard::BufferedRequestCountGuard;
     use crate::buffered_request_manager::BufferedRequestManager;
 
     fn buffered_request_manager() -> Arc<BufferedRequestManager> {
@@ -82,9 +83,9 @@ mod tests {
             })
         );
 
-        let _buffered_request = buffered_request_manager
-            .buffered_request_counter
-            .try_admit();
+        let _buffered_request = BufferedRequestCountGuard::try_admit(
+            &buffered_request_manager.buffered_request_counter,
+        );
 
         assert_eq!(
             stream.next().await,

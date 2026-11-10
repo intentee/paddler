@@ -11,9 +11,10 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::constants::WEATHER_TOOL_QUESTION;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() {
@@ -45,10 +46,12 @@ async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() {
     let parsed_events: Vec<&Vec<GeneratedToolCall>> = collected
         .token_results
         .iter()
-        .filter_map(|event| match &event.token_result {
-            GeneratedTokenResult::ToolCallParsed(parsed) => Some(parsed),
-            _ => None,
-        })
+        .filter_map(
+            |TokenResultWithProducer { token_result, .. }| match token_result {
+                GeneratedTokenResult::ToolCallParsed(parsed) => Some(parsed),
+                _ => None,
+            },
+        )
         .collect();
 
     assert!(

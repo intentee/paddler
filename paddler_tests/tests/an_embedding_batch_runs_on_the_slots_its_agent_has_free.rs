@@ -12,9 +12,8 @@ use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::numbered_embedding_documents::numbered_embedding_documents;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
+use paddler_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
 
 const SLOT_COUNT: u16 = 2;
 
@@ -34,8 +33,9 @@ async fn an_embedding_batch_runs_on_the_slots_its_agent_has_free() {
     })
     .await
     .expect("the cluster must start");
-    let slot_held_by_an_unending_generation =
-        SlotHeldByAnUnendingGeneration::hold(&mut cluster).await;
+    let slot_held_by_an_unending_generation = SlotHeldByAnUnendingGeneration::hold(&mut cluster)
+        .await
+        .expect("the unending generation must hold a slot");
     let embedded = cluster
         .generate_embedding_batch(
             CancellationToken::new(),
@@ -59,7 +59,10 @@ async fn an_embedding_batch_runs_on_the_slots_its_agent_has_free() {
         vec!["doc-0".to_owned(), "doc-1".to_owned()]
     );
 
-    slot_held_by_an_unending_generation.release().await;
+    slot_held_by_an_unending_generation
+        .release()
+        .await
+        .expect("the unending generation must release its slot");
 
     cluster
         .shutdown()

@@ -19,6 +19,18 @@ pub struct SubprocessSignals {
 }
 
 impl SubprocessSignals {
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the kill signal cannot be sent.
+    pub fn kill(&self) -> Result<(), SubprocessClusterError> {
+        self.kill_requested.store(true, Ordering::Release);
+
+        self.send(Signal::SIGKILL)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the stop signal cannot be sent, [`SubprocessClusterError::ProcessUnobservable`] when the subprocess state cannot be observed, and [`SubprocessClusterError::ProcessDidNotStop`] when the subprocess does not stop.
     pub fn pause(&self) -> Result<(), SubprocessClusterError> {
         self.send(Signal::SIGSTOP)?;
 
@@ -35,16 +47,16 @@ impl SubprocessSignals {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the continue signal cannot be sent.
     pub fn resume(&self) -> Result<(), SubprocessClusterError> {
         self.send(Signal::SIGCONT)
     }
 
-    pub fn kill(&self) -> Result<(), SubprocessClusterError> {
-        self.kill_requested.store(true, Ordering::Release);
-
-        self.send(Signal::SIGKILL)
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the termination signal cannot be sent to a subprocess that still exists.
     pub fn terminate(&self) -> Result<(), SubprocessClusterError> {
         match self.send(Signal::SIGTERM) {
             Ok(())

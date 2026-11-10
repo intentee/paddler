@@ -9,9 +9,8 @@ use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
 
 use paddler_cli::run;
-
-use crate::refused_syscall::RefusedSyscall;
-use crate::refused_syscalls::RefusedSyscalls;
+use paddler_cli_tests::refused_syscall::RefusedSyscall;
+use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 
 #[test]
 fn the_cli_reports_a_shutdown_signal_it_cannot_listen_for() {
@@ -33,7 +32,8 @@ fn the_cli_reports_a_shutdown_signal_it_cannot_listen_for() {
             ],
         }],
     }
-    .apply_to_every_thread();
+    .apply_to_every_thread()
+    .expect("the refusing filter must apply to every thread of the test process");
 
     let cli_error = run().expect_err("a CLI that cannot listen for SIGTERM must not start");
 

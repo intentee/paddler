@@ -1,20 +1,27 @@
 use std::fs;
 use std::path::Path;
+use std::process::Output;
+use std::process::Stdio;
 
 use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
 use tempfile::TempDir;
 use tempfile::tempdir;
+use tokio::process::Command;
 use url::Url;
 
+use crate::opencode_run_outcome::OpenCodeRunOutcome;
 use crate::opencode_test_error::OpenCodeTestError;
 
 const MODEL_ID: &str = "paddler-opencode-test";
 const MARKER_FILE_NAME: &str = "marker.txt";
 const CONFIG_FILE_NAME: &str = "opencode.json";
+const PROVIDER_ID: &str = "paddler";
+const UNREACHABLE_API_BASE_URL: &str = "http://127.0.0.1:1/v1";
+const UNREACHABLE_API_MARKER_CONTENTS: &str = "marker";
 
-fn provider_config(api_base_url: &Url) -> Value {
+fn provider_config(api_base_url: &str) -> Value {
     let mut models = Map::new();
 
     models.insert(
@@ -24,14 +31,14 @@ fn provider_config(api_base_url: &Url) -> Value {
 
     json!({
         "$schema": "https://opencode.ai/config.json",
-        "model": format!("paddler/{MODEL_ID}"),
+        "model": OpenCodeTestProject::model_reference(),
         "providers": {
-            "paddler": {
+            PROVIDER_ID: {
                 "name": "Paddler",
                 "package": "@opencode/ai/providers/openai-compatible",
                 "settings": {
                     "apiKey": "paddler",
-                    "baseURL": api_base_url.as_str()
+                    "baseURL": api_base_url
                 },
                 "models": models
             }
@@ -46,7 +53,27 @@ pub struct OpenCodeTestProject {
 }
 
 impl OpenCodeTestProject {
+    /// # Errors
+    ///
+    /// Returns [`OpenCodeTestError::ProjectSetupFailed`] when the project or home directory cannot be created, or the configuration or marker file cannot be written.
     pub fn create(api_base_url: &Url, marker_contents: String) -> Result<Self, OpenCodeTestError> {
+        Self::create_for_api_base_url(api_base_url.as_str(), marker_contents)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenCodeTestError::ProjectSetupFailed`] when the project or home directory cannot be created, or the configuration or marker file cannot be written.
+    pub fn with_an_unreachable_api() -> Result<Self, OpenCodeTestError> {
+        Self::create_for_api_base_url(
+            UNREACHABLE_API_BASE_URL,
+            UNREACHABLE_API_MARKER_CONTENTS.to_owned(),
+        )
+    }
+
+    fn create_for_api_base_url(
+        api_base_url: &str,
+        marker_contents: String,
+    ) -> Result<Self, OpenCodeTestError> {
         tempdir()
             .and_then(|directory| {
                 fs::write(
@@ -77,18 +104,72 @@ impl OpenCodeTestProject {
     }
 
     #[must_use]
-    pub const fn marker_file_name(&self) -> &str {
-        MARKER_FILE_NAME
-    }
-
-    #[must_use]
     pub fn marker_contents(&self) -> &str {
         &self.marker_contents
     }
 
     #[must_use]
-    pub fn model_reference(&self) -> String {
-        format!("paddler/{MODEL_ID}")
+    pub const fn marker_file_name() -> &'static str {
+        MARKER_FILE_NAME
+    }
+
+    #[must_use]
+    pub fn model_reference() -> String {
+        format!("{PROVIDER_ID}/{MODEL_ID}")
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenCodeTestError::SpawnFailed`] when the binary cannot be spawned, and [`OpenCodeTestError::ProcessWaitFailed`] when its output cannot be collected after it finishes.
+    pub async fn run_opencode(
+        &self,
+        binary_path: &Path,
+        prompt: &str,
+    ) -> Result<OpenCodeRunOutcome, OpenCodeTestError> {
+        let mut command = Command::new(binary_path);
+        let home = self.home_path();
+
+        command
+            .arg("run")
+            .arg(prompt)
+            .arg("--standalone")
+            .arg("--auto")
+            .arg("--model")
+            .arg(Self::model_reference())
+            .current_dir(self.directory_path())
+            .env("PWD", self.directory_path())
+            .env("HOME", home)
+            .env("XDG_CACHE_HOME", home.join(".cache"))
+            .env("XDG_CONFIG_HOME", home.join(".config"))
+            .env("XDG_DATA_HOME", home.join(".local").join("share"))
+            .env("XDG_STATE_HOME", home.join(".local").join("state"))
+            .kill_on_drop(true)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let child = command
+            .spawn()
+            .map_err(|source| OpenCodeTestError::SpawnFailed {
+                path: binary_path.to_path_buf(),
+                source,
+            })?;
+
+        child
+            .wait_with_output()
+            .await
+            .map(
+                |Output {
+                     status,
+                     stderr,
+                     stdout,
+                 }| OpenCodeRunOutcome {
+                    exit_success: status.success(),
+                    stderr: String::from_utf8_lossy(&stderr).into_owned(),
+                    stdout: String::from_utf8_lossy(&stdout).into_owned(),
+                },
+            )
+            .map_err(OpenCodeTestError::ProcessWaitFailed)
     }
 }
 
@@ -144,18 +225,14 @@ mod tests {
     fn marker_file_is_written_with_its_contents() {
         let project = create_project();
 
-        let written =
-            fs::read_to_string(project.directory_path().join(project.marker_file_name())).unwrap();
+        let written = fs::read_to_string(
+            project
+                .directory_path()
+                .join(OpenCodeTestProject::marker_file_name()),
+        )
+        .unwrap();
 
         assert_eq!(written, "SECRET-MARKER");
         assert_eq!(project.marker_contents(), "SECRET-MARKER");
-    }
-
-    #[test]
-    fn model_reference_matches_the_config_model() {
-        assert_eq!(
-            create_project().model_reference(),
-            "paddler/paddler-opencode-test"
-        );
     }
 }

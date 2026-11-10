@@ -2,6 +2,7 @@ use std::future::Future;
 use std::num::NonZeroUsize;
 
 use anyhow::Context as _;
+use anyhow::Error;
 use anyhow::Result;
 use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
@@ -18,8 +19,9 @@ use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -29,6 +31,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use crate::agent_config::AgentConfig;
 use crate::agent_count_is::agent_count_is;
 use crate::agent_readiness::AgentReadiness;
+use crate::agent_serves_decisions::agent_serves_decisions;
 use crate::agent_slots_processing_is::agent_slots_processing_is;
 use crate::agent_spawner::AgentSpawner;
 use crate::buffered_request_count_is::buffered_request_count_is;
@@ -42,6 +45,7 @@ use crate::collected_decision_results::CollectedDecisionResults;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::concurrent_connection_budget::ConcurrentConnectionBudget;
+use crate::every_agent_serves_decisions::every_agent_serves_decisions;
 use crate::openai_api_client::OpenAIApiClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
@@ -64,6 +68,9 @@ pub struct Cluster {
 }
 
 impl Cluster {
+    /// # Errors
+    ///
+    /// Fails when the balancer does not become healthy, when it refuses the desired state, and when its agents or buffered requests stream cannot be opened, and returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when such a stream ends or fails before its first snapshot.
     pub async fn connect(
         cancellation_token: CancellationToken,
         balancer: RunningBalancer,
@@ -108,38 +115,22 @@ impl Cluster {
             )
     }
 
-    pub fn continue_from_raw_prompt(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &ContinueFromRawPromptParams,
-    ) -> impl Future<Output = Result<CollectedGeneratedTokens>> + Send + use<> {
-        let client_inference = self.client_inference.clone();
-        let params = params.clone();
-
-        self.connection_budget.hold_during(async move {
-            collect_generated_tokens(
-                client_inference
-                    .post_continue_from_raw_prompt(cancellation_token, &params)
-                    .await?,
-            )
-            .await
-        })
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::CompatOpenAIServiceNotServed`] when the balancer does not serve its `OpenAI` compatibility service, and [`ClusterHarnessError::CompatOpenAIBaseUrlInvalid`] when its base URL cannot be built.
+    pub fn compat_openai_health_client(&self) -> Result<ClientHealth, ClusterHarnessError> {
+        self.balancer
+            .compat_openai_base_url()
+            .map(ClientHealth::new)
     }
 
-    pub fn continue_from_raw_prompt_stream(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &ContinueFromRawPromptParams,
-    ) -> impl Future<Output = Result<InferenceMessageStream, ClusterHarnessError>> + Send + use<>
-    {
-        let client_inference = self.client_inference.clone();
-        let params = params.clone();
-
-        self.connection_budget.hold_while_streaming(async move {
-            client_inference
-                .post_continue_from_raw_prompt(cancellation_token, &params)
-                .await
-        })
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::CompatTypeSafeServiceNotServed`] when the balancer does not serve its `TypeSafe` compatibility service, and [`ClusterHarnessError::CompatTypeSafeBaseUrlInvalid`] when its base URL cannot be built.
+    pub fn compat_typesafe_health_client(&self) -> Result<ClientHealth, ClusterHarnessError> {
+        self.balancer
+            .compat_typesafe_base_url()
+            .map(ClientHealth::new)
     }
 
     pub fn continue_from_conversation_history(
@@ -172,6 +163,40 @@ impl Cluster {
         self.connection_budget.hold_while_streaming(async move {
             client_inference
                 .post_continue_from_conversation_history(cancellation_token, &params)
+                .await
+        })
+    }
+
+    pub fn continue_from_raw_prompt(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &ContinueFromRawPromptParams,
+    ) -> impl Future<Output = Result<CollectedGeneratedTokens>> + Send + use<> {
+        let client_inference = self.client_inference.clone();
+        let params = params.clone();
+
+        self.connection_budget.hold_during(async move {
+            collect_generated_tokens(
+                client_inference
+                    .post_continue_from_raw_prompt(cancellation_token, &params)
+                    .await?,
+            )
+            .await
+        })
+    }
+
+    pub fn continue_from_raw_prompt_stream(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &ContinueFromRawPromptParams,
+    ) -> impl Future<Output = Result<InferenceMessageStream, ClusterHarnessError>> + Send + use<>
+    {
+        let client_inference = self.client_inference.clone();
+        let params = params.clone();
+
+        self.connection_budget.hold_while_streaming(async move {
+            client_inference
+                .post_continue_from_raw_prompt(cancellation_token, &params)
                 .await
         })
     }
@@ -212,16 +237,21 @@ impl Cluster {
         })
     }
 
-    pub fn compat_openai_health_client(&self) -> Result<ClientHealth, ClusterHarnessError> {
-        self.balancer
-            .compat_openai_base_url()
-            .map(ClientHealth::new)
-    }
+    pub fn openai_chat_completion_non_streaming(
+        &self,
+        body: &Value,
+    ) -> impl Future<Output = Result<Value, ClusterHarnessError>> + Send + use<> {
+        let body = body.clone();
 
-    pub fn compat_typesafe_health_client(&self) -> Result<ClientHealth, ClusterHarnessError> {
-        self.balancer
-            .compat_typesafe_base_url()
-            .map(ClientHealth::new)
+        self.connection_budget
+            .hold_during(
+                ready(self.openai_api_client()).and_then(|openai_api_client| async move {
+                    openai_api_client
+                        .chat_completion_non_streaming(&body)
+                        .await
+                        .map_err(ClusterHarnessError::OpenAIRequestFailed)
+                }),
+            )
     }
 
     pub fn openai_chat_completion_streaming(
@@ -241,7 +271,7 @@ impl Cluster {
             )
     }
 
-    pub fn openai_chat_completion_non_streaming(
+    pub fn openai_responses_non_streaming(
         &self,
         body: &Value,
     ) -> impl Future<Output = Result<Value, ClusterHarnessError>> + Send + use<> {
@@ -251,7 +281,7 @@ impl Cluster {
             .hold_during(
                 ready(self.openai_api_client()).and_then(|openai_api_client| async move {
                     openai_api_client
-                        .chat_completion_non_streaming(&body)
+                        .responses_non_streaming(&body)
                         .await
                         .map_err(ClusterHarnessError::OpenAIRequestFailed)
                 }),
@@ -275,21 +305,87 @@ impl Cluster {
             )
     }
 
-    pub fn openai_responses_non_streaming(
-        &self,
-        body: &Value,
-    ) -> impl Future<Output = Result<Value, ClusterHarnessError>> + Send + use<> {
-        let body = body.clone();
+    /// # Errors
+    ///
+    /// Fails when an agent cannot be spawned, and returns [`ClusterHarnessError::AgentExitedBeforeReady`] when an agent exits before it is ready, [`ClusterHarnessError::AgentReportedIssues`] when it reports issues while its slots are awaited, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before it is ready.
+    pub async fn register_agents(
+        &mut self,
+        agents: &[AgentConfig],
+        wait_for_slots_ready: bool,
+    ) -> Result<()> {
+        for agent_config in agents {
+            let mut running_agent = RunningAgent::new(
+                agent_config.clone(),
+                self.agent_spawner.spawn(agent_config)?,
+            );
+            let ready_agent = running_agent
+                .wait_until_ready(
+                    &mut self.agents_watcher,
+                    AgentReadiness::of_registration(agent_config.slot_count, wait_for_slots_ready),
+                )
+                .await?;
 
-        self.connection_budget
-            .hold_during(
-                ready(self.openai_api_client()).and_then(|openai_api_client| async move {
-                    openai_api_client
-                        .responses_non_streaming(&body)
-                        .await
-                        .map_err(ClusterHarnessError::OpenAIRequestFailed)
-                }),
-            )
+            self.agent_ids.push(ready_agent.id);
+            self.agents.push(running_agent);
+        }
+
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Fails when the balancer desired state cannot be read or replaced, and returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before every agent stops serving decisions.
+    pub async fn remove_pointer_head(&mut self) -> Result<AgentControllerPoolSnapshot> {
+        let client_management = &self.client_management;
+        let agents_watcher = &mut self.agents_watcher;
+        let agent_ids = &self.agent_ids;
+
+        client_management
+            .get_balancer_desired_state(CancellationToken::new())
+            .err_into::<Error>()
+            .and_then(|desired_state| async move {
+                client_management
+                    .put_balancer_desired_state(
+                        CancellationToken::new(),
+                        &BalancerDesiredState {
+                            decision: DecisionSettings::default(),
+                            ..desired_state
+                        },
+                    )
+                    .err_into()
+                    .await
+            })
+            .and_then(|()| {
+                agents_watcher
+                    .until(every_agent_serves_decisions(
+                        agent_ids,
+                        AgentDecisionsServing::NotServed,
+                    ))
+                    .err_into()
+            })
+            .await
+    }
+
+    /// # Errors
+    ///
+    /// Fails when an agent or the balancer cannot be terminated, or ends with a failure.
+    pub async fn shutdown(self) -> Result<()> {
+        for agent in self.agents {
+            agent.shutdown().await?;
+        }
+
+        self.balancer.shutdown().await
+    }
+
+    /// # Errors
+    ///
+    /// Fails when the agent cannot be spawned.
+    pub fn spawn_additional_agent(&mut self, config: &AgentConfig) -> Result<()> {
+        let process = self.agent_spawner.spawn(config)?;
+
+        self.agents.push(RunningAgent::new(config.clone(), process));
+
+        Ok(())
     }
 
     pub fn typesafe_models(
@@ -325,6 +421,9 @@ impl Cluster {
             ))
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the pool holds the expected number of agents.
     pub async fn wait_for_agent_count(
         &mut self,
         expected_count: usize,
@@ -334,6 +433,66 @@ impl Cluster {
             .await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the buffered requests stream ends or fails before the balancer buffers the expected number of requests.
+    pub async fn wait_for_buffered_request_count(
+        &mut self,
+        expected_count: u64,
+    ) -> Result<BufferedRequestManagerSnapshot, ClusterHarnessError> {
+        self.buffered_requests_watcher
+            .until(buffered_request_count_is(expected_count))
+            .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentLeftThePool`] when the agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the agent uses its chat template override.
+    pub async fn wait_for_chat_template_override_in_use(
+        &mut self,
+        agent_id: &str,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
+        self.agents_watcher
+            .until_agent(agent_id, |AgentControllerPoolSnapshot { agents }| {
+                agents
+                    .iter()
+                    .any(|AgentControllerSnapshot { id, status, .. }| {
+                        id == agent_id && status.uses_chat_template_override
+                    })
+            })
+            .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, [`ClusterHarnessError::AgentLeftThePool`] when the first agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent reports a matching issue.
+    pub async fn wait_for_first_agent_issue<TIssueMatcher>(
+        &mut self,
+        issue_matcher: TIssueMatcher,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError>
+    where
+        TIssueMatcher: Fn(&AgentIssue) -> bool + Send + Sync,
+    {
+        self.wait_for_first_agent(|AgentControllerSnapshot { status, .. }| {
+            status.issues.iter().any(&issue_matcher)
+        })
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, [`ClusterHarnessError::AgentLeftThePool`] when the first agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent serves the decisions.
+    pub async fn wait_for_first_agent_to_serve(
+        &mut self,
+        decisions: AgentDecisionsServing,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
+        self.wait_for_first_agent(|agent| agent_serves_decisions(agent, decisions))
+            .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the agent processes the expected number of slots.
     pub async fn wait_for_slots_processing(
         &mut self,
         agent_id: &str,
@@ -347,119 +506,6 @@ impl Cluster {
             .await
     }
 
-    pub async fn wait_for_chat_template_override_in_use(
-        &mut self,
-        agent_id: &str,
-    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
-        self.agents_watcher
-            .until_agent(agent_id, |snapshot| {
-                snapshot.agents.iter().any(|registered_agent| {
-                    registered_agent.id == agent_id
-                        && registered_agent.status.uses_chat_template_override
-                })
-            })
-            .await
-    }
-
-    pub async fn wait_for_buffered_request_count(
-        &mut self,
-        expected_count: u64,
-    ) -> Result<BufferedRequestManagerSnapshot, ClusterHarnessError> {
-        self.buffered_requests_watcher
-            .until(buffered_request_count_is(expected_count))
-            .await
-    }
-
-    pub async fn wait_for_first_agent_issue<TIssueMatcher>(
-        &mut self,
-        issue_matcher: TIssueMatcher,
-    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError>
-    where
-        TIssueMatcher: Fn(&AgentIssue) -> bool,
-    {
-        self.wait_for_first_agent(|agent| agent.status.issues.iter().any(&issue_matcher))
-            .await
-    }
-
-    pub async fn wait_for_first_agent_to_serve(
-        &mut self,
-        decisions: AgentDecisionsServing,
-    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
-        self.wait_for_first_agent(|agent| {
-            matches!(
-                agent.status.runtime,
-                AgentRuntimeStatus::Serving {
-                    decisions: served_decisions,
-                    ..
-                } if served_decisions == decisions
-            )
-        })
-        .await
-    }
-
-    async fn wait_for_first_agent<TAgentMatcher>(
-        &mut self,
-        agent_matcher: TAgentMatcher,
-    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError>
-    where
-        TAgentMatcher: Fn(&AgentControllerSnapshot) -> bool,
-    {
-        let agent_id = self
-            .agent_ids
-            .first()
-            .ok_or(ClusterHarnessError::ClusterHasNoRegisteredAgent)?
-            .clone();
-
-        self.agents_watcher
-            .until_agent(&agent_id, |snapshot| {
-                snapshot
-                    .agents
-                    .iter()
-                    .any(|agent| agent.id == agent_id && agent_matcher(agent))
-            })
-            .await
-    }
-
-    pub async fn register_agents(
-        &mut self,
-        agents: &[AgentConfig],
-        wait_for_slots_ready: bool,
-    ) -> Result<()> {
-        for agent_config in agents {
-            let mut running_agent = RunningAgent::new(
-                agent_config.clone(),
-                self.agent_spawner.spawn(agent_config)?,
-            );
-            let ready_agent = running_agent
-                .wait_until_ready(
-                    &mut self.agents_watcher,
-                    AgentReadiness::of_registration(agent_config.slot_count, wait_for_slots_ready),
-                )
-                .await?;
-
-            self.agent_ids.push(ready_agent.id);
-            self.agents.push(running_agent);
-        }
-
-        Ok(())
-    }
-
-    pub fn spawn_additional_agent(&mut self, config: &AgentConfig) -> Result<()> {
-        let process = self.agent_spawner.spawn(config)?;
-
-        self.agents.push(RunningAgent::new(config.clone(), process));
-
-        Ok(())
-    }
-
-    pub async fn shutdown(self) -> Result<()> {
-        for agent in self.agents {
-            agent.shutdown().await?;
-        }
-
-        self.balancer.shutdown().await
-    }
-
     fn openai_api_client(&self) -> Result<OpenAIApiClient, ClusterHarnessError> {
         self.balancer
             .compat_openai_base_url()
@@ -470,5 +516,27 @@ impl Cluster {
         self.balancer
             .compat_typesafe_base_url()
             .map(TypeSafeApiClient::new)
+    }
+
+    async fn wait_for_first_agent<TAgentMatcher>(
+        &mut self,
+        agent_matcher: TAgentMatcher,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError>
+    where
+        TAgentMatcher: Fn(&AgentControllerSnapshot) -> bool + Send + Sync,
+    {
+        let agent_id = self
+            .agent_ids
+            .first()
+            .ok_or(ClusterHarnessError::ClusterHasNoRegisteredAgent)?
+            .clone();
+
+        self.agents_watcher
+            .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+                agents
+                    .iter()
+                    .any(|agent| agent.id == agent_id && agent_matcher(agent))
+            })
+            .await
     }
 }

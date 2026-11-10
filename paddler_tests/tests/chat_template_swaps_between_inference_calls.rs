@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::future::Future;
 use std::num::NonZeroU32;
 
 use anyhow::Result;
@@ -19,28 +20,24 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const CAPITAL_OF_FRANCE_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
-async fn capital_of_france(cluster: &Cluster) -> Result<CollectedGeneratedTokens> {
-    cluster
-        .continue_from_conversation_history(
-            CancellationToken::new(),
-            &ContinueFromConversationHistoryParams {
-                add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![
-                    ConversationMessage::Message {
-                        content: ConversationMessageContent::Text(
-                            "The capital of France is".to_owned(),
-                        ),
-                        role: "user".to_owned(),
-                    },
-                ]),
-                enable_thinking: false,
-                grammar: None,
-                max_tokens: CAPITAL_OF_FRANCE_MAX_TOKENS,
-                parse_tool_calls: false,
-                tools: vec![],
-            },
-        )
-        .await
+fn capital_of_france(
+    cluster: &Cluster,
+) -> impl Future<Output = Result<CollectedGeneratedTokens>> + Send + use<> {
+    cluster.continue_from_conversation_history(
+        CancellationToken::new(),
+        &ContinueFromConversationHistoryParams {
+            add_generation_prompt: true,
+            conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
+                content: ConversationMessageContent::Text("The capital of France is".to_owned()),
+                role: "user".to_owned(),
+            }]),
+            enable_thinking: false,
+            grammar: None,
+            max_tokens: CAPITAL_OF_FRANCE_MAX_TOKENS,
+            parse_tool_calls: false,
+            tools: vec![],
+        },
+    )
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -8,9 +8,9 @@ use tokio_util::sync::CancellationToken;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_cache_dir::cache_dir::CacheDir;
 use paddler_download_manager::download_manager::DownloadManager;
+use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
-use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::huggingface_hub::HuggingFaceHub;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -20,6 +20,9 @@ use crate::in_process_agent_spawner::InProcessAgentSpawner;
 use crate::in_process_balancer::InProcessBalancer;
 use crate::in_process_balancer_runner_params::in_process_balancer_runner_params;
 
+/// # Errors
+///
+/// Returns an error when the in-process balancer cannot start or be addressed, when the temporary model directory, the model downloader, or the Hugging Face client cannot be created, when the cluster cannot connect to the balancer, and when its agents do not register.
 pub async fn start_cluster(cluster_params: ClusterParams) -> Result<Cluster> {
     set_max_level(LevelFilter::Trace);
 

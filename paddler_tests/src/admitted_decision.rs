@@ -26,7 +26,7 @@ impl AdmittedDecision {
         let PreparedDecision {
             decision_result_rx,
             decision_stop_tx,
-            prepared_decision_request,
+            request: prepared_decision_request,
         } = PreparedDecision::new(slot_aggregated_status, layout);
         capacity_ledger
             .admit(prepared_decision_request.layout.question_lane_demand())

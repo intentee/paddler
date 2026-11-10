@@ -58,8 +58,8 @@ mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_model_source::model_source::ModelSource;
 

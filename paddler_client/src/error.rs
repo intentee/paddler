@@ -1,4 +1,3 @@
-use std::result::Result as StdResult;
 use std::string::FromUtf8Error;
 
 use reqwest::Error as ReqwestError;
@@ -73,5 +72,3 @@ pub enum Error {
         source: SerdeJsonError,
     },
 }
-
-pub type Result<TValue> = StdResult<TValue, Error>;

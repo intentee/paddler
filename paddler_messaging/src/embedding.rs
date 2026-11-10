@@ -9,7 +9,8 @@ use crate::embedding_vector::EmbeddingVector;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Embedding {
-    pub embedding: EmbeddingVector,
+    #[serde(rename = "embedding")]
+    pub vector: EmbeddingVector,
     pub normalization_method: EmbeddingNormalizationMethod,
     pub pooling_type: PoolingType,
     pub source_document_id: String,

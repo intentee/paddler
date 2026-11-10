@@ -85,7 +85,7 @@ impl ServingReplacement {
                 }
                 Err(CapabilityStartupInterruption::Failed(error)) => {
                     return ReplacementOutcome::Failed {
-                        error,
+                        error: *error,
                         held: ModelServing::Idle,
                     };
                 }
@@ -108,7 +108,7 @@ impl ServingReplacement {
                     interruption: CapabilityStartupInterruption::Failed(error),
                     loaded_llama_model,
                 } => ReplacementOutcome::Failed {
-                    error,
+                    error: *error,
                     held: ModelServing::Holding(loaded_llama_model),
                 },
             },

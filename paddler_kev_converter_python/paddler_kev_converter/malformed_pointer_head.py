@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import replace
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +12,7 @@ from paddler_kev_converter.synthetic_pointer_head import synthetic_pointer_head
 
 OVERSIZED_HEAD_DIM = 2**16
 PLAIN_TEXT_DELIMITERS = ["state", "question", "option", "end", "decide"]
+ZERO_HEAD_DIM = 0
 
 
 class PointerHeadDefect(StrEnum):
@@ -21,6 +23,7 @@ class PointerHeadDefect(StrEnum):
     MISSING_TEMPERATURE = "missing-temperature"
     OVERSIZED_HEAD_DIM = "oversized-head-dim"
     PLAIN_TEXT_DELIMITERS = "plain-text-delimiters"
+    ZERO_HEAD_DIM = "zero-head-dim"
     ZERO_TEMPERATURE = "zero-temperature"
 
 
@@ -79,15 +82,17 @@ def _write_without_temperature(well_formed_head: PointerHead, path: Path) -> Non
     )
 
 
-def _write_with_oversized_head_dim(well_formed_head: PointerHead, path: Path) -> None:
+def _write_with_head_dim(
+    head_dim: int, well_formed_head: PointerHead, path: Path
+) -> None:
     hidden_size = well_formed_head.key_weight.shape[1]
 
     replace(
         well_formed_head,
-        key_bias=np.zeros(OVERSIZED_HEAD_DIM, dtype=np.float32),
-        key_weight=np.zeros((OVERSIZED_HEAD_DIM, hidden_size), dtype=np.float32),
-        query_bias=np.zeros(OVERSIZED_HEAD_DIM, dtype=np.float32),
-        query_weight=np.zeros((OVERSIZED_HEAD_DIM, hidden_size), dtype=np.float32),
+        key_bias=np.zeros(head_dim, dtype=np.float32),
+        key_weight=np.zeros((head_dim, hidden_size), dtype=np.float32),
+        query_bias=np.zeros(head_dim, dtype=np.float32),
+        query_weight=np.zeros((head_dim, hidden_size), dtype=np.float32),
     ).write_gguf(path)
 
 
@@ -107,8 +112,11 @@ DEFECT_WRITERS: dict[PointerHeadDefect, Callable[[PointerHead, Path], None]] = {
     PointerHeadDefect.MISSING_DELIMITERS: _write_without_delimiters,
     PointerHeadDefect.MISSING_INPUT_NORMALIZATION: _write_without_input_normalization,
     PointerHeadDefect.MISSING_TEMPERATURE: _write_without_temperature,
-    PointerHeadDefect.OVERSIZED_HEAD_DIM: _write_with_oversized_head_dim,
+    PointerHeadDefect.OVERSIZED_HEAD_DIM: partial(
+        _write_with_head_dim, OVERSIZED_HEAD_DIM
+    ),
     PointerHeadDefect.PLAIN_TEXT_DELIMITERS: _write_with_plain_text_delimiters,
+    PointerHeadDefect.ZERO_HEAD_DIM: partial(_write_with_head_dim, ZERO_HEAD_DIM),
     PointerHeadDefect.ZERO_TEMPERATURE: _write_with_zero_temperature,
 }
 

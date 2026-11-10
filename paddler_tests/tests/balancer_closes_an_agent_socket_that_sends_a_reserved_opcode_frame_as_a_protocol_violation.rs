@@ -6,8 +6,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const FIRST_RESERVED_DATA_OPCODE: u8 = 3;
 

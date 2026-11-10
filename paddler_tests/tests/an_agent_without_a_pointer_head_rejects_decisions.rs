@@ -10,16 +10,17 @@ use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_without_a_pointer_head_rejects_decisions() {
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
 
     serving_pipeline_arbiter
         .serve(qwen3_0_6b().into_desired_state())
-        .await;
+        .await
+        .expect("the desired state must be served");
 
     let (response_tx, mut response_rx) = mpsc::unbounded_channel();
     let (_stop_tx, stop_rx) = mpsc::unbounded_channel();

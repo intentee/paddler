@@ -15,7 +15,7 @@ use crate::chat_completion_stream::ChatCompletionStream;
 use crate::chat_completion_stream_options::ChatCompletionStreamOptions;
 use crate::chat_completion_stream_params::ChatCompletionStreamParams;
 use crate::chat_completion_tool::ChatCompletionTool;
-use crate::default_max_tokens::DEFAULT_MAX_TOKENS;
+use crate::constants::DEFAULT_MAX_TOKENS;
 use crate::openai_translation_error::OpenAITranslationError;
 use crate::reasoning_effort::ReasoningEffort;
 use crate::timestamp_from::timestamp_from;
@@ -46,6 +46,9 @@ impl ChatCompletionRequest {
         self.max_completion_tokens.or(self.max_tokens)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ToolRejected`] when a tool does not describe valid parameters, [`OpenAITranslationError::ReasoningOnNonAssistantMessage`], [`OpenAITranslationError::ToolCallsOnNonAssistantMessage`], [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`], [`OpenAITranslationError::MessageWithoutContent`] or [`OpenAITranslationError::ToolResultWithoutToolCallId`] when a message cannot be translated into the conversation, and [`OpenAITranslationError::ClockBeforeUnixEpoch`] when `now` precedes the Unix epoch.
     pub fn translate(
         self,
         now: SystemTime,
@@ -121,10 +124,12 @@ mod tests {
     use crate::chat_completion_message_role::ChatCompletionMessageRole;
     use crate::openai_translation_error::OpenAITranslationError;
 
-    fn conversation_messages_of(request: ChatCompletionRequest) -> Vec<ConversationMessage> {
+    fn conversation_messages_of(
+        ChatCompletionRequest { messages, .. }: ChatCompletionRequest,
+    ) -> Vec<ConversationMessage> {
         let mut conversation_messages = Vec::new();
 
-        for message in request.messages {
+        for message in messages {
             message.append_to(&mut conversation_messages).unwrap();
         }
 
@@ -168,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_text_only_request() {
+    fn a_text_only_request_translates_into_its_model_and_one_user_text_message() {
         let input = json!({
             "model": "test-model",
             "messages": [
@@ -211,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_request_with_stream_options_include_usage_true() {
+    fn stream_options_requesting_usage_are_kept() {
         let input = json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],
@@ -227,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_request_without_stream_options_defaults_to_none() {
+    fn a_request_without_stream_options_has_none() {
         let input = json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],
@@ -240,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_multimodal_request_with_image() {
+    fn a_multimodal_request_translates_its_text_and_image_parts_in_order() {
         let input = json!({
             "model": "vision-model",
             "messages": [
@@ -273,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_multi_turn_conversation() {
+    fn a_multi_turn_conversation_translates_every_turn_in_order() {
         let input = json!({
             "model": "test-model",
             "messages": [
@@ -286,11 +291,33 @@ mod tests {
 
         let params: ChatCompletionRequest = from_value(input).unwrap();
 
-        assert_eq!(params.messages.len(), 4);
+        assert_eq!(
+            conversation_messages_of(params),
+            vec![
+                ConversationMessage::Message {
+                    content: ConversationMessageContent::Text(
+                        "You are a helpful assistant.".to_owned()
+                    ),
+                    role: "system".to_owned(),
+                },
+                ConversationMessage::Message {
+                    content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
+                    role: "user".to_owned(),
+                },
+                ConversationMessage::Message {
+                    content: ConversationMessageContent::Text("4".to_owned()),
+                    role: "assistant".to_owned(),
+                },
+                ConversationMessage::Message {
+                    content: ConversationMessageContent::Text("And 3+3?".to_owned()),
+                    role: "user".to_owned(),
+                },
+            ]
+        );
     }
 
     #[test]
-    fn deserialize_request_with_opencode_style_tools() {
+    fn a_request_with_opencode_style_tool_schemas_deserializes_every_tool() {
         let input = json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],

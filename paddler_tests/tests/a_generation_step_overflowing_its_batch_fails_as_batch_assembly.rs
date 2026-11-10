@@ -1,7 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use std::num::NonZeroU32;
-use std::sync::Arc;
 
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -13,8 +12,6 @@ use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
-use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSupport;
-use paddler_agent_text_generation::resident_multimodal_context::ResidentMultimodalContext;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -23,12 +20,11 @@ use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::conversation_generation::ConversationGeneration;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::last_generated_token_result::last_generated_token_result;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::single_image_question::SingleImageQuestion;
-
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 const ANSWER: &str = "two llamas";
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(16).unwrap();
@@ -49,30 +45,21 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
         .expect("the context must be created");
     let sequence_context_size = llama_context.n_ctx_seq();
     let model = &runtime.loaded_llama_model.model;
-    let n_batch = runtime.model_runtime_parameters.n_batch;
-    let multimodal_context = ResidentMultimodalContext::load(
-        &smolvlm2_256m_mmproj()
-            .cached_path()
-            .expect("the multimodal projection must be in the Hugging Face cache"),
-        model,
-        runtime
-            .inference_runtime_context
-            .vram_residencies
-            .multimodal_projection
-            .try_occupy()
-            .expect("the multimodal projection residency must be vacant"),
-    )
-    .expect("the multimodal projection must load");
     let request_preparer = FirstMessageContentRequestPreparer {
         llama_runtime: &runtime,
         sequence_context_size,
     }
-    .into_multimodal_generation_request_preparer(MultimodalPromptSupport {
-        micro_batch_tokens: ContextLimits::of(&llama_context).micro_batch_tokens(n_batch.tokens()),
-        multimodal_context: Arc::new(multimodal_context),
-        n_batch: n_batch.tokens_i32(),
-        sequence_context_size,
-    });
+    .into_multimodal_generation_request_preparer(
+        runtime
+            .multimodal_prompt_support(
+                &llama_context,
+                &smolvlm2_256m_mmproj()
+                    .cached_path()
+                    .expect("the multimodal projection must be in the Hugging Face cache"),
+            )
+            .expect("the multimodal projection must load"),
+    )
+    .expect("the first message content chat template must be prepared");
     let image_data_uri = load_test_image_data_uri().expect("the test image must load");
     let image_question = || {
         ConversationGeneration::new(

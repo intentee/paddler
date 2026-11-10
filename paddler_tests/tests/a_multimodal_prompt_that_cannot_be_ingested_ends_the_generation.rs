@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::sync::Arc;
-
 use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
@@ -16,20 +14,17 @@ use paddler_agent_text_generation::continuous_batch_scheduler_context::Continuou
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::media_marked_prompt::MediaMarkedPrompt;
 use paddler_agent_text_generation::multimodal_prompt_ingestion::MultimodalPromptIngestion;
-use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSupport;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
-use paddler_agent_text_generation::resident_multimodal_context::ResidentMultimodalContext;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
-
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 const PROMPT: &str = "Describe the picture";
 const FITTED_MICRO_BATCH_TOKENS: u32 = 512;
@@ -57,36 +52,22 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
                 .create_text_generation_llama_context(1)
                 .expect("the context must be created");
             let sequence_context_size = llama_context.n_ctx_seq();
-            let n_batch = runtime.model_runtime_parameters.n_batch;
-            let mut ingestion = MultimodalPromptSupport {
-                micro_batch_tokens: ContextLimits::of(&llama_context)
-                    .micro_batch_tokens(n_batch.tokens()),
-                multimodal_context: Arc::new(
-                    ResidentMultimodalContext::load(
-                        &smolvlm2_256m_mmproj()
-                            .cached_path()
-                            .expect("the multimodal projection must be in the Hugging Face cache"),
-                        &runtime.loaded_llama_model.model,
-                        runtime
-                            .inference_runtime_context
-                            .vram_residencies
-                            .multimodal_projection
-                            .try_occupy()
-                            .expect("no other multimodal projection may be resident"),
-                    )
-                    .expect("the multimodal projection must load"),
-                ),
-                n_batch: n_batch.tokens_i32(),
-                sequence_context_size,
-            }
-            .prepare_prompt(
-                &[],
-                &MediaMarkedPrompt {
-                    media_marker: &MediaMarker::new("<media>".to_owned()),
-                    prompt_parts: &[ChatPromptPart::Input(PROMPT.to_owned())],
-                },
-            )
-            .expect("the multimodal prompt must be prepared");
+            let mut ingestion = runtime
+                .multimodal_prompt_support(
+                    &llama_context,
+                    &smolvlm2_256m_mmproj()
+                        .cached_path()
+                        .expect("the multimodal projection must be in the Hugging Face cache"),
+                )
+                .expect("the multimodal projection must load")
+                .prepare_prompt(
+                    &[],
+                    &MediaMarkedPrompt {
+                        media_marker: &MediaMarker::new("<media>".to_owned()),
+                        prompt_parts: &[ChatPromptPart::Input(PROMPT.to_owned())],
+                    },
+                )
+                .expect("the multimodal prompt must be prepared");
 
             adjust_ingestion(&mut ingestion);
 
@@ -106,6 +87,7 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
                 sequence_context_size,
             }
             .into_generation_request_preparer()
+            .expect("the first message content chat template must be prepared")
             .prepare_raw_prompt(agent_request)
             .expect("the generation must be prepared");
             let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();

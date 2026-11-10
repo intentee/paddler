@@ -26,10 +26,16 @@ impl OpenAIApiClient {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`OpenAIError`] of a chat completion request that fails or whose response cannot be read.
     pub async fn chat_completion_non_streaming(&self, body: &Value) -> Result<Value, OpenAIError> {
         self.client.chat().create_byot(body).await
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`OpenAIError`] of a chat completion stream that cannot be opened or that fails before it ends.
     pub async fn chat_completion_streaming(&self, body: &Value) -> Result<Vec<Value>, OpenAIError> {
         self.client
             .chat()
@@ -39,10 +45,16 @@ impl OpenAIApiClient {
             .await
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`OpenAIError`] of a responses request that fails or whose response cannot be read.
     pub async fn responses_non_streaming(&self, body: &Value) -> Result<Value, OpenAIError> {
         self.client.responses().create_byot(body).await
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`OpenAIError`] of a responses stream that cannot be opened or that fails before it ends.
     pub async fn responses_streaming(&self, body: &Value) -> Result<Vec<Value>, OpenAIError> {
         self.client
             .responses()

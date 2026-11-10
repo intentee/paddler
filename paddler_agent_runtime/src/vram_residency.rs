@@ -20,6 +20,9 @@ impl VramResidency {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`AgentRuntimeError::LlamaContextAlreadyResident`], [`AgentRuntimeError::ModelWeightsAlreadyResident`] or [`AgentRuntimeError::MultimodalProjectionAlreadyResident`], naming its resident, when its resident already occupies the VRAM.
     pub fn try_occupy(&self) -> Result<VramOccupancy, AgentRuntimeError> {
         VramOccupancy::claim(&self.occupied, self.resident)
     }

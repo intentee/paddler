@@ -47,6 +47,9 @@ pub struct DecisionDelimiterTokens {
 }
 
 impl DecisionDelimiterTokens {
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::DelimiterTokenizationFailed`] when a delimiter cannot be tokenized, [`DecisionError::DelimiterAttributesUnreadable`] when the attributes of its token cannot be read, and [`DecisionError::PointerHeadIncompatibleWithModel`] when a delimiter is not a single control token of the vocabulary.
     pub fn resolve<TVocabulary: DelimiterVocabulary>(
         vocabulary: &TVocabulary,
         PointerHeadDelimiters {
@@ -98,17 +101,17 @@ mod tests {
     struct VocabularyWithUnreadableAttributes;
 
     impl DelimiterVocabulary for VocabularyWithUnreadableAttributes {
+        fn token_attributes(&self, _token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
+            Err(TokenAttrError::UnknownAttributes(
+                LlamaTokenAttrsFromIntError::UnknownValue(UNKNOWN_ATTRIBUTE_BITS),
+            ))
+        }
+
         fn tokenize_delimiter(
             &self,
             _delimiter: &str,
         ) -> Result<Vec<LlamaToken>, StringToTokenError> {
             Ok(vec![LlamaToken::new(0)])
-        }
-
-        fn token_attributes(&self, _token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
-            Err(TokenAttrError::UnknownAttributes(
-                LlamaTokenAttrsFromIntError::UnknownValue(UNKNOWN_ATTRIBUTE_BITS),
-            ))
         }
     }
 

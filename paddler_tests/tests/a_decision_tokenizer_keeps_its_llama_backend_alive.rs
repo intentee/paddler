@@ -6,7 +6,7 @@ use paddler_agent_decision::decision_text_tokenizer::DecisionTextTokenizer;
 use paddler_agent_pointer_head::pointer_head_input_normalization::PointerHeadInputNormalization;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
+use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 

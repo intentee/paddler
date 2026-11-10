@@ -2,6 +2,8 @@ use serde_json::Value;
 
 use crate::python_float_repr::python_float_repr;
 
+const INDENT_UNIT: &str = "  ";
+
 fn python_whitespace(character: char) -> bool {
     character.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&character)
 }
@@ -19,9 +21,8 @@ fn python_scalar(value: &Value) -> String {
     }
 }
 
-#[must_use]
-pub fn render_json_content(value: &Value, indent: usize) -> String {
-    let pad = "  ".repeat(indent);
+fn padded_json_content(value: &Value, pad: &str) -> String {
+    let nested_pad = format!("{pad}{INDENT_UNIT}");
 
     match value {
         Value::Array(items) => items
@@ -29,7 +30,7 @@ pub fn render_json_content(value: &Value, indent: usize) -> String {
             .map(|item| {
                 format!(
                     "{pad}- {}",
-                    render_json_content(item, indent + 1).trim_start_matches(python_whitespace)
+                    padded_json_content(item, &nested_pad).trim_start_matches(python_whitespace)
                 )
             })
             .collect::<Vec<_>>()
@@ -38,7 +39,7 @@ pub fn render_json_content(value: &Value, indent: usize) -> String {
             .iter()
             .map(|(key, field)| match field {
                 Value::Array(_) | Value::Object(_) => {
-                    format!("{pad}{key}:\n{}", render_json_content(field, indent + 1))
+                    format!("{pad}{key}:\n{}", padded_json_content(field, &nested_pad))
                 }
                 Value::Bool(_) | Value::Null | Value::Number(_) | Value::String(_) => {
                     format!("{pad}{key}: {}", python_scalar(field))
@@ -48,4 +49,9 @@ pub fn render_json_content(value: &Value, indent: usize) -> String {
             .join("\n"),
         Value::Bool(_) | Value::Null | Value::Number(_) | Value::String(_) => python_scalar(value),
     }
+}
+
+#[must_use]
+pub fn render_json_content(value: &Value, indent: usize) -> String {
+    padded_json_content(value, &INDENT_UNIT.repeat(indent))
 }

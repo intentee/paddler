@@ -17,9 +17,9 @@ impl ModelBosToken {
     }
 
     #[must_use]
-    pub fn is_duplicated_at_start_of(&self, prompt_tokens: &[LlamaToken]) -> bool {
+    pub fn is_duplicated_at_start_of(self, prompt_tokens: &[LlamaToken]) -> bool {
         match self {
-            Self::AddedByTokenizer(token) => prompt_tokens.starts_with(&[*token, *token]),
+            Self::AddedByTokenizer(token) => prompt_tokens.starts_with(&[token, token]),
             Self::NotAddedByTokenizer => false,
         }
     }

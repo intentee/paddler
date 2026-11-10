@@ -5,7 +5,7 @@ use serde_json::json;
 
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

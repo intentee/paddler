@@ -174,18 +174,6 @@ pub enum TextGenerationError {
 
 impl TextGenerationError {
     #[must_use]
-    pub fn for_ingest_error(ingest_error: IngestError) -> Self {
-        match ingest_error {
-            IngestError::Detokenize(detokenization_error) => {
-                Self::TokenDetokenizationFailed(detokenization_error)
-            }
-            IngestError::Classify(classification_error) => {
-                Self::AnswerClassificationFailed(classification_error)
-            }
-        }
-    }
-
-    #[must_use]
     pub const fn for_gbnf_grammar_error(grammar_error: GrammarError) -> Self {
         match grammar_error {
             GrammarError::GrammarContainsNul(_)
@@ -213,6 +201,18 @@ impl TextGenerationError {
     }
 
     #[must_use]
+    pub fn for_ingest_error(ingest_error: IngestError) -> Self {
+        match ingest_error {
+            IngestError::Detokenize(detokenization_error) => {
+                Self::TokenDetokenizationFailed(detokenization_error)
+            }
+            IngestError::Classify(classification_error) => {
+                Self::AnswerClassificationFailed(classification_error)
+            }
+        }
+    }
+
+    #[must_use]
     pub fn for_micro_batch_fit_error(fit_error: MtmdEvalError) -> Self {
         match fit_error {
             MtmdEvalError::NonCausalChunkExceedsMicroBatch(mismatch) => {
@@ -225,18 +225,6 @@ impl TextGenerationError {
             }
             other_fit_error => Self::MediaMicroBatchCheckFailed(other_fit_error),
         }
-    }
-
-    pub fn report(
-        self,
-        agent_name: Option<&str>,
-        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ) {
-        send_result_or_warn(
-            agent_name,
-            generated_tokens_tx,
-            self.into_generated_token_result(agent_name),
-        );
     }
 
     #[must_use]
@@ -315,6 +303,18 @@ impl TextGenerationError {
             Self::KvCacheClearFailed(_) => GeneratedTokenResult::KvCacheClearFailed(message),
         }
     }
+
+    pub fn report(
+        self,
+        agent_name: Option<&str>,
+        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    ) {
+        send_result_or_warn(
+            agent_name,
+            generated_tokens_tx,
+            self.into_generated_token_result(agent_name),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -357,11 +357,6 @@ mod tests {
 
     use super::TextGenerationError;
 
-    struct ExpectedReport {
-        rejection: TextGenerationError,
-        into_result: fn(String) -> GeneratedTokenResult,
-    }
-
     fn reported(rejection: TextGenerationError) -> GeneratedTokenResult {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
 
@@ -372,6 +367,17 @@ mod tests {
 
     fn agent_message(description: &str) -> String {
         format!("agent: {description}")
+    }
+
+    fn assert_each_reported_as(
+        into_result: fn(String) -> GeneratedTokenResult,
+        rejections: impl IntoIterator<Item = TextGenerationError>,
+    ) {
+        for rejection in rejections {
+            let expected_message = agent_message(&rejection.to_string());
+
+            assert_eq!(reported(rejection), into_result(expected_message));
+        }
     }
 
     #[test]
@@ -575,123 +581,140 @@ mod tests {
 
     #[test]
     fn reports_internal_scheduler_failures_under_their_own_results() {
-        for ExpectedReport {
-            rejection,
-            into_result,
-        } in [
-            ExpectedReport {
-                rejection: TextGenerationError::BatchAssemblyFailed(BatchAddError::NoSequenceIds),
-                into_result: GeneratedTokenResult::BatchAssemblyFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::KvCacheClearFailed(
-                    MemorySeqRmError::PartialSequenceNotRemoved {
-                        seq_id: 1,
-                        p0: 0,
-                        p1: 4,
-                    },
-                ),
-                into_result: GeneratedTokenResult::KvCacheClearFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ModelNotLoaded,
-                into_result: GeneratedTokenResult::ModelNotLoaded,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ChatTemplateDoesNotCompile(
+        assert_each_reported_as(
+            GeneratedTokenResult::BatchAssemblyFailed,
+            [TextGenerationError::BatchAssemblyFailed(
+                BatchAddError::NoSequenceIds,
+            )],
+        );
+        assert_each_reported_as(
+            GeneratedTokenResult::KvCacheClearFailed,
+            [TextGenerationError::KvCacheClearFailed(
+                MemorySeqRmError::PartialSequenceNotRemoved {
+                    seq_id: 1,
+                    p0: 0,
+                    p1: 4,
+                },
+            )],
+        );
+        assert_each_reported_as(
+            GeneratedTokenResult::NoSequenceSlotAvailable,
+            [TextGenerationError::NoSequenceSlotAvailable],
+        );
+    }
+
+    #[test]
+    fn reports_a_missing_model_as_model_not_loaded() {
+        assert_each_reported_as(
+            GeneratedTokenResult::ModelNotLoaded,
+            [TextGenerationError::ModelNotLoaded],
+        );
+    }
+
+    #[test]
+    fn reports_chat_template_failures_as_chat_template_errors() {
+        assert_each_reported_as(
+            GeneratedTokenResult::ChatTemplateError,
+            [
+                TextGenerationError::ChatTemplateDoesNotCompile(
                     ChatTemplatesError::ModelHasNoChatTemplate,
                 ),
-                into_result: GeneratedTokenResult::ChatTemplateError,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ChatTemplateContainsNul(
-                    CString::new("{{ \0 }}").unwrap_err(),
-                ),
-                into_result: GeneratedTokenResult::ChatTemplateError,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ChatSessionCreationFailed(
+                TextGenerationError::ChatTemplateContainsNul(CString::new("{{ \0 }}").unwrap_err()),
+                TextGenerationError::ChatSessionCreationFailed(
                     ChatSessionError::TemplateCannotServeRequest {
                         message: "roles must alternate".to_owned(),
                     },
                 ),
-                into_result: GeneratedTokenResult::ChatTemplateError,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ChatPromptUnreadable(
-                    ChatSessionError::NotEnoughMemory,
-                ),
-                into_result: GeneratedTokenResult::ChatTemplateError,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ChatPromptTokenizationFailed(
+                TextGenerationError::ChatPromptUnreadable(ChatSessionError::NotEnoughMemory),
+            ],
+        );
+    }
+
+    #[test]
+    fn reports_prompt_tokenization_failures_as_prompt_tokenization_failures() {
+        assert_each_reported_as(
+            GeneratedTokenResult::PromptTokenizationFailed,
+            [
+                TextGenerationError::ChatPromptTokenizationFailed(
                     ChatSessionError::PromptTokenization(StringToTokenError::NulError(
                         CString::new("a \0 byte").unwrap_err(),
                     )),
                 ),
-                into_result: GeneratedTokenResult::PromptTokenizationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::ChatSessionGrammarUnavailable(
-                    ChatSessionError::Grammar(GrammarError::NotEnoughMemory),
-                ),
-                into_result: GeneratedTokenResult::GrammarInitializationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::AnswerClassifierUnavailable(
+                TextGenerationError::PromptTokenizationFailed(StringToTokenError::NulError(
+                    CString::new("a \0 byte").unwrap_err(),
+                )),
+            ],
+        );
+    }
+
+    #[test]
+    fn reports_an_unavailable_chat_session_grammar_as_a_grammar_initialization_failure() {
+        assert_each_reported_as(
+            GeneratedTokenResult::GrammarInitializationFailed,
+            [TextGenerationError::ChatSessionGrammarUnavailable(
+                ChatSessionError::Grammar(GrammarError::NotEnoughMemory),
+            )],
+        );
+    }
+
+    #[test]
+    fn reports_answer_classification_failures_as_answer_classification_failures() {
+        assert_each_reported_as(
+            GeneratedTokenResult::AnswerClassificationFailed,
+            [
+                TextGenerationError::AnswerClassifierUnavailable(
                     ParseChatMessageError::NotEnoughMemory,
                 ),
-                into_result: GeneratedTokenResult::AnswerClassificationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::for_ingest_error(IngestError::Classify(
+                TextGenerationError::for_ingest_error(IngestError::Classify(
                     ParseChatMessageError::LlamaCppOutOfMemory,
                 )),
-                into_result: GeneratedTokenResult::AnswerClassificationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::for_ingest_error(IngestError::Detokenize(
-                    TokenToStringError::InsufficientBufferSpace(-4),
-                )),
-                into_result: GeneratedTokenResult::DetokenizationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::MultimodalTokenizationFailed(
+            ],
+        );
+    }
+
+    #[test]
+    fn reports_a_detokenization_failure_as_a_detokenization_failure() {
+        assert_each_reported_as(
+            GeneratedTokenResult::DetokenizationFailed,
+            [TextGenerationError::for_ingest_error(
+                IngestError::Detokenize(TokenToStringError::InsufficientBufferSpace(-4)),
+            )],
+        );
+    }
+
+    #[test]
+    fn reports_multimodal_tokenization_failures_as_multimodal_tokenization_failures() {
+        assert_each_reported_as(
+            GeneratedTokenResult::MultimodalTokenizationFailed,
+            [
+                TextGenerationError::MultimodalTokenizationFailed(
                     MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount,
                 ),
-                into_result: GeneratedTokenResult::MultimodalTokenizationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::RenderedMediaMarkersMismatchImages {
+                TextGenerationError::RenderedMediaMarkersMismatchImages {
                     images: 2,
                     rendered_media_markers: 1,
                 },
-                into_result: GeneratedTokenResult::MultimodalTokenizationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::NoSequenceSlotAvailable,
-                into_result: GeneratedTokenResult::NoSequenceSlotAvailable,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::PromptTokenizationFailed(
-                    StringToTokenError::NulError(CString::new("a \0 byte").unwrap_err()),
-                ),
-                into_result: GeneratedTokenResult::PromptTokenizationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::SamplerChainCreationFailed(
-                    SamplingError::SamplerUnavailable { sampler: "grammar" },
-                ),
-                into_result: GeneratedTokenResult::SamplerChainCreationFailed,
-            },
-            ExpectedReport {
-                rejection: TextGenerationError::TokenDataUnreadable(LogitsError::NullLogits),
-                into_result: GeneratedTokenResult::SamplerError,
-            },
-        ] {
-            let expected_message = agent_message(&rejection.to_string());
+            ],
+        );
+    }
 
-            assert_eq!(reported(rejection), into_result(expected_message));
-        }
+    #[test]
+    fn reports_a_sampler_chain_creation_failure_as_a_sampler_chain_creation_failure() {
+        assert_each_reported_as(
+            GeneratedTokenResult::SamplerChainCreationFailed,
+            [TextGenerationError::SamplerChainCreationFailed(
+                SamplingError::SamplerUnavailable { sampler: "grammar" },
+            )],
+        );
+    }
+
+    #[test]
+    fn reports_unreadable_token_data_as_a_sampler_error() {
+        assert_each_reported_as(
+            GeneratedTokenResult::SamplerError,
+            [TextGenerationError::TokenDataUnreadable(
+                LogitsError::NullLogits,
+            )],
+        );
     }
 }

@@ -8,7 +8,7 @@ pub enum PointerHeadIncompatibility {
         delimiter: String,
     },
     HiddenSizeMismatch {
-        model_hidden_size: usize,
-        pointer_head_hidden_size: usize,
+        model_hidden_size: i64,
+        pointer_head_hidden_size: i64,
     },
 }

@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 
 use crate::cluster_harness_error::ClusterHarnessError;
-use crate::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+use crate::constants::EPHEMERAL_LOOPBACK_ADDR;
 use crate::untrusted_balancer_socket::UntrustedBalancerSocket;
 
 pub struct UntrustedBalancerSocketServer {
@@ -15,6 +15,9 @@ pub struct UntrustedBalancerSocketServer {
 }
 
 impl UntrustedBalancerSocketServer {
+    /// # Errors
+    ///
+    /// Returns the [`IoError`] of a loopback listener that cannot be bound or whose address cannot be read.
     pub async fn bind() -> Result<Self, IoError> {
         TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
             .await
@@ -26,6 +29,9 @@ impl UntrustedBalancerSocketServer {
             })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::BalancerSocketAcceptFailed`] when no agent connection can be accepted, and [`ClusterHarnessError::BalancerSocketHandshakeFailed`] when the agent's WebSocket handshake fails.
     pub async fn accept_agent(&self) -> Result<UntrustedBalancerSocket, ClusterHarnessError> {
         self.tcp_listener
             .accept()

@@ -29,12 +29,16 @@ web_admin_panel = ["paddler_cli/web_admin_panel", "paddler_tests/web_admin_panel
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
+llama-cpp-bindings = { workspace = true }
 nix = { workspace = true }
+paddler_agent_text_generation = { workspace = true }
 paddler_balancer = { workspace = true }
+paddler_bootstrap = { workspace = true }
 paddler_cli = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
+paddler_tests = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -42,19 +46,15 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 actix-web = { workspace = true }
-llama-cpp-bindings = { workspace = true }
-paddler_agent_text_generation = { workspace = true }
-paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
 paddler_openai_response_format_validator = { workspace = true }
-paddler_tests = { workspace = true }
 reqwest = { workspace = true }
 tempfile = { workspace = true }
 tokio-tungstenite = { workspace = true }
 trzcina = { workspace = true }
 url = { workspace = true }
 
-[target.'cfg(target_os = "linux")'.dev-dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 libc = { workspace = true }
 seccompiler = { workspace = true }
 

@@ -24,8 +24,8 @@ pub struct ResponsesResponseHeader {
 
 impl ResponsesResponseHeader {
     #[must_use]
-    pub fn in_progress(&self) -> ResponsesResponse {
-        self.with_progress(ResponsesResponseProgress::InProgress)
+    pub fn failed(&self, error_message: String) -> ResponsesResponse {
+        self.with_progress(ResponsesResponseProgress::Failed { error_message })
     }
 
     #[must_use]
@@ -45,14 +45,28 @@ impl ResponsesResponseHeader {
     }
 
     #[must_use]
-    pub fn failed(&self, error_message: String) -> ResponsesResponse {
-        self.with_progress(ResponsesResponseProgress::Failed { error_message })
+    pub fn in_progress(&self) -> ResponsesResponse {
+        self.with_progress(ResponsesResponseProgress::InProgress)
     }
 
     fn with_progress(&self, progress: ResponsesResponseProgress) -> ResponsesResponse {
+        let Self {
+            created_at,
+            id,
+            instructions,
+            model,
+            temperature,
+            top_p,
+        } = self.clone();
+
         ResponsesResponse {
-            header: self.clone(),
+            created_at,
+            id,
+            instructions,
+            model,
             progress,
+            temperature,
+            top_p,
         }
     }
 }
@@ -101,12 +115,11 @@ impl CompletesGeneration for ResponsesResponseHeader {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::token_usage::TokenUsage;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::Value;
     use serde_json::json;
     use serde_json::to_value;
 
-    use paddler_messaging::generated_tool_call::GeneratedToolCall;
+    use paddler_generation_result_fixture::weather_call::weather_call;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
@@ -126,59 +139,6 @@ mod tests {
             temperature: 0.25,
             top_p: 0.5,
         }
-    }
-
-    #[test]
-    fn in_progress_reports_in_progress_status_with_no_output() {
-        let response = to_value(header().in_progress()).unwrap();
-
-        assert_eq!(response["status"], "in_progress");
-        assert_eq!(response["object"], "response");
-        assert_eq!(response["output"], json!([]));
-        assert!(response.get("usage").is_none());
-    }
-
-    #[test]
-    fn reports_the_sampling_parameters_in_effect() {
-        let response = to_value(header().in_progress()).unwrap();
-
-        assert_eq!(response["temperature"], 0.25);
-        assert_eq!(response["top_p"], 0.5);
-    }
-
-    #[test]
-    fn failed_carries_the_error_message() {
-        let response = to_value(header().failed("boom".to_owned())).unwrap();
-
-        assert_eq!(response["status"], "failed");
-        assert_eq!(response["error"]["message"], "boom");
-        assert!(response.get("usage").is_none());
-    }
-
-    #[test]
-    fn completed_includes_usage_and_output() {
-        let response = to_value(header().finished(
-            vec![ResponsesOutputItem::completed_message(
-                "msg_0".to_owned(),
-                "hello".to_owned(),
-            )],
-            &TokenUsage {
-                prompt_tokens: 3,
-                cached_prompt_tokens: 0,
-                input_image_tokens: 0,
-                input_audio_tokens: 0,
-                content_tokens: 5,
-                reasoning_tokens: 2,
-                tool_call_tokens: 0,
-                undeterminable_tokens: 0,
-            },
-            GenerationFinish::EndOfGeneration,
-        ))
-        .unwrap();
-
-        assert_eq!(response["status"], "completed");
-        assert_eq!(response["usage"]["input_tokens"], 3);
-        assert_eq!(response["output"][0]["type"], "message");
     }
 
     fn completed_response_of(generated_output_parts: Vec<GeneratedOutputPart>) -> Value {
@@ -204,13 +164,57 @@ mod tests {
         .unwrap()
     }
 
-    fn weather_call() -> GeneratedToolCall {
-        GeneratedToolCall {
-            arguments: ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
-            id: "call_x".to_owned(),
-            index: 0,
-            name: "get_weather".to_owned(),
-        }
+    #[test]
+    fn in_progress_reports_in_progress_status_with_no_output() {
+        let response = to_value(header().in_progress()).unwrap();
+
+        assert_eq!(response.pointer("/status"), Some(&json!("in_progress")));
+        assert_eq!(response.pointer("/object"), Some(&json!("response")));
+        assert_eq!(response.pointer("/output"), Some(&json!([])));
+        assert!(response.get("usage").is_none());
+    }
+
+    #[test]
+    fn reports_the_sampling_parameters_in_effect() {
+        let response = to_value(header().in_progress()).unwrap();
+
+        assert_eq!(response.pointer("/temperature"), Some(&json!(0.25)));
+        assert_eq!(response.pointer("/top_p"), Some(&json!(0.5)));
+    }
+
+    #[test]
+    fn failed_carries_the_error_message() {
+        let response = to_value(header().failed("boom".to_owned())).unwrap();
+
+        assert_eq!(response.pointer("/status"), Some(&json!("failed")));
+        assert_eq!(response.pointer("/error/message"), Some(&json!("boom")));
+        assert!(response.get("usage").is_none());
+    }
+
+    #[test]
+    fn completed_includes_usage_and_output() {
+        let response = to_value(header().finished(
+            vec![ResponsesOutputItem::completed_message(
+                "msg_0".to_owned(),
+                "hello".to_owned(),
+            )],
+            &TokenUsage {
+                prompt_tokens: 3,
+                cached_prompt_tokens: 0,
+                input_image_tokens: 0,
+                input_audio_tokens: 0,
+                content_tokens: 5,
+                reasoning_tokens: 2,
+                tool_call_tokens: 0,
+                undeterminable_tokens: 0,
+            },
+            GenerationFinish::EndOfGeneration,
+        ))
+        .unwrap();
+
+        assert_eq!(response.pointer("/status"), Some(&json!("completed")));
+        assert_eq!(response.pointer("/usage/input_tokens"), Some(&json!(3)));
+        assert_eq!(response.pointer("/output/0/type"), Some(&json!("message")));
     }
 
     #[test]
@@ -220,10 +224,13 @@ mod tests {
             GeneratedOutputPart::Content("lo".to_owned()),
         ]);
 
-        assert_eq!(response["id"], "resp_test");
-        assert_eq!(response["status"], "completed");
-        assert_eq!(response["output"][0]["type"], "message");
-        assert_eq!(response["output"][0]["content"][0]["text"], "hello");
+        assert_eq!(response.pointer("/id"), Some(&json!("resp_test")));
+        assert_eq!(response.pointer("/status"), Some(&json!("completed")));
+        assert_eq!(response.pointer("/output/0/type"), Some(&json!("message")));
+        assert_eq!(
+            response.pointer("/output/0/content/0/text"),
+            Some(&json!("hello"))
+        );
     }
 
     #[test]
@@ -234,8 +241,8 @@ mod tests {
             completed_response_of(vec![GeneratedOutputPart::Content("hello".to_owned())]);
 
         assert_ne!(
-            first_response["output"][0]["id"],
-            second_response["output"][0]["id"]
+            first_response.pointer("/output/0/id"),
+            second_response.pointer("/output/0/id")
         );
     }
 
@@ -246,12 +253,21 @@ mod tests {
             GeneratedOutputPart::ToolCalls(vec![weather_call()]),
         ]);
 
-        assert_eq!(response["output"][0]["type"], "reasoning");
-        assert_eq!(response["output"][1]["type"], "function_call");
-        assert_eq!(response["output"][1]["name"], "get_weather");
         assert_eq!(
-            response["usage"]["output_tokens_details"]["reasoning_tokens"],
-            2
+            response.pointer("/output/0/type"),
+            Some(&json!("reasoning"))
+        );
+        assert_eq!(
+            response.pointer("/output/1/type"),
+            Some(&json!("function_call"))
+        );
+        assert_eq!(
+            response.pointer("/output/1/name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            response.pointer("/usage/output_tokens_details/reasoning_tokens"),
+            Some(&json!(2))
         );
     }
 

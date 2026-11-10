@@ -17,6 +17,9 @@ pub struct DecisionTextTokenizer {
 }
 
 impl DecisionTextTokenizer {
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::InputTokenizationFailed`] when the model cannot tokenize the normalized text.
     pub fn tokenize(&self, text: &str) -> Result<Vec<LlamaToken>, DecisionError> {
         self.model
             .str_to_token(

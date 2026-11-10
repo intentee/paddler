@@ -4,9 +4,9 @@ use clap::Args;
 use clap::value_parser;
 
 use paddler_bootstrap::agent_runtime_config::AgentRuntimeConfig;
-use paddler_bootstrap::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
+use paddler_bootstrap::constants::LLAMA_CPP_MAX_SEQUENCES;
+use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
 
 #[derive(Args)]
 pub struct AgentRuntimeArguments {

@@ -13,11 +13,9 @@ use seccompiler::SeccompRule;
 use tokio_util::sync::CancellationToken;
 
 use paddler_balancer::http_listener::HttpListener;
-use paddler_balancer::run_http_service::run_http_service;
-use paddler_balancer::run_http_service_parameters::RunHttpServiceParameters;
-
-use crate::refused_syscall::RefusedSyscall;
-use crate::refused_syscalls::RefusedSyscalls;
+use paddler_balancer::http_service_runner::HttpServiceRunner;
+use paddler_cli_tests::refused_syscall::RefusedSyscall;
+use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 
 const SERVICE_NAME: &str = "balancer::service_that_cannot_listen";
 
@@ -40,17 +38,16 @@ async fn an_http_service_reports_a_listener_it_cannot_make_nonblocking() {
             ],
         }],
     }
-    .apply_to_every_thread();
+    .apply_to_every_thread()
+    .expect("the refusing filter must apply to every thread of the test process");
 
-    let service_error = run_http_service(
-        CancellationToken::new(),
-        RunHttpServiceParameters {
-            app_factory: App::new,
-            http_listener,
-            service_name: SERVICE_NAME,
-            worker_count: 1,
-        },
-    )
+    let service_error = HttpServiceRunner {
+        app_factory: App::new,
+        http_listener,
+        service_name: SERVICE_NAME,
+        worker_count: 1,
+    }
+    .run(CancellationToken::new())
     .await
     .expect_err("a listener that cannot become nonblocking must not be served");
 

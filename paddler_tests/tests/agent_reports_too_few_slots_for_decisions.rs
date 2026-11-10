@@ -2,18 +2,18 @@
 
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_too_few_slots_for_decisions() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams {
+    let mut cluster = DecisionClusterParams {
         agents: vec![AgentConfig::single(1)],
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
-    })
+    }
+    .start_cluster()
     .await
     .expect("the cluster must start");
 

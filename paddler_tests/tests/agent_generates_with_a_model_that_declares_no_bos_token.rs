@@ -31,6 +31,8 @@ async fn agent_generates_with_a_model_that_declares_no_bos_token() {
             gguf_context
                 .remove_key("tokenizer.ggml.bos_token_id")
                 .expect("Qwen3 must declare a BOS token to remove");
+
+            Ok(())
         },
     )
     .expect("the model without a BOS token must be writable");

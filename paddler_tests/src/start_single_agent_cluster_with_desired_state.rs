@@ -8,6 +8,9 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving the desired state with a single agent cannot start.
 pub async fn start_single_agent_cluster_with_desired_state(
     desired_state: BalancerDesiredState,
 ) -> Result<Cluster> {

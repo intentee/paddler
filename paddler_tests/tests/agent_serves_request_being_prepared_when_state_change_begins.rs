@@ -6,6 +6,8 @@ use futures_util::StreamExt as _;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -92,9 +94,9 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() {
 
     cluster
         .agents_watcher
-        .until_agent(&agent_id, |snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.status.state_application_status != AgentStateApplicationStatus::Applied
+        .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+            agents.iter().any(|AgentControllerSnapshot { status, .. }| {
+                status.state_application_status != AgentStateApplicationStatus::Applied
             })
         })
         .await

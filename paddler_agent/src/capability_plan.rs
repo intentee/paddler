@@ -9,7 +9,7 @@ impl<TServed> CapabilityPlan<TServed>
 where
     TServed: ShutsDown + Send,
 {
-    pub async fn retaining<TSettings: PartialEq>(
+    pub async fn retaining<TSettings: PartialEq + Sync>(
         served: TServed,
         served_settings: &TSettings,
         desired_settings: &TSettings,

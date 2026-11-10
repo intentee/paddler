@@ -13,6 +13,9 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use crate::qwen3_desired_state::qwen3_desired_state;
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Qwen3 with the given context size cannot start.
 pub async fn start_cluster_with_qwen3_and_context_size(
     agents: Vec<AgentConfig>,
     context_size: NonZeroU32,

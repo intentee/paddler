@@ -8,8 +8,6 @@ use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateH
 use paddler_balancer::balancer_desired_state_store::BalancerDesiredStateStore;
 use paddler_balancer::buffered_request_manager::BufferedRequestManager;
 use paddler_balancer::compatibility::compatibility_service::CompatibilityService;
-#[cfg(feature = "web_admin_panel")]
-use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::compatibility::openai_service::openai_compatibility_layer::OpenAICompatibilityLayer;
 use paddler_balancer::compatibility::typesafe_service::typesafe_compatibility_layer::TypeSafeCompatibilityLayer;
 use paddler_balancer::http_listener::HttpListener;
@@ -17,6 +15,7 @@ use paddler_balancer::inference_service::InferenceService;
 use paddler_balancer::management_service::ManagementService;
 use paddler_balancer::reconciliation_service::ReconciliationService;
 use paddler_balancer::statsd_service::StatsdService;
+use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
 #[cfg(feature = "web_admin_panel")]
@@ -24,10 +23,73 @@ use paddler_balancer::web_admin_panel_service::configuration::Configuration as W
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_state_database::state_database::StateDatabase;
+use paddler_state_database::state_database_type::StateDatabaseType;
 
 use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
+use crate::balancer_http_listeners::BalancerHttpListeners;
 use crate::bootstrap_error::BootstrapError;
 use crate::registers_services::RegistersServices;
+
+fn reject_zero_statsd_reporting_interval(
+    statsd_service_configuration: Option<&StatsdServiceConfiguration>,
+) -> Result<(), BootstrapError> {
+    if statsd_service_configuration.is_some_and(
+        |&StatsdServiceConfiguration {
+             statsd_reporting_interval,
+             ..
+         }| statsd_reporting_interval.is_zero(),
+    ) {
+        return Err(BootstrapError::StatsdReportingIntervalIsZero);
+    }
+
+    Ok(())
+}
+
+async fn load_balancer_desired_state_store(
+    state_database_type: StateDatabaseType,
+) -> Result<BalancerDesiredStateStore, BootstrapError> {
+    BalancerDesiredStateStore::load(Arc::new(StateDatabase::from(state_database_type)))
+        .await
+        .map_err(|source| BootstrapError::StateDatabaseReadFailed { source })
+}
+
+#[cfg(feature = "web_admin_panel")]
+fn bind_web_admin_panel_service(
+    web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
+    template_data: TemplateData,
+) -> Result<Option<WebAdminPanelService>, BootstrapError> {
+    web_admin_panel_service_configuration
+        .map(|WebAdminPanelServiceConfiguration { addr }| {
+            HttpListener::bind(addr)
+                .map(|http_listener| WebAdminPanelService {
+                    http_listener,
+                    template_data,
+                })
+                .map_err(|source| BootstrapError::WebAdminPanelBindFailed { addr, source })
+        })
+        .transpose()
+}
+
+fn compatibility_service<TCompatibilityLayer>(
+    InferenceService {
+        agent_controller_pool,
+        balancer_applicable_state_holder,
+        buffered_request_manager,
+        configuration,
+        ..
+    }: &InferenceService,
+    compatibility_layer: TCompatibilityLayer,
+    http_listener: HttpListener,
+) -> CompatibilityService<TCompatibilityLayer> {
+    CompatibilityService {
+        agent_controller_pool: agent_controller_pool.clone(),
+        balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
+        buffered_request_manager: buffered_request_manager.clone(),
+        compatibility_layer,
+        http_listener,
+        inference_service_configuration: configuration.clone(),
+    }
+}
 
 pub struct BalancerServiceBundle {
     pub addresses: BalancerAddresses,
@@ -43,8 +105,16 @@ pub struct BalancerServiceBundle {
 }
 
 impl BalancerServiceBundle {
+    /// # Errors
+    ///
+    /// Returns [`BootstrapError::StatsdReportingIntervalIsZero`] when the statsd reporting interval is zero, [`BootstrapError::StateDatabaseReadFailed`] when the balancer desired state cannot be read from the state database, and [`BootstrapError::InferenceBindFailed`], [`BootstrapError::ManagementBindFailed`], [`BootstrapError::CompatOpenAIBindFailed`], [`BootstrapError::CompatTypeSafeBindFailed`] or `BootstrapError::WebAdminPanelBindFailed` when the address of the corresponding service cannot be bound.
     pub async fn new(
-        BalancerBootstrapConfig {
+        balancer_bootstrap_config: BalancerBootstrapConfig,
+    ) -> Result<Self, BootstrapError> {
+        #[cfg(feature = "web_admin_panel")]
+        let web_admin_panel_template_data =
+            balancer_bootstrap_config.web_admin_panel_template_data();
+        let BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration,
             management_service_configuration,
@@ -56,18 +126,9 @@ impl BalancerServiceBundle {
             typesafe_service_configuration,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
-        }: BalancerBootstrapConfig,
-    ) -> Result<Self, BootstrapError> {
-        if statsd_service_configuration
-            .as_ref()
-            .is_some_and(|statsd_service_configuration| {
-                statsd_service_configuration
-                    .statsd_reporting_interval
-                    .is_zero()
-            })
-        {
-            return Err(BootstrapError::StatsdReportingIntervalIsZero);
-        }
+        } = balancer_bootstrap_config;
+
+        reject_zero_statsd_reporting_interval(statsd_service_configuration.as_ref())?;
 
         let agent_controller_pool = Arc::new(AgentControllerPool::default());
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
@@ -75,155 +136,77 @@ impl BalancerServiceBundle {
             buffered_request_timeout,
             max_buffered_requests,
         ));
-        let state_database = Arc::new(StateDatabase::from(state_database_type));
-        let balancer_desired_state_store = Arc::new(
-            BalancerDesiredStateStore::load(state_database)
-                .await
-                .map_err(|source| BootstrapError::StateDatabaseReadFailed { source })?,
-        );
+        let balancer_desired_state_store =
+            Arc::new(load_balancer_desired_state_store(state_database_type).await?);
         let balancer_applicable_state_holder =
             Arc::new(balancer_desired_state_store.applicable_state_holder());
 
-        let inference_addr = inference_service_configuration.addr.socket_addr;
-        let inference_http_listener = HttpListener::bind(inference_addr).map_err(|source| {
-            BootstrapError::InferenceBindFailed {
-                addr: inference_addr,
-                source,
-            }
-        })?;
-        let management_addr = management_service_configuration.addr.socket_addr;
-        let management_http_listener = HttpListener::bind(management_addr).map_err(|source| {
-            BootstrapError::ManagementBindFailed {
-                addr: management_addr,
-                source,
-            }
-        })?;
-        let openai_http_listener = openai_service_configuration
-            .as_ref()
-            .map(|openai_service_configuration| {
-                let openai_addr = openai_service_configuration.addr.socket_addr;
-
-                HttpListener::bind(openai_addr).map_err(|source| {
-                    BootstrapError::CompatOpenAIBindFailed {
-                        addr: openai_addr,
-                        source,
-                    }
-                })
-            })
-            .transpose()?;
-        let typesafe_http_listener = typesafe_service_configuration
-            .as_ref()
-            .map(|typesafe_service_configuration| {
-                let typesafe_addr = typesafe_service_configuration.addr.socket_addr;
-
-                HttpListener::bind(typesafe_addr).map_err(|source| {
-                    BootstrapError::CompatTypeSafeBindFailed {
-                        addr: typesafe_addr,
-                        source,
-                    }
-                })
-            })
-            .transpose()?;
+        let balancer_http_listeners = BalancerHttpListeners::bind(
+            &inference_service_configuration,
+            &management_service_configuration,
+            openai_service_configuration.as_ref(),
+            typesafe_service_configuration.as_ref(),
+        )?;
         #[cfg(feature = "web_admin_panel")]
-        let web_admin_panel_service = web_admin_panel_service_configuration
-            .map(|WebAdminPanelServiceConfiguration { addr }| {
-                HttpListener::bind(addr)
-                    .map(|http_listener| WebAdminPanelService {
-                        http_listener,
-                        template_data: TemplateData {
-                            buffered_request_timeout,
-                            compat_openai_addr: openai_service_configuration
-                                .map(|CompatibilityServiceConfiguration { addr }| addr),
-                            compat_typesafe_addr: typesafe_service_configuration
-                                .map(|CompatibilityServiceConfiguration { addr }| addr),
-                            inference_addr: inference_service_configuration.addr.clone(),
-                            management_addr: management_service_configuration.addr.clone(),
-                            max_buffered_requests,
-                            statsd_prefix: statsd_prefix.clone(),
-                            statsd_service_configuration: statsd_service_configuration.clone(),
-                        },
-                    })
-                    .map_err(|source| BootstrapError::WebAdminPanelBindFailed { addr, source })
-            })
-            .transpose()?;
-        #[cfg(feature = "web_admin_panel")]
-        let web_admin_panel_addr = web_admin_panel_service
-            .as_ref()
-            .map(|web_admin_panel_service| web_admin_panel_service.http_listener.local_addr);
-        #[cfg(not(feature = "web_admin_panel"))]
-        let web_admin_panel_addr = None;
+        let web_admin_panel_service = bind_web_admin_panel_service(
+            web_admin_panel_service_configuration,
+            web_admin_panel_template_data,
+        )?;
 
+        let addresses = balancer_http_listeners.addresses();
+        #[cfg(feature = "web_admin_panel")]
         let addresses = BalancerAddresses {
-            compat_openai: openai_http_listener
+            web_admin_panel: web_admin_panel_service
                 .as_ref()
-                .map(|openai_http_listener| openai_http_listener.local_addr),
-            compat_typesafe: typesafe_http_listener
-                .as_ref()
-                .map(|typesafe_http_listener| typesafe_http_listener.local_addr),
-            inference: inference_http_listener.local_addr,
-            management: management_http_listener.local_addr,
-            web_admin_panel: web_admin_panel_addr,
+                .map(|WebAdminPanelService { http_listener, .. }| http_listener.local_addr),
+            ..addresses
         };
 
         let inference_service = InferenceService {
             agent_controller_pool: agent_controller_pool.clone(),
             balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
             buffered_request_manager: buffered_request_manager.clone(),
-            configuration: inference_service_configuration.clone(),
-            http_listener: inference_http_listener,
-            web_admin_panel_addr,
+            configuration: inference_service_configuration,
+            http_listener: balancer_http_listeners.inference,
+            web_admin_panel_addr: addresses.web_admin_panel,
         };
-
-        let management_service = ManagementService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-            buffered_request_manager: buffered_request_manager.clone(),
-            configuration: management_service_configuration,
-            balancer_desired_state_store,
-            http_listener: management_http_listener,
-            statsd_prefix: statsd_prefix.clone(),
-            web_admin_panel_addr,
-        };
-
-        let reconciliation_service = ReconciliationService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-        };
-
-        let openai_service = openai_http_listener.map(|http_listener| CompatibilityService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-            buffered_request_manager: buffered_request_manager.clone(),
-            compatibility_layer: OpenAICompatibilityLayer,
-            http_listener,
-            inference_service_configuration: inference_service_configuration.clone(),
-        });
-
-        let typesafe_service = typesafe_http_listener.map(|http_listener| CompatibilityService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-            buffered_request_manager: buffered_request_manager.clone(),
-            compatibility_layer: TypeSafeCompatibilityLayer,
-            http_listener,
-            inference_service_configuration,
-        });
-
-        let statsd_service = statsd_service_configuration.map(|configuration| StatsdService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            buffered_request_manager,
-            configuration,
-            statsd_prefix,
-        });
 
         Ok(Self {
             addresses,
-            balancer_applicable_state_holder,
+            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
+            management_service: ManagementService {
+                agent_controller_pool: agent_controller_pool.clone(),
+                balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
+                buffered_request_manager: buffered_request_manager.clone(),
+                configuration: management_service_configuration,
+                balancer_desired_state_store,
+                http_listener: balancer_http_listeners.management,
+                statsd_prefix: statsd_prefix.clone(),
+                web_admin_panel_addr: addresses.web_admin_panel,
+            },
+            reconciliation_service: ReconciliationService {
+                agent_controller_pool: agent_controller_pool.clone(),
+                balancer_applicable_state_holder,
+            },
+            openai_service: balancer_http_listeners.compat_openai.map(|http_listener| {
+                compatibility_service(&inference_service, OpenAICompatibilityLayer, http_listener)
+            }),
+            statsd_service: statsd_service_configuration.map(|configuration| StatsdService {
+                agent_controller_pool,
+                buffered_request_manager,
+                configuration,
+                statsd_prefix,
+            }),
+            typesafe_service: balancer_http_listeners
+                .compat_typesafe
+                .map(|http_listener| {
+                    compatibility_service(
+                        &inference_service,
+                        TypeSafeCompatibilityLayer,
+                        http_listener,
+                    )
+                }),
             inference_service,
-            management_service,
-            reconciliation_service,
-            openai_service,
-            statsd_service,
-            typesafe_service,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service,
         })
@@ -268,7 +251,7 @@ mod tests {
     use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
     use paddler_state_database::state_database_type::StateDatabaseType;
     use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
-    use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+    use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
     use super::BalancerServiceBundle;
     use crate::balancer_bootstrap_config::BalancerBootstrapConfig;

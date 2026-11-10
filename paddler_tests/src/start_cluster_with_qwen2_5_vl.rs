@@ -9,6 +9,9 @@ use paddler_test_cluster_harness::model_card::qwen2_5_vl_3b_mmproj::qwen2_5_vl_3
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Qwen2.5 VL cannot start.
 pub async fn start_cluster_with_qwen2_5_vl(agents: Vec<AgentConfig>) -> Result<Cluster> {
     start_cluster(ClusterParams {
         agents,

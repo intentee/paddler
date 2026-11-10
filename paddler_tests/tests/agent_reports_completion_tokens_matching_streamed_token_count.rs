@@ -9,6 +9,7 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_test_cluster_harness::unending_grammar::unending_grammar;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
@@ -46,7 +47,7 @@ async fn agent_reports_completion_tokens_matching_streamed_token_count() {
     let streamed_token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count() as u64;
 
     let summary = collected

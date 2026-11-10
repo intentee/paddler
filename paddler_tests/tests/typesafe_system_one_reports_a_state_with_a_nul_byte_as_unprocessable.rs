@@ -10,13 +10,12 @@ use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_test_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
-
-use crate::with_nul_byte::with_nul_byte;
+use paddler_tests::with_nul_byte::with_nul_byte;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_a_state_with_a_nul_byte_as_unprocessable() {
-    let cluster = start_decision_cluster(DecisionClusterParams::default())
+    let cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let state_with_nul_byte = with_nul_byte("state");

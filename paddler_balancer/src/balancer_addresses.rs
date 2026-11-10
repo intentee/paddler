@@ -17,6 +17,9 @@ pub struct BalancerAddresses {
 }
 
 impl BalancerAddresses {
+    /// # Errors
+    ///
+    /// Fails when the writer rejects the JSON addresses or their line ending.
     pub fn write_json_line<TWriter: Write>(&self, mut writer: TWriter) -> io::Result<()> {
         to_writer(&mut writer, self)?;
 

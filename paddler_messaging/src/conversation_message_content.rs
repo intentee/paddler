@@ -15,9 +15,19 @@ pub enum ConversationMessageContent {
 }
 
 impl ConversationMessageContent {
+    #[must_use]
+    pub fn contains_image_url(&self) -> bool {
+        match self {
+            Self::Text(_) => false,
+            Self::Parts(parts) => parts
+                .iter()
+                .any(|part| matches!(part, ConversationMessageContentPart::ImageUrl { .. })),
+        }
+    }
+
     pub fn into_chat_template_content(
         self,
-        media_marker: &MediaMarker,
+        MediaMarker { marker }: &MediaMarker,
         image_urls: &mut Vec<ImageUrl>,
     ) -> ChatMessageContent {
         match self {
@@ -32,7 +42,7 @@ impl ConversationMessageContent {
                         ConversationMessageContentPart::ImageUrl { image_url } => {
                             image_urls.push(image_url);
 
-                            ChatMessageContentPart::MediaMarker(media_marker.marker.clone())
+                            ChatMessageContentPart::MediaMarker(marker.clone())
                         }
                     })
                     .collect(),
@@ -52,20 +62,6 @@ impl ConversationMessageContent {
                 })
                 .collect::<Vec<&str>>()
                 .join(""),
-        }
-    }
-
-    #[must_use]
-    pub fn image_urls(&self) -> Vec<&ImageUrl> {
-        match self {
-            Self::Text(_) => vec![],
-            Self::Parts(parts) => parts
-                .iter()
-                .filter_map(|part| match part {
-                    ConversationMessageContentPart::ImageUrl { image_url } => Some(image_url),
-                    ConversationMessageContentPart::Text { .. } => None,
-                })
-                .collect(),
         }
     }
 }
@@ -113,7 +109,7 @@ mod tests {
     }
 
     #[test]
-    fn text_content_from_text_variant() {
+    fn text_content_of_a_text_variant_is_its_text() {
         let content = ConversationMessageContent::Text("hello world".to_owned());
 
         assert_eq!(content.text_content(), "hello world");
@@ -139,14 +135,22 @@ mod tests {
     }
 
     #[test]
-    fn image_urls_from_text_variant_is_empty() {
-        let content = ConversationMessageContent::Text("hello".to_owned());
-
-        assert_eq!(content.image_urls(), Vec::<&ImageUrl>::new());
+    fn text_content_contains_no_image_url() {
+        assert!(!ConversationMessageContent::Text("hello".to_owned()).contains_image_url());
     }
 
     #[test]
-    fn image_urls_from_parts_collects_image_urls() {
+    fn parts_with_only_text_contain_no_image_url() {
+        let content =
+            ConversationMessageContent::Parts(vec![ConversationMessageContentPart::Text {
+                text: "hello".to_owned(),
+            }]);
+
+        assert!(!content.contains_image_url());
+    }
+
+    #[test]
+    fn parts_with_an_image_contain_an_image_url() {
         let content = ConversationMessageContent::Parts(vec![
             ConversationMessageContentPart::Text {
                 text: "hello".to_owned(),
@@ -156,17 +160,8 @@ mod tests {
                     url: "http://example.com/a.png".to_owned(),
                 },
             },
-            ConversationMessageContentPart::ImageUrl {
-                image_url: ImageUrl {
-                    url: "http://example.com/b.png".to_owned(),
-                },
-            },
         ]);
 
-        let urls = content.image_urls();
-
-        assert_eq!(urls.len(), 2);
-        assert_eq!(urls[0].url, "http://example.com/a.png");
-        assert_eq!(urls[1].url, "http://example.com/b.png");
+        assert!(content.contains_image_url());
     }
 }

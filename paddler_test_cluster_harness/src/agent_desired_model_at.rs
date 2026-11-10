@@ -5,6 +5,9 @@ use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
 use paddler_model_source::model_source::ModelSource;
 use paddler_model_source::model_source_error::ModelSourceError;
 
+/// # Errors
+///
+/// Returns [`ModelSourceError::LocalModelPathNotAbsolute`] when the path is not absolute, and [`ModelSourceError::LocalModelPathClimbsToParentDirectory`] when it climbs to a parent directory.
 pub fn agent_desired_model_at(path: &Path) -> Result<AgentDesiredModel, ModelSourceError> {
     Ok(
         ModelSource::LocalToAgent(AgentLocalModelPath::from_absolute_path(path)?)

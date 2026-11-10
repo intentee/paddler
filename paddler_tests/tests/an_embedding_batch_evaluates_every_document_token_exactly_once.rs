@@ -8,15 +8,15 @@ use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized
 use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
-
-use crate::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
+use paddler_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 
 const REQUEST_SEQUENCES: NonZeroU16 = NonZeroU16::new(2).unwrap();
 
 #[test]
 fn an_embedding_batch_evaluates_every_document_token_exactly_once() {
     let nomic_embedding_batch_processing =
-        NomicEmbeddingBatchProcessing::load(PoolingType::Mean, REQUEST_SEQUENCES);
+        NomicEmbeddingBatchProcessing::load(PoolingType::Mean, REQUEST_SEQUENCES)
+            .expect("the nomic embedding model must load");
     let documents = vec![
         EmbeddingInputTokenized {
             id: "short".to_owned(),
@@ -37,13 +37,18 @@ fn an_embedding_batch_evaluates_every_document_token_exactly_once() {
             ],
         },
     ];
-    let document_tokens: usize = documents.iter().map(|document| document.tokens.len()).sum();
+    let document_tokens: usize = documents
+        .iter()
+        .map(|EmbeddingInputTokenized { tokens, .. }| tokens.len())
+        .sum();
     let ActiveEmbeddingRequestFixture {
         mut admitted_requests,
         generate_embedding_stop_tx: _generate_embedding_stop_tx,
         generated_embedding_rx: _generated_embedding_rx,
     } = nomic_embedding_batch_processing.admit(documents);
-    let mut llama_context = nomic_embedding_batch_processing.embedding_llama_context();
+    let mut llama_context = nomic_embedding_batch_processing
+        .embedding_llama_context()
+        .expect("the embedding context must be created");
 
     let tokens_evaluated_before_the_documents = llama_context.evaluated_tokens();
 

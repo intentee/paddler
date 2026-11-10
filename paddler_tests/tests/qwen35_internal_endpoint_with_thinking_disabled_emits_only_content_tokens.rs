@@ -10,7 +10,18 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+
+fn count_tokens(
+    token_results: &[TokenResultWithProducer],
+    is_counted: fn(&GeneratedTokenResult) -> bool,
+) -> usize {
+    token_results
+        .iter()
+        .filter(|TokenResultWithProducer { token_result, .. }| is_counted(token_result))
+        .count()
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_tokens() {
@@ -41,26 +52,15 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
         .await
         .expect("the inference request must be accepted");
 
-    let reasoning_count = collected
-        .token_results
-        .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
-        .count();
-    let content_count = collected
-        .token_results
-        .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ContentToken(_)))
-        .count();
-    let undeterminable_count = collected
-        .token_results
-        .iter()
-        .filter(|result| {
-            matches!(
-                result.token_result,
-                GeneratedTokenResult::UndeterminableToken(_)
-            )
-        })
-        .count();
+    let reasoning_count = count_tokens(&collected.token_results, |token_result| {
+        matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+    });
+    let content_count = count_tokens(&collected.token_results, |token_result| {
+        matches!(token_result, GeneratedTokenResult::ContentToken(_))
+    });
+    let undeterminable_count = count_tokens(&collected.token_results, |token_result| {
+        matches!(token_result, GeneratedTokenResult::UndeterminableToken(_))
+    });
 
     assert_eq!(
         reasoning_count, 0,

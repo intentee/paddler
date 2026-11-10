@@ -32,7 +32,7 @@ async fn openai_chat_completion_streaming_reports_length_finish_reason_at_max_to
 
     let finish_reasons: Vec<&Value> = chunks
         .iter()
-        .map(|chunk| &chunk["choices"][0]["finish_reason"])
+        .filter_map(|chunk| chunk.pointer("/choices/0/finish_reason"))
         .filter(|finish_reason| !finish_reason.is_null())
         .collect();
 

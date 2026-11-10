@@ -10,11 +10,10 @@ use paddler_openai_translation::translated_chat_completion_request::TranslatedCh
 
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
 use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
-use crate::compatibility::openai_service::generation_progress_events::generation_progress_events;
-use crate::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+use crate::compatibility::openai_service::generation_relay::GenerationRelay;
 use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
-use crate::compatibility::openai_service::openai_http_response::openai_http_response;
 use crate::compatibility::openai_service::openai_json_config::openai_json_config;
+use crate::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 
 async fn respond(
     app_data: web::Data<CompatibilityAppData>,
@@ -28,16 +27,20 @@ async fn respond(
             conversation_history_params,
             delivery,
         }) => {
-            let agent_relay = app_data.agent_relay(conversation_history_params);
+            let generation_relay = GenerationRelay {
+                agent_relay: app_data.agent_relay(conversation_history_params),
+            };
 
             match delivery {
                 ChatCompletionDelivery::Buffered(chat_completion_header) => {
-                    openai_http_response(&chat_completion_header, agent_relay).await
+                    generation_relay
+                        .into_http_response(&chat_completion_header)
+                        .await
                 }
                 ChatCompletionDelivery::Streamed(chat_completion_stream) => {
                     chat_completions_sse_response(
                         chat_completion_stream,
-                        generation_progress_events(agent_relay),
+                        generation_relay.into_progress_events(),
                     )
                 }
             }
@@ -50,7 +53,7 @@ async fn respond(
 
 pub fn post_chat_completions(cfg: &mut web::ServiceConfig) {
     cfg.app_data(openai_json_config())
-        .route(OpenAIApiPath::CHAT_COMPLETIONS, post().to(respond));
+        .route(OPENAI_API_PATH_CHAT_COMPLETIONS, post().to(respond));
 }
 
 #[cfg(test)]
@@ -67,7 +70,6 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body;
     use actix_web::web::Data;
-    use anyhow::Result;
     use serde_json::Value;
     use serde_json::from_slice;
     use serde_json::json;
@@ -83,7 +85,7 @@ mod tests {
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
-    use crate::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+    use crate::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
     use crate::resolved_socket_addr::ResolvedSocketAddr;
 
@@ -122,7 +124,7 @@ mod tests {
         .await;
 
         let request = TestRequest::post()
-            .uri(OpenAIApiPath::CHAT_COMPLETIONS)
+            .uri(OPENAI_API_PATH_CHAT_COMPLETIONS)
             .set_json(json!({
                 "model": "test-model",
                 "messages": [{"role": "user", "content": "hi"}],
@@ -164,7 +166,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn rejects_a_tool_that_is_not_a_function_with_an_openai_error() -> Result<()> {
+    async fn rejects_a_tool_that_is_not_a_function_with_an_openai_error() {
         let app = init_service(
             App::new()
                 .app_data(Data::new(app_data_without_agents(0)))
@@ -173,7 +175,7 @@ mod tests {
         .await;
 
         let request = TestRequest::post()
-            .uri(OpenAIApiPath::CHAT_COMPLETIONS)
+            .uri(OPENAI_API_PATH_CHAT_COMPLETIONS)
             .set_json(json!({
                 "model": "test-model",
                 "messages": [{"role": "user", "content": "hi"}],
@@ -186,12 +188,16 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
         let body = read_body(response).await;
-        let envelope: Value = from_slice(&body)?;
+        let envelope: Value = from_slice(&body).expect("the error response must be JSON");
 
-        OpenAIValidator::new()?.validate_error_response(&envelope)?;
-        assert_eq!(envelope["error"]["type"], "invalid_request_error");
-
-        Ok(())
+        OpenAIValidator::new()
+            .expect("the OpenAI validator must load its schemas")
+            .validate_error_response(&envelope)
+            .expect("the error response must conform to the OpenAI schema");
+        assert_eq!(
+            envelope.pointer("/error/type"),
+            Some(&json!("invalid_request_error"))
+        );
     }
 
     #[actix_web::test]
@@ -204,7 +210,7 @@ mod tests {
         .await;
 
         let request = TestRequest::post()
-            .uri(OpenAIApiPath::CHAT_COMPLETIONS)
+            .uri(OPENAI_API_PATH_CHAT_COMPLETIONS)
             .set_json(json!({
                 "model": "test-model",
                 "messages": [{"role": "user", "content": "hi"}]

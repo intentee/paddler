@@ -29,7 +29,7 @@ mod tests {
     use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 
     #[test]
-    fn converts_unspecified() {
+    fn maps_unspecified_pooling_to_the_llama_unspecified_pooling() {
         assert_eq!(
             AgentPoolingType(PoolingType::Unspecified).to_llama_pooling_type(),
             LlamaPoolingType::Unspecified
@@ -37,7 +37,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_none() {
+    fn maps_none_pooling_to_the_llama_none_pooling() {
         assert_eq!(
             AgentPoolingType(PoolingType::None).to_llama_pooling_type(),
             LlamaPoolingType::None
@@ -45,7 +45,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_mean() {
+    fn maps_mean_pooling_to_the_llama_mean_pooling() {
         assert_eq!(
             AgentPoolingType(PoolingType::Mean).to_llama_pooling_type(),
             LlamaPoolingType::Mean
@@ -53,7 +53,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_cls() {
+    fn maps_cls_pooling_to_the_llama_cls_pooling() {
         assert_eq!(
             AgentPoolingType(PoolingType::Cls).to_llama_pooling_type(),
             LlamaPoolingType::Cls
@@ -61,7 +61,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_last() {
+    fn maps_last_pooling_to_the_llama_last_pooling() {
         assert_eq!(
             AgentPoolingType(PoolingType::Last).to_llama_pooling_type(),
             LlamaPoolingType::Last
@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_rank() {
+    fn maps_rank_pooling_to_the_llama_rank_pooling() {
         assert_eq!(
             AgentPoolingType(PoolingType::Rank).to_llama_pooling_type(),
             LlamaPoolingType::Rank

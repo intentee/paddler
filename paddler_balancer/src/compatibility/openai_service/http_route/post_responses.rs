@@ -9,12 +9,11 @@ use paddler_openai_translation::responses_request::ResponsesRequest;
 use paddler_openai_translation::translated_responses_request::TranslatedResponsesRequest;
 
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
-use crate::compatibility::openai_service::generation_progress_events::generation_progress_events;
-use crate::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+use crate::compatibility::openai_service::generation_relay::GenerationRelay;
 use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
-use crate::compatibility::openai_service::openai_http_response::openai_http_response;
 use crate::compatibility::openai_service::openai_json_config::openai_json_config;
 use crate::compatibility::openai_service::responses_sse_response::responses_sse_response;
+use crate::constants::OPENAI_API_PATH_RESPONSES;
 
 async fn respond(
     app_data: web::Data<CompatibilityAppData>,
@@ -35,15 +34,19 @@ async fn respond(
             conversation_history_params,
             delivery,
         }) => {
-            let agent_relay = app_data.agent_relay(conversation_history_params);
+            let generation_relay = GenerationRelay {
+                agent_relay: app_data.agent_relay(conversation_history_params),
+            };
 
             match delivery {
                 ResponsesDelivery::Buffered(responses_response_header) => {
-                    openai_http_response(&responses_response_header, agent_relay).await
+                    generation_relay
+                        .into_http_response(&responses_response_header)
+                        .await
                 }
                 ResponsesDelivery::Streamed(responses_stream) => responses_sse_response(
                     responses_stream,
-                    generation_progress_events(agent_relay),
+                    generation_relay.into_progress_events(),
                 ),
             }
         }
@@ -55,5 +58,5 @@ async fn respond(
 
 pub fn post_responses(cfg: &mut web::ServiceConfig) {
     cfg.app_data(openai_json_config())
-        .route(OpenAIApiPath::RESPONSES, post().to(respond));
+        .route(OPENAI_API_PATH_RESPONSES, post().to(respond));
 }

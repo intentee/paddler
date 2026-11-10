@@ -7,17 +7,23 @@ use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::token::LlamaToken;
 
 pub trait DelimiterVocabulary {
-    fn tokenize_delimiter(&self, delimiter: &str) -> Result<Vec<LlamaToken>, StringToTokenError>;
-
+    /// # Errors
+    ///
+    /// Returns a [`TokenAttrError`] when the vocabulary cannot report the attributes of the token.
     fn token_attributes(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError>;
+
+    /// # Errors
+    ///
+    /// Returns a [`StringToTokenError`] when the vocabulary cannot tokenize the delimiter.
+    fn tokenize_delimiter(&self, delimiter: &str) -> Result<Vec<LlamaToken>, StringToTokenError>;
 }
 
 impl DelimiterVocabulary for LlamaModel {
-    fn tokenize_delimiter(&self, delimiter: &str) -> Result<Vec<LlamaToken>, StringToTokenError> {
-        self.str_to_token(delimiter, AddBos::Never, ParseSpecialTokens::Always)
-    }
-
     fn token_attributes(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
         self.token_attr(token)
+    }
+
+    fn tokenize_delimiter(&self, delimiter: &str) -> Result<Vec<LlamaToken>, StringToTokenError> {
+        self.str_to_token(delimiter, AddBos::Never, ParseSpecialTokens::Always)
     }
 }

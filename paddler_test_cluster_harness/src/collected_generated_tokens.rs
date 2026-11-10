@@ -11,23 +11,23 @@ pub struct CollectedGeneratedTokens {
 
 impl CollectedGeneratedTokens {
     #[must_use]
-    pub fn into_token_results(self) -> Vec<GeneratedTokenResult> {
+    pub fn content_text(&self) -> String {
         self.token_results
-            .into_iter()
-            .map(|token_result_with_producer| token_result_with_producer.token_result)
+            .iter()
+            .filter_map(
+                |TokenResultWithProducer { token_result, .. }| match token_result {
+                    GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
+                    _ => None,
+                },
+            )
             .collect()
     }
 
     #[must_use]
-    pub fn content_text(&self) -> String {
+    pub fn into_token_results(self) -> Vec<GeneratedTokenResult> {
         self.token_results
-            .iter()
-            .filter_map(|token_result_with_producer| {
-                match &token_result_with_producer.token_result {
-                    GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
-                    _ => None,
-                }
-            })
+            .into_iter()
+            .map(|TokenResultWithProducer { token_result, .. }| token_result)
             .collect()
     }
 
@@ -35,20 +35,23 @@ impl CollectedGeneratedTokens {
     pub fn reasoning_text(&self) -> String {
         self.token_results
             .iter()
-            .filter_map(|token_result_with_producer| {
-                match &token_result_with_producer.token_result {
+            .filter_map(
+                |TokenResultWithProducer { token_result, .. }| match token_result {
                     GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
                     _ => None,
-                }
-            })
+                },
+            )
             .collect()
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::GenerationEndedWithoutSummary`] when the generation does not end with a summary.
     pub fn summary(&self) -> Result<GenerationSummary, ClusterHarnessError> {
         match self
             .token_results
             .last()
-            .map(|token_result_with_producer| &token_result_with_producer.token_result)
+            .map(|TokenResultWithProducer { token_result, .. }| token_result)
         {
             Some(GeneratedTokenResult::Done(summary)) => Ok(*summary),
             last_token_result => Err(ClusterHarnessError::GenerationEndedWithoutSummary {

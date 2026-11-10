@@ -1,22 +1,30 @@
 use std::collections::hash_map::Entry;
+use std::fmt::Display;
 use std::mem;
 use std::pin::pin;
+use std::sync::Arc;
 
+use futures_util::Sink;
+use futures_util::SinkExt;
 use log::debug;
+use log::error;
 use parking_lot::Mutex;
+use tokio::spawn;
 use tokio::sync::Notify;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::task::JoinHandle;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 
 use crate::error::Error;
-use crate::error::Result;
 use crate::inference_socket::awaited_response::AwaitedResponse;
 use crate::inference_socket::inference_socket_exchange_state::InferenceSocketExchangeState;
 use crate::inference_socket::open_inference_socket_exchange::OpenInferenceSocketExchange;
 use crate::inference_socket::outbound_frames::OutboundFrames;
 use crate::inference_socket::outbound_request::OutboundRequest;
+use crate::result::Result;
 
 pub struct InferenceSocketExchange {
     closing: Notify,
@@ -124,6 +132,9 @@ impl InferenceSocketExchange {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`Error::ConnectionDropped`] when the exchange is already closed, and [`Error::InferenceRequestIdInFlight`] when a request with the same id is already awaiting responses.
     pub fn register(
         &self,
         OutboundRequest {
@@ -156,6 +167,30 @@ impl InferenceSocketExchange {
         }
     }
 
+    pub fn spawn_write_task<TWebSocketWriteSink>(
+        self: Arc<Self>,
+        ws_write: TWebSocketWriteSink,
+    ) -> JoinHandle<()>
+    where
+        TWebSocketWriteSink: Sink<WsMessage> + Send + Unpin + 'static,
+        TWebSocketWriteSink::Error: Display,
+    {
+        spawn(async move {
+            let mut ws_write = ws_write;
+
+            while let OutboundFrames::Queued(frames) = self.next_outbound_frames().await {
+                for frame in frames {
+                    if let Err(write_error) = ws_write.send(WsMessage::Text(frame.into())).await {
+                        error!("WebSocket write error: {write_error}");
+                        self.close();
+
+                        return;
+                    }
+                }
+            }
+        })
+    }
+
     pub fn stop_responding_to(&self, request_id: &str) {
         if let InferenceSocketExchangeState::Open(open_exchange) = &mut *self.state.lock()
             && let Some(AwaitedResponse { stop_frame, .. }) =
@@ -181,9 +216,14 @@ impl Default for InferenceSocketExchange {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use futures_util::FutureExt as _;
     use serde_json::json;
+    use tokio::sync::mpsc::channel;
     use tokio::sync::mpsc::error::TryRecvError;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
+    use tokio_util::sync::PollSender;
 
     use super::InferenceSocketExchange;
     use crate::error::Error;
@@ -352,6 +392,30 @@ mod tests {
         assert!(matches!(
             first_registration.try_recv(),
             Ok(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_failed_write_drops_every_awaiting_request() {
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let (frames_tx, frames_rx) = channel::<WsMessage>(1);
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open exchange must accept a request");
+
+        drop(frames_rx);
+
+        exchange
+            .spawn_write_task(PollSender::new(frames_tx))
+            .await
+            .expect("the write task must not panic");
+
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
     }
 }

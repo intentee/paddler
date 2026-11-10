@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::responses_content_part::ResponsesContentPart;
@@ -35,26 +35,17 @@ impl ResponsesOutputItem {
     #[must_use]
     pub fn completed_function_call(
         id: String,
-        parsed_tool_call: &GeneratedToolCall,
+        GeneratedToolCall {
+            id: call_id, name, ..
+        }: &GeneratedToolCall,
         arguments: String,
     ) -> Self {
         Self::FunctionCall {
             arguments,
-            call_id: parsed_tool_call.id.clone(),
+            call_id: call_id.clone(),
             id,
-            name: parsed_tool_call.name.clone(),
+            name: name.clone(),
             status: ResponsesItemStatus::Completed,
-        }
-    }
-
-    #[must_use]
-    pub fn function_call_in_progress(id: String, parsed_tool_call: &GeneratedToolCall) -> Self {
-        Self::FunctionCall {
-            arguments: String::new(),
-            call_id: parsed_tool_call.id.clone(),
-            id,
-            name: parsed_tool_call.name.clone(),
-            status: ResponsesItemStatus::InProgress,
         }
     }
 
@@ -69,22 +60,38 @@ impl ResponsesOutputItem {
     }
 
     #[must_use]
-    pub const fn message_in_progress(id: String) -> Self {
-        Self::Message {
-            content: Vec::new(),
-            id,
-            role: ASSISTANT_ROLE,
-            status: ResponsesItemStatus::InProgress,
-        }
-    }
-
-    #[must_use]
     pub fn completed_reasoning(id: String, text: String) -> Self {
         Self::Reasoning {
             content: vec![ResponsesReasoningPart::ReasoningText { text }],
             id,
             status: ResponsesItemStatus::Completed,
             summary: [],
+        }
+    }
+
+    #[must_use]
+    pub fn function_call_in_progress(
+        id: String,
+        GeneratedToolCall {
+            id: call_id, name, ..
+        }: &GeneratedToolCall,
+    ) -> Self {
+        Self::FunctionCall {
+            arguments: String::new(),
+            call_id: call_id.clone(),
+            id,
+            name: name.clone(),
+            status: ResponsesItemStatus::InProgress,
+        }
+    }
+
+    #[must_use]
+    pub const fn message_in_progress(id: String) -> Self {
+        Self::Message {
+            content: Vec::new(),
+            id,
+            role: ASSISTANT_ROLE,
+            status: ResponsesItemStatus::InProgress,
         }
     }
 

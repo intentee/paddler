@@ -5,14 +5,14 @@ use std::num::NonZeroUsize;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_balancer::max_websocket_message_size::MAX_WEBSOCKET_MESSAGE_SIZE;
+use paddler_balancer::constants::MAX_WEBSOCKET_MESSAGE_SIZE;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::error::Error;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(1).unwrap();

@@ -3,8 +3,12 @@ use reqwest::Method;
 use reqwest::StatusCode;
 use reqwest::header::HeaderValue;
 
-use paddler_balancer::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
-use paddler_balancer::compatibility::typesafe_service::typesafe_header::TypeSafeHeader;
+use paddler_balancer::constants::TYPESAFE_API_PATH_MODELS;
+use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer::constants::TYPESAFE_HEADER_REQUEST_ID;
+use paddler_balancer::constants::TYPESAFE_HEADER_RETRY_COUNT;
+use paddler_balancer::constants::TYPESAFE_HEADER_RUNTIME;
+use paddler_balancer::constants::TYPESAFE_HEADER_SDK;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
@@ -25,7 +29,7 @@ async fn typesafe_service_lets_browsers_send_and_read_typesafe_headers() {
             Method::OPTIONS,
             cluster
                 .balancer
-                .compat_typesafe_url(TypeSafeApiPath::SYSTEM_ONE)
+                .compat_typesafe_url(TYPESAFE_API_PATH_SYSTEM_ONE)
                 .expect("the cluster serves TypeSafe"),
         )
         .header("Origin", ALLOWED_ORIGIN)
@@ -35,10 +39,10 @@ async fn typesafe_service_lets_browsers_send_and_read_typesafe_headers() {
             [
                 "authorization",
                 "content-type",
-                TypeSafeHeader::REQUEST_ID,
-                TypeSafeHeader::RETRY_COUNT,
-                TypeSafeHeader::RUNTIME,
-                TypeSafeHeader::SDK,
+                TYPESAFE_HEADER_REQUEST_ID,
+                TYPESAFE_HEADER_RETRY_COUNT,
+                TYPESAFE_HEADER_RUNTIME,
+                TYPESAFE_HEADER_SDK,
             ]
             .join(", "),
         )
@@ -52,7 +56,7 @@ async fn typesafe_service_lets_browsers_send_and_read_typesafe_headers() {
         .get(
             cluster
                 .balancer
-                .compat_typesafe_url(TypeSafeApiPath::MODELS)
+                .compat_typesafe_url(TYPESAFE_API_PATH_MODELS)
                 .expect("the cluster serves TypeSafe"),
         )
         .header("Origin", ALLOWED_ORIGIN)
@@ -62,7 +66,7 @@ async fn typesafe_service_lets_browsers_send_and_read_typesafe_headers() {
 
     assert_eq!(
         models.headers().get("access-control-expose-headers"),
-        Some(&HeaderValue::from_static(TypeSafeHeader::REQUEST_ID))
+        Some(&HeaderValue::from_static(TYPESAFE_HEADER_REQUEST_ID))
     );
 
     cluster

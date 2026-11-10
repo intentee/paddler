@@ -23,15 +23,18 @@ pub struct InProcessAgentSpawner {
 }
 
 impl AgentSpawner for InProcessAgentSpawner {
-    fn spawn(&self, config: &AgentConfig) -> Result<Box<dyn ManagedProcess>> {
+    fn spawn(
+        &self,
+        AgentConfig { name, slot_count }: &AgentConfig,
+    ) -> Result<Box<dyn ManagedProcess>> {
         Ok(Box::new(InProcessAgent::new(AgentRunner::start(
             AgentRunnerParams {
                 bootstrap_config: AgentBootstrapConfig {
                     management_address: self.management_address,
                     runtime: AgentRuntimeConfig {
-                        agent_name: Some(config.name.clone()),
+                        agent_name: Some(name.clone()),
                         desired_model_resolver: self.desired_model_resolver.clone(),
-                        slots: config.slot_count,
+                        slots: *slot_count,
                     },
                 },
                 cancellation_token: CancellationToken::new(),

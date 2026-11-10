@@ -78,6 +78,9 @@ impl ActiveDecisionRequest {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::BatchAssemblyFailed`] when a token does not fit the batch, [`DecisionError::DecodeFailed`] when llama.cpp rejects the batch, [`DecisionError::HiddenStateUnavailable`] when the hidden state of an option cannot be read, [`DecisionError::KvCacheRemovalFailed`] or [`DecisionError::KvCacheCopyFailed`] when the state cannot be copied into the question lane, and [`DecisionError::ClientDisconnected`] when the client stops listening for answers.
     pub fn advance(
         &mut self,
         decoder: &mut DecisionDecoder,
@@ -141,7 +144,7 @@ impl ActiveDecisionRequest {
     pub fn summary(&self) -> DecisionResult {
         DecisionResult::Done(DecisionSummary {
             input_tokens: self.input_tokens,
-            processing_milliseconds: self.started_at.elapsed().as_millis() as u64,
+            processing_milliseconds: self.started_at.elapsed().as_millis(),
         })
     }
 
@@ -226,12 +229,16 @@ impl ActiveDecisionRequest {
         DecisionAdvance::Continuing
     }
 
-    fn release_question_lane(&mut self, decoder: &mut DecisionDecoder, agent_name: Option<&str>) {
+    fn release_question_lane(
+        &mut self,
+        DecisionDecoder { llama_context, .. }: &mut DecisionDecoder,
+        agent_name: Option<&str>,
+    ) {
         if let QuestionLane::Reserved(lane) =
             mem::replace(&mut self.question_lane, QuestionLane::Released)
         {
             lane.sequence_id()
-                .release_kv_cache_in(decoder.llama_context, agent_name);
+                .release_kv_cache_in(llama_context, agent_name);
         }
     }
 

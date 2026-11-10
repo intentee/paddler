@@ -14,6 +14,9 @@ impl ProcessEnd {
         Self::Failed(failure.into())
     }
 
+    /// # Errors
+    ///
+    /// Returns the failure of a process that did not end cleanly.
     pub fn into_result(self) -> Result<(), Error> {
         match self {
             Self::Clean => Ok(()),

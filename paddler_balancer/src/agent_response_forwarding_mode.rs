@@ -76,12 +76,6 @@ mod tests {
 
     const INFERENCE_ITEM_TIMEOUT: Duration = Duration::from_millis(250);
 
-    type GeneratedTokenForwardingEvent =
-        ForwardingEvent<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
-
-    type GeneratedTokenForwardingPlan =
-        ForwardingPlan<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
-
     fn forwarding(event: GeneratedTokenForwardingEvent) -> GeneratedTokenForwardingPlan {
         AgentResponseForwardingMode::ForwardingToRelay.plan_for(event, INFERENCE_ITEM_TIMEOUT)
     }
@@ -101,6 +95,12 @@ mod tests {
             usage: TokenUsage::new(),
         })
     }
+
+    type GeneratedTokenForwardingEvent =
+        ForwardingEvent<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
+
+    type GeneratedTokenForwardingPlan =
+        ForwardingPlan<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
 
     #[test]
     fn tells_the_relay_about_a_shutdown_and_stops_the_agent() {

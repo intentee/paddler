@@ -2,8 +2,7 @@
 
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-
-use crate::shutdown_during_state_transition::ShutdownDuringStateTransition;
+use paddler_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_shuts_down_cleanly_while_loading_its_model() {
@@ -13,5 +12,6 @@ async fn agent_shuts_down_cleanly_while_loading_its_model() {
         slot_count: 1,
     }
     .shut_down_while_the_agent_applies_the_next_state()
-    .await;
+    .await
+    .expect("the cluster must shut down while its agent applies the next state");
 }

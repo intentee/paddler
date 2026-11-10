@@ -10,7 +10,7 @@ use paddler_cli_tests::signalled_subprocess::SignalledSubprocess;
 use paddler_cli_tests::spawn_balancer_subprocess::spawn_balancer_subprocess;
 use paddler_client::client_health::ClientHealth;
 use paddler_client::reports_health::ReportsHealth as _;
-use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 const MACOS_DEFAULT_SOFT_OPEN_FILE_LIMIT: rlim_t = 256;
 

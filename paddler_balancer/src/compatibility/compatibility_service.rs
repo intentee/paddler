@@ -17,9 +17,8 @@ use crate::compatibility::create_compatibility_cors_middleware::create_compatibi
 use crate::compatibility::serves_compatibility_layer::ServesCompatibilityLayer;
 use crate::http_listener::HttpListener;
 use crate::http_route::get_health::get_health;
+use crate::http_service_runner::HttpServiceRunner;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use crate::run_http_service::run_http_service;
-use crate::run_http_service_parameters::RunHttpServiceParameters;
 
 pub struct CompatibilityService<TCompatibilityLayer> {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -46,24 +45,22 @@ impl<TCompatibilityLayer: ServesCompatibilityLayer> CompatibilityService<TCompat
             shutdown: shutdown.clone(),
         });
 
-        run_http_service(
-            shutdown,
-            RunHttpServiceParameters {
-                app_factory: move || {
-                    App::new()
-                        .wrap(from_fn(attach_request_id::<TCompatibilityLayer>))
-                        .wrap(create_compatibility_cors_middleware::<TCompatibilityLayer>(
-                            &cors_allowed_hosts_arc,
-                        ))
-                        .app_data(app_data.clone())
-                        .configure(get_health)
-                        .configure(TCompatibilityLayer::configure)
-                },
-                http_listener: self.http_listener,
-                service_name,
-                worker_count: 16,
+        HttpServiceRunner {
+            app_factory: move || {
+                App::new()
+                    .wrap(from_fn(attach_request_id::<TCompatibilityLayer>))
+                    .wrap(create_compatibility_cors_middleware::<TCompatibilityLayer>(
+                        &cors_allowed_hosts_arc,
+                    ))
+                    .app_data(app_data.clone())
+                    .configure(get_health)
+                    .configure(TCompatibilityLayer::configure)
             },
-        )
+            http_listener: self.http_listener,
+            service_name,
+            worker_count: 16,
+        }
+        .run(shutdown)
         .await
     }
 }

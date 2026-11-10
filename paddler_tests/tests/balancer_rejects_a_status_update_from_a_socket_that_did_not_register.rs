@@ -7,8 +7,7 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_a_status_update_from_a_socket_that_did_not_register() {

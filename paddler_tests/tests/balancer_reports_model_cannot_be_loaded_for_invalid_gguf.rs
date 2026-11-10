@@ -1,14 +1,14 @@
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::constants::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

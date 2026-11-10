@@ -111,21 +111,14 @@ mod tests {
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::ReconciliationService;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
     use crate::desired_state_reconciler::DesiredStateReconciler;
-
-    fn desired_state_with_model(model: AgentDesiredModel) -> AgentDesiredState {
-        AgentDesiredState {
-            model,
-            ..AgentDesiredState::default()
-        }
-    }
 
     #[tokio::test(start_paused = true)]
     async fn a_desired_state_arriving_during_retries_is_reconciled_without_waiting() {
@@ -164,9 +157,10 @@ mod tests {
             .run(shutdown.clone()),
         );
 
-        agent_desired_state_tx.send_replace(desired_state_with_model(AgentDesiredModel::Uri(
-            failing_model_server.url("/model.gguf"),
-        )));
+        agent_desired_state_tx.send_replace(AgentDesiredState {
+            model: AgentDesiredModel::Uri(failing_model_server.url("/model.gguf")),
+            ..AgentDesiredState::default()
+        });
         failing_model_server.wait_for_requests(2).await.unwrap();
 
         let replaced_at = Instant::now();

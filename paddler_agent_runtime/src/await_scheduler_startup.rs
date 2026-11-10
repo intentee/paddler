@@ -10,6 +10,9 @@ use crate::scheduler_handle::SchedulerHandle;
 use crate::scheduler_ready::SchedulerReady;
 use crate::startup_outcome::StartupOutcome;
 
+/// # Errors
+///
+/// Returns the `TError` the scheduler thread reports when it fails to start, after joining that thread.
 pub async fn await_scheduler_startup<TPreparation, TError>(
     cancellation_token: &CancellationToken,
     mut scheduler_startup_rx: UnboundedReceiver<Result<SchedulerReady<TPreparation>, TError>>,

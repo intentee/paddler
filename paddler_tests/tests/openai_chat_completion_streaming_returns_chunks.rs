@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use serde_json::Value;
 use serde_json::json;
 
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -22,7 +23,13 @@ async fn openai_chat_completion_streaming_returns_chunks() {
         .expect("the OpenAI chat completion stream must succeed");
 
     assert!(!chunks.is_empty(), "should have received streaming chunks");
-    assert_eq!(chunks[0]["object"], "chat.completion.chunk");
+    assert_eq!(
+        chunks
+            .first()
+            .and_then(|first_chunk| first_chunk.pointer("/object"))
+            .and_then(Value::as_str),
+        Some("chat.completion.chunk")
+    );
 
     cluster
         .shutdown()

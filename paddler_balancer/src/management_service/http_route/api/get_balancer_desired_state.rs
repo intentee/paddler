@@ -3,7 +3,7 @@ use actix_web::Responder;
 use actix_web::web;
 use actix_web::web::get;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
 
 use crate::management_service::app_data::AppData;
 
@@ -16,7 +16,7 @@ async fn respond(app_data: web::Data<AppData>) -> impl Responder {
 }
 
 pub fn get_balancer_desired_state(cfg: &mut web::ServiceConfig) {
-    cfg.route(ApiPath::BALANCER_DESIRED_STATE, get().to(respond));
+    cfg.route(API_PATH_BALANCER_DESIRED_STATE, get().to(respond));
 }
 
 #[cfg(test)]
@@ -34,8 +34,8 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
     use paddler_state_database::state_database::StateDatabase;
     use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
@@ -79,7 +79,7 @@ mod tests {
         let response = call_service(
             &app,
             TestRequest::get()
-                .uri(ApiPath::BALANCER_DESIRED_STATE)
+                .uri(API_PATH_BALANCER_DESIRED_STATE)
                 .to_request(),
         )
         .await;

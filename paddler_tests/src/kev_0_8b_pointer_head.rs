@@ -3,6 +3,9 @@ use paddler_agent_pointer_head::pointer_head_error::PointerHeadError;
 
 use crate::kev_checkpoint::KevCheckpoint;
 
+/// # Errors
+///
+/// Returns the [`PointerHeadError`] of [`PointerHead::load`] when the kev 0.8B pointer head cannot be loaded.
 pub fn kev_0_8b_pointer_head() -> Result<PointerHead, PointerHeadError> {
     PointerHead::load(&KevCheckpoint::Kev0_8b.target_path("pointer_head.gguf"))
 }

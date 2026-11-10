@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use paddler_client::error::Result as ClientResult;
 use paddler_client::inference_message_stream::InferenceMessageStream;
+use paddler_client::result::Result as ClientResult;
 
 use crate::budgeted_inference_message_stream::BudgetedInferenceMessageStream;
 use crate::cluster_harness_error::ClusterHarnessError;
@@ -17,6 +17,9 @@ pub struct ConcurrentConnectionBudget {
 }
 
 impl ConcurrentConnectionBudget {
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog`] when holding another connection would exceed the portable listen backlog, and the error of the request when it fails.
     pub fn hold_during<TOutput, TError, TRequest>(
         &self,
         request: TRequest,
@@ -34,6 +37,9 @@ impl ConcurrentConnectionBudget {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog`] when holding another connection would exceed the portable listen backlog, and [`ClusterHarnessError::InferenceRequestFailed`] when the request fails.
     pub fn hold_while_streaming<TRequest>(
         &self,
         request: TRequest,
@@ -56,10 +62,17 @@ impl ConcurrentConnectionBudget {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog`] when holding another connection would exceed the portable listen backlog.
     pub fn reserve(&self) -> Result<ConnectionReservation, ClusterHarnessError> {
         self.held_connections
             .try_update(Ordering::AcqRel, Ordering::Acquire, |held_connections| {
-                (held_connections < PORTABLE_LISTEN_BACKLOG).then_some(held_connections + 1)
+                held_connections
+                    .checked_add(1)
+                    .filter(|next_held_connections| {
+                        *next_held_connections <= PORTABLE_LISTEN_BACKLOG
+                    })
             })
             .map_err(|held_connections| {
                 ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
@@ -82,8 +95,8 @@ mod tests {
 
     use futures_util::FutureExt as _;
 
-    use paddler_client::error::Result as ClientResult;
     use paddler_client::inference_message_stream::InferenceMessageStream;
+    use paddler_client::result::Result as ClientResult;
 
     use super::ConcurrentConnectionBudget;
     use super::PORTABLE_LISTEN_BACKLOG;

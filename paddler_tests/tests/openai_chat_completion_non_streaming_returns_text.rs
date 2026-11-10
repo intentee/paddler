@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use serde_json::Value;
 use serde_json::json;
 
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -21,13 +22,15 @@ async fn openai_chat_completion_non_streaming_returns_text() {
         .await
         .expect("the OpenAI chat completion must succeed");
 
-    assert_eq!(body["object"], "chat.completion");
-    assert!(body["choices"].is_array());
+    assert_eq!(
+        body.pointer("/object").and_then(Value::as_str),
+        Some("chat.completion")
+    );
+    assert!(body.pointer("/choices").is_some_and(Value::is_array));
     assert!(
-        !body["choices"][0]["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .is_empty(),
+        body.pointer("/choices/0/message/content")
+            .and_then(Value::as_str)
+            .is_some_and(|content| !content.is_empty()),
         "response content should not be empty"
     );
 

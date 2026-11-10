@@ -7,6 +7,9 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 
 use crate::fixture_path::fixture_path;
 
+/// # Errors
+///
+/// Fails with the [`std::io::Error`] of a fixture that cannot be read.
 pub fn load_fixture_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {
     let fixture_path = fixture_path(fixture_name);
     let fixture_bytes = read(&fixture_path)

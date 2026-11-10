@@ -11,6 +11,9 @@ pub struct VramOccupancy {
 }
 
 impl VramOccupancy {
+    /// # Errors
+    ///
+    /// Returns [`AgentRuntimeError::LlamaContextAlreadyResident`], [`AgentRuntimeError::ModelWeightsAlreadyResident`] or [`AgentRuntimeError::MultimodalProjectionAlreadyResident`], naming the resident, when the resident already occupies the VRAM.
     pub fn claim(
         occupied: &Arc<AtomicBool>,
         resident: VramResident,

@@ -12,9 +12,8 @@ use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 use paddler_agent_decision::tokenized_decision_question::TokenizedDecisionQuestion;
 use paddler_tests::admitted_decision::AdmittedDecision;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 use paddler_tests::two_option_question::two_option_question;
-
-use crate::kev_decision_model::KevDecisionModel;
 
 #[test]
 fn a_leading_decision_question_token_outside_the_vocabulary_fails_the_decision() {
@@ -22,7 +21,7 @@ fn a_leading_decision_question_token_outside_the_vocabulary_fails_the_decision()
         delimiter_tokens,
         pointer_head,
         runtime,
-    } = KevDecisionModel::load(1);
+    } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(2)
         .expect("the decision context must be created");

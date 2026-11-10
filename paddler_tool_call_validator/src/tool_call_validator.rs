@@ -21,6 +21,9 @@ pub struct ToolCallValidator {
 }
 
 impl ToolCallValidator {
+    /// # Errors
+    ///
+    /// Returns [`ToolCallValidationError::InvalidSchema`] when the parameters of a tool are not a valid JSON Schema.
     pub fn from_tools(tools: &[Tool<Value>]) -> Result<Self, ToolCallValidationError> {
         let mut strategies = HashMap::with_capacity(tools.len());
 
@@ -47,17 +50,30 @@ impl ToolCallValidator {
         Ok(Self { strategies })
     }
 
-    pub fn validate(&self, parsed: &ParsedToolCall) -> Result<(), ToolCallValidationError> {
+    #[must_use]
+    pub fn known_tool_names(&self) -> Vec<&str> {
+        self.strategies.keys().map(String::as_str).collect()
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ToolCallValidationError::UnknownToolName`] when no registered tool has the called name, [`ToolCallValidationError::ArgumentsAreNotJson`] when the arguments are not valid JSON, [`ToolCallValidationError::ArgumentsAreNotAnObject`] when a tool without a parameters schema receives arguments that are not a JSON object, and [`ToolCallValidationError::SchemaMismatch`] when the arguments violate the parameters schema of the tool.
+    pub fn validate(
+        &self,
+        ParsedToolCall {
+            name, arguments, ..
+        }: &ParsedToolCall,
+    ) -> Result<(), ToolCallValidationError> {
         let strategy = self
             .strategies
-            .get(&parsed.name)
-            .ok_or_else(|| ToolCallValidationError::UnknownToolName(parsed.name.clone()))?;
+            .get(name)
+            .ok_or_else(|| ToolCallValidationError::UnknownToolName(name.clone()))?;
 
-        let arguments_value = match &parsed.arguments {
+        let arguments_value = match arguments {
             ToolCallArguments::ValidJson(value) => value,
             ToolCallArguments::InvalidJson { raw, error } => {
                 return Err(ToolCallValidationError::ArgumentsAreNotJson {
-                    tool_name: parsed.name.clone(),
+                    tool_name: name.clone(),
                     raw_arguments: raw.clone(),
                     parse_failure: error.clone(),
                 });
@@ -68,7 +84,7 @@ impl ToolCallValidator {
             ValidationStrategy::JsonObjectOnly if arguments_value.is_object() => Ok(()),
             ValidationStrategy::JsonObjectOnly => {
                 Err(ToolCallValidationError::ArgumentsAreNotAnObject {
-                    tool_name: parsed.name.clone(),
+                    tool_name: name.clone(),
                     arguments: arguments_value.clone(),
                 })
             }
@@ -82,17 +98,12 @@ impl ToolCallValidator {
                     Ok(())
                 } else {
                     Err(ToolCallValidationError::SchemaMismatch {
-                        tool_name: parsed.name.clone(),
+                        tool_name: name.clone(),
                         violations,
                     })
                 }
             }
         }
-    }
-
-    #[must_use]
-    pub fn known_tool_names(&self) -> Vec<&str> {
-        self.strategies.keys().map(String::as_str).collect()
     }
 }
 
@@ -150,6 +161,39 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
                 name: "freeform".to_owned(),
                 description: "tool with no schema".to_owned(),
                 parameters: Parameters::Empty,
+            },
+        }))
+    }
+
+    fn tool_with_invalid_property_schema() -> Tool<Value> {
+        let mut properties = Map::new();
+        properties.insert("location".to_owned(), json!({"type": 42}));
+
+        Tool::from(Tool::Function(FunctionCall {
+            function: Function {
+                name: "broken_tool".to_owned(),
+                description: "tool whose property schema is not valid JSON Schema".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: Some(properties),
+                    required: None,
+                    additional_properties: None,
+                }),
+            },
+        }))
+    }
+
+    fn tool_with_invalid_additional_properties_schema() -> Tool<Value> {
+        Tool::from(Tool::Function(FunctionCall {
+            function: Function {
+                name: "broken_additional".to_owned(),
+                description: "tool whose additionalProperties schema is invalid".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: None,
+                    required: None,
+                    additional_properties: Some(json!({"type": "not_a_type"})),
+                }),
             },
         }))
     }
@@ -296,24 +340,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
         ));
     }
 
-    fn tool_with_invalid_property_schema() -> Tool<Value> {
-        let mut properties = Map::new();
-        properties.insert("location".to_owned(), json!({"type": 42}));
-
-        Tool::from(Tool::Function(FunctionCall {
-            function: Function {
-                name: "broken_tool".to_owned(),
-                description: "tool whose property schema is not valid JSON Schema".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: Some(properties),
-                    required: None,
-                    additional_properties: None,
-                }),
-            },
-        }))
-    }
-
     #[test]
     fn invalid_property_schema_rejects_validator_build() {
         let build_error = ToolCallValidator::from_tools(&[tool_with_invalid_property_schema()])
@@ -324,21 +350,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
             build_error,
             ToolCallValidationError::InvalidSchema { tool_name, .. } if tool_name == "broken_tool"
         ));
-    }
-
-    fn tool_with_invalid_additional_properties_schema() -> Tool<Value> {
-        Tool::from(Tool::Function(FunctionCall {
-            function: Function {
-                name: "broken_additional".to_owned(),
-                description: "tool whose additionalProperties schema is invalid".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: None,
-                    required: None,
-                    additional_properties: Some(json!({"type": "not_a_type"})),
-                }),
-            },
-        }))
     }
 
     #[test]

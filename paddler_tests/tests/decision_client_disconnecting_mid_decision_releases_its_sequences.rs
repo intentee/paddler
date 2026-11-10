@@ -5,16 +5,16 @@ use std::mem::discriminant;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_tests::constants::QUESTIONS_OUTLASTING_A_DISCONNECT;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::many_question_decision::many_question_decision;
-use paddler_tests::questions_outlasting_a_disconnect::QUESTIONS_OUTLASTING_A_DISCONNECT;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_client_disconnecting_mid_decision_releases_its_sequences() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams::default())
+    let mut cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let agent_id = cluster

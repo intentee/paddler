@@ -13,6 +13,9 @@ pub struct HalfClosedClient {
 }
 
 impl HalfClosedClient {
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::HalfClosedClientUnreachable`] when the client cannot connect to the address, and fails when it cannot send its whole request.
     pub async fn post_json_then_half_close(
         addr: SocketAddr,
         path: &str,
@@ -40,6 +43,9 @@ impl HalfClosedClient {
             .context("half-closed client must send its whole request")
     }
 
+    /// # Errors
+    ///
+    /// Fails when the client cannot shut down its write side.
     pub async fn half_close(&mut self) -> Result<()> {
         self.socket
             .shutdown()
@@ -54,12 +60,15 @@ mod tests {
 
     use serde_json::json;
     use tokio::io::AsyncReadExt as _;
+    use tokio::io::AsyncWriteExt as _;
     use tokio::net::TcpListener;
     use tokio::spawn;
 
     use super::HalfClosedClient;
     use crate::cluster_harness_error::ClusterHarnessError;
-    use crate::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+    use crate::constants::EPHEMERAL_LOOPBACK_ADDR;
+
+    const RESPONSE_AFTER_HALF_CLOSE: &[u8] = b"HTTP/1.1 204 No Content\r\n\r\n";
 
     #[tokio::test]
     async fn reports_the_address_it_could_not_reach() {
@@ -99,6 +108,10 @@ mod tests {
                 .read_to_end(&mut received)
                 .await
                 .expect("the request must be readable until the client half-closes");
+            accepted_socket
+                .write_all(RESPONSE_AFTER_HALF_CLOSE)
+                .await
+                .expect("the receiving socket must answer the half-closed client");
 
             received
         });
@@ -113,6 +126,14 @@ mod tests {
             .await
             .expect("the client must half-close its write side");
 
+        let mut response = Vec::new();
+
+        client
+            .socket
+            .read_to_end(&mut response)
+            .await
+            .expect("the half-closed client must still read the answer");
+
         let received =
             String::from_utf8(accepted.await.expect("the receiving task must not panic"))
                 .expect("the request must be text");
@@ -123,5 +144,6 @@ mod tests {
                 "POST /api/v1/probe HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: 7\r\n\r\n{{\"a\":1}}"
             )
         );
+        assert_eq!(response, RESPONSE_AFTER_HALF_CLOSE);
     }
 }

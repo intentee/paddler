@@ -17,8 +17,8 @@ use nix::sys::socket::connect;
 use nix::sys::socket::socket;
 use tokio::net::TcpListener;
 
+use paddler_cli_tests::constants::UNREACHABLE_MANAGEMENT_ADDR;
 use paddler_cli_tests::stallable_tcp_relay::StallableTcpRelay;
-use paddler_cli_tests::unreachable_management_addr::UNREACHABLE_MANAGEMENT_ADDR;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn stallable_tcp_relay_reports_a_connection_it_cannot_accept() {

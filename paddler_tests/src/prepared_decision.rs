@@ -13,7 +13,7 @@ use paddler_messaging::decision_slots_for_leading_questions::decision_slots_for_
 pub struct PreparedDecision {
     pub decision_result_rx: mpsc::UnboundedReceiver<DecisionResult>,
     pub decision_stop_tx: mpsc::UnboundedSender<()>,
-    pub prepared_decision_request: PreparedDecisionRequest,
+    pub request: PreparedDecisionRequest,
 }
 
 impl PreparedDecision {
@@ -29,7 +29,7 @@ impl PreparedDecision {
         Self {
             decision_result_rx,
             decision_stop_tx,
-            prepared_decision_request: PreparedDecisionRequest {
+            request: PreparedDecisionRequest {
                 decision_result_tx,
                 decision_stop_rx,
                 layout,

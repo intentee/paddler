@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use serde_json::Value;
 use serde_json::json;
 
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
@@ -31,11 +32,19 @@ async fn openai_responses_streaming_reports_incomplete_status_at_max_output_toke
 
     let terminal_event = events.last().expect("the responses stream sent no events");
 
-    assert_eq!(terminal_event["type"], "response.incomplete");
-    assert_eq!(terminal_event["response"]["status"], "incomplete");
     assert_eq!(
-        terminal_event["response"]["incomplete_details"],
-        json!({"reason": "max_output_tokens"})
+        terminal_event.pointer("/type").and_then(Value::as_str),
+        Some("response.incomplete")
+    );
+    assert_eq!(
+        terminal_event
+            .pointer("/response/status")
+            .and_then(Value::as_str),
+        Some("incomplete")
+    );
+    assert_eq!(
+        terminal_event.pointer("/response/incomplete_details"),
+        Some(&json!({"reason": "max_output_tokens"}))
     );
 
     cluster

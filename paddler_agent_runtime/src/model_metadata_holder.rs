@@ -16,10 +16,6 @@ impl ModelMetadataHolder {
         Self::default()
     }
 
-    pub fn set_model_metadata(&self, model_metadata: Arc<ModelMetadata>) {
-        *self.loaded_model_metadata.write() = LoadedModelMetadata::Loaded(model_metadata);
-    }
-
     pub fn forget_model_metadata(&self) {
         *self.loaded_model_metadata.write() = LoadedModelMetadata::NoModelLoaded;
     }
@@ -32,6 +28,10 @@ impl ModelMetadataHolder {
             }
             LoadedModelMetadata::NoModelLoaded => None,
         }
+    }
+
+    pub fn set_model_metadata(&self, model_metadata: Arc<ModelMetadata>) {
+        *self.loaded_model_metadata.write() = LoadedModelMetadata::Loaded(model_metadata);
     }
 }
 

@@ -1,6 +1,6 @@
-use paddler_agent_decision::loaded_pointer_head::LoadedPointerHead;
+use paddler_agent_decision::met_decision_prerequisites::MetDecisionPrerequisites;
 
 pub enum PreparedDecisions {
     Disabled,
-    Enabled(Box<LoadedPointerHead>),
+    Enabled(Box<MetDecisionPrerequisites>),
 }

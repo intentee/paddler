@@ -14,6 +14,9 @@ pub struct TokenSampling {
 }
 
 impl TokenSampling {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::TokenDataUnreadable`] when the logits of the batch position cannot be read, [`TextGenerationError::GrammarConstraintFailed`] when the grammar fails to constrain the candidates, [`TextGenerationError::SamplerChainApplicationFailed`] when the sampler chain fails to apply, and [`TextGenerationError::SamplerChainRejectedToken`] when the chain rejects the selected token.
     pub fn sample(
         &mut self,
         llama_context: &LlamaContext,

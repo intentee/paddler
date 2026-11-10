@@ -10,6 +10,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -58,7 +59,7 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() {
         let returned_ids: BTreeSet<String> = collected
             .embeddings
             .iter()
-            .map(|produced| produced.embedding.source_document_id.clone())
+            .map(|EmbeddingWithProducer { embedding, .. }| embedding.source_document_id.clone())
             .collect();
         let expected_ids: BTreeSet<String> = (0..docs_per_client)
             .map(|document_index| format!("client-{client_index}-doc-{document_index}"))

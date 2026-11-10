@@ -25,6 +25,9 @@ pub struct DesiredModelResolver {
 }
 
 impl DesiredModelResolver {
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::DownloadClientUnavailable`] when the download client cannot be built, and [`ModelSourceError::HuggingFaceClientUnavailable`] when the Hugging Face client cannot be built.
     pub fn from_process_env(huggingface_endpoint: String) -> Result<Self, ModelSourceError> {
         Ok(Self {
             cache_dir: CacheDir::from_process_env(),
@@ -39,6 +42,9 @@ impl DesiredModelResolver {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::ModelUriUnparseable`] when the URI is not a URL, [`ModelSourceError::HuggingFaceModelUriComponentNotUtf8`] or [`ModelSourceError::HuggingFaceModelUriMalformed`] when a Hugging Face URI does not name a file, [`ModelSourceError::AgentUriNotAnAbsoluteLocalPath`] or [`ModelSourceError::AgentUriNotCanonical`] when an agent URI does not name an absolute local path in its canonical form, and [`ModelSourceError::ModelUriNotDownloadable`] when any other URI is not an http or https URL; [`ModelSourceError::HuggingFaceModelKnownToBeMissing`], [`ModelSourceError::HuggingFaceCacheLookupFailed`], [`ModelSourceError::HuggingFaceDownloadLockUnavailable`], [`ModelSourceError::HuggingFaceModelMissing`], [`ModelSourceError::HuggingFacePermissionDenied`] or [`ModelSourceError::HuggingFaceDownloadFailed`] when a Hugging Face model cannot be found in the cache or downloaded; [`ModelSourceError::LocalFileUncheckable`] when the existence of a local model file cannot be checked; and [`ModelSourceError::CacheDirectoryUnresolvable`], [`ModelSourceError::DownloadLockHeldByAnotherProcess`] or [`ModelSourceError::DownloadFailed`] when a model URL cannot be downloaded into the cache.
     pub async fn resolve_uri(
         &self,
         cancellation_token: &CancellationToken,
@@ -88,8 +94,8 @@ mod tests {
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 
     use super::DesiredModelResolver;
+    use crate::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use crate::desired_model_resolution::DesiredModelResolution;
-    use crate::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use crate::model_source_error::ModelSourceError;
 
     #[test]

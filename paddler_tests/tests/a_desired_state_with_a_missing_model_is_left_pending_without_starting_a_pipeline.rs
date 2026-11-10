@@ -7,12 +7,12 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
 use paddler_model_source::model_source::ModelSource;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_desired_state_with_a_missing_model_is_left_pending_without_starting_a_pipeline() {
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
     let desired_state = BalancerDesiredState {
         model: ModelSource::LocalToAgent(
             AgentLocalModelPath::from_absolute_path(Path::new(

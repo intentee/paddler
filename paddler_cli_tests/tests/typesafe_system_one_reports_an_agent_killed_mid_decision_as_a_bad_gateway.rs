@@ -5,20 +5,19 @@ use tokio::spawn;
 
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
-use paddler_cli_tests::start_pausable_agent_cluster::start_pausable_agent_cluster;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_test_cluster_harness::constants::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_an_agent_killed_mid_decision_as_a_bad_gateway() {
     let PausableAgentCluster {
         mut cluster,
         pausable_agent,
-    } = start_pausable_agent_cluster(PausableAgentClusterParams {
+    } = PausableAgentCluster::start(PausableAgentClusterParams {
         binary_path: env!("CARGO_BIN_EXE_paddler_cluster_node").to_owned(),
         desired_state: ClusterDesiredState::Apply(Box::new(
             qwen3_5_0_8b().into_decision_desired_state(

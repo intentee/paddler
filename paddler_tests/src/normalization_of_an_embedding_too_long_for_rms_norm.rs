@@ -3,7 +3,7 @@ use paddler_agent_embeddings::normalization::normalize_embedding::normalize_embe
 use paddler_agent_embeddings::normalizes_embedding::NormalizesEmbedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 
-pub const DIMENSIONS_TOO_MANY_FOR_RMS_NORM: usize = 1 << 16;
+use crate::constants::DIMENSIONS_TOO_MANY_FOR_RMS_NORM;
 
 pub struct NormalizationOfAnEmbeddingTooLongForRmsNorm;
 

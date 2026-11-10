@@ -17,12 +17,11 @@ use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::last_generated_token_result::last_generated_token_result;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
-
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 #[test]
 fn a_prompt_token_outside_the_vocabulary_fails_the_generation_as_batch_assembly() {
@@ -58,6 +57,7 @@ fn a_prompt_token_outside_the_vocabulary_fails_the_generation_as_batch_assembly(
                 sequence_context_size,
             }
             .into_generation_request_preparer()
+            .expect("the first message content chat template must be prepared")
             .prepare_raw_prompt(agent_request)
             .expect("the generation must be prepared")
         }))

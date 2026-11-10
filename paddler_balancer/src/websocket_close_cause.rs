@@ -2,7 +2,7 @@ use actix_ws::CloseCode;
 use actix_ws::CloseReason;
 use actix_ws::ProtocolError;
 
-use crate::max_websocket_message_size::MAX_WEBSOCKET_MESSAGE_SIZE;
+use crate::constants::MAX_WEBSOCKET_MESSAGE_SIZE;
 
 const fn described_close_reason(code: CloseCode, description: String) -> CloseReason {
     CloseReason {

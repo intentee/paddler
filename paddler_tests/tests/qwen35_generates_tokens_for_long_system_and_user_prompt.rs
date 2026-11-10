@@ -9,6 +9,7 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 fn build_long_link_list() -> String {
@@ -91,7 +92,7 @@ async fn qwen35_generates_tokens_for_long_system_and_user_prompt() {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(token_count > 0);

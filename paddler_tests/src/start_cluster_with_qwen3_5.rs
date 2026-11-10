@@ -6,6 +6,9 @@ use paddler_test_cluster_harness::cluster::Cluster;
 
 use crate::start_cluster_with_qwen3_5_and_context_size::start_cluster_with_qwen3_5_and_context_size;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Qwen3.5 cannot start.
 pub async fn start_cluster_with_qwen3_5(
     agents: Vec<AgentConfig>,
     with_mmproj: bool,

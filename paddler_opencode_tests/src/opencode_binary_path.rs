@@ -24,6 +24,9 @@ fn resolve_binary_path(raw: Result<String, VarError>) -> Result<PathBuf, OpenCod
     }
 }
 
+/// # Errors
+///
+/// Returns [`OpenCodeTestError::BinaryPathNotProvided`] when the environment variable does not provide the binary path, and [`OpenCodeTestError::BinaryDoesNotExist`] when no file exists at that path.
 pub fn opencode_binary_path() -> Result<PathBuf, OpenCodeTestError> {
     resolve_binary_path(env::var(OPENCODE_BINARY_ENV))
 }

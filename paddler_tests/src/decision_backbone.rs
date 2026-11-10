@@ -11,6 +11,9 @@ pub enum DecisionBackbone {
 }
 
 impl DecisionBackbone {
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::LocalModelPathNotAbsolute`] when a local backbone lies at a relative path, and [`ModelSourceError::LocalModelPathClimbsToParentDirectory`] when its path climbs to a parent directory.
     pub fn into_desired_state(self) -> Result<BalancerDesiredState, ModelSourceError> {
         match self {
             Self::HuggingFace(model_card) => Ok(model_card.into_desired_state()),

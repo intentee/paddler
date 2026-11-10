@@ -71,7 +71,8 @@ async fn agent_embedding_batch_with_all_oversized_documents_reports_each_and_emb
         "stream must terminate with the balancer's final Done so the client unblocks",
     );
     assert_eq!(
-        collected.no_embeddings_produced_count, 1,
+        collected.no_embeddings_produced_by.len(),
+        1,
         "the agent must terminate its sub-stream with a single NoEmbeddingsProduced variant when zero embeddings are produced; got errors: {:?}",
         collected.failures,
     );

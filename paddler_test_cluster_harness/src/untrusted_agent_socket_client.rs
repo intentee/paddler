@@ -20,6 +20,9 @@ pub struct UntrustedAgentSocketClient {
 }
 
 impl UntrustedAgentSocketClient {
+    /// # Errors
+    ///
+    /// Returns the [`WebSocketError`] of a connection to the agent socket that cannot be established.
     pub async fn connect(
         management_addr: SocketAddr,
         agent_id: &str,
@@ -32,6 +35,9 @@ impl UntrustedAgentSocketClient {
         .map(|(websocket, _handshake_response)| Self { websocket })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentSocketReceiveFailed`] when a frame cannot be received, and [`ClusterHarnessError::AgentSocketEndedWithoutClosing`] when the socket ends without a close frame.
     pub async fn next_close_frame(&mut self) -> Result<Option<CloseFrame>, ClusterHarnessError> {
         while let Some(frame) = self.websocket.next().await {
             if let Message::Close(close_frame) =
@@ -44,6 +50,9 @@ impl UntrustedAgentSocketClient {
         Err(ClusterHarnessError::AgentSocketEndedWithoutClosing)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentSocketReceiveFailed`] when a frame cannot be received, [`ClusterHarnessError::AgentSocketClosedBeforeText`] when the balancer closes the socket before sending text, and [`ClusterHarnessError::AgentSocketEndedWithoutText`] when the socket ends before any text.
     pub async fn next_text(&mut self) -> Result<Utf8Bytes, ClusterHarnessError> {
         while let Some(frame) = self.websocket.next().await {
             let message = frame.map_err(ClusterHarnessError::AgentSocketReceiveFailed)?;
@@ -60,6 +69,9 @@ impl UntrustedAgentSocketClient {
         Err(ClusterHarnessError::AgentSocketEndedWithoutText)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentSocketSendFailed`] when the frame cannot be sent.
     pub async fn send(&mut self, message: Message) -> Result<(), ClusterHarnessError> {
         self.websocket
             .send(message)

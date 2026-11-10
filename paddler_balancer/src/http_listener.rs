@@ -15,6 +15,9 @@ pub struct HttpListener {
 }
 
 impl HttpListener {
+    /// # Errors
+    ///
+    /// Fails when the socket cannot be created, configured to reuse its address, bound, set to listen, or asked for its local address.
     pub fn bind(addr: SocketAddr) -> io::Result<Self> {
         let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))?;
 

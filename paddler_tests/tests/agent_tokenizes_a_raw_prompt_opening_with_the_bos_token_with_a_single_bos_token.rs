@@ -5,15 +5,15 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
-use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
+use paddler_tests::ministral3_cluster_params::Ministral3ClusterParams;
 
 const MINISTRAL_3_BOS_TOKEN_TEXT: &str = "<s>";
 const RAW_PROMPT_WITHOUT_BOS: &str = "[INST]hi[/INST]";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_tokenizes_a_raw_prompt_opening_with_the_bos_token_with_a_single_bos_token() {
-    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default())
+    let cluster = Ministral3ClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let prompt_tokens_of = async |raw_prompt: String| {

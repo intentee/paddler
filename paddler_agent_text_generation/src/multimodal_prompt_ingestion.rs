@@ -22,6 +22,9 @@ pub struct MultimodalPromptIngestion {
 }
 
 impl MultimodalPromptIngestion {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::MultimodalIngestionFailed`] when the next chunk does not exist or llama.cpp cannot evaluate it.
     pub fn ingest_next_chunk(
         &mut self,
         token_classifier: &mut SampledTokenClassifier<'_>,
@@ -40,10 +43,14 @@ impl MultimodalPromptIngestion {
         sequence_id: SequenceId,
         start_position: i32,
     ) -> Result<MultimodalIngestionProgress, EvalMultimodalChunksError> {
-        let chunk_index = self.next_chunk_index;
-        let chunk = FittedMtmdInputChunk::at(&self.chunks, chunk_index)
-            .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(chunk_index))?;
-        let is_last_chunk = chunk_index + 1 == self.chunks.len();
+        let mut unread_chunk_indices = self.next_chunk_index..self.chunks.len();
+        let chunk = unread_chunk_indices
+            .next()
+            .and_then(|chunk_index| FittedMtmdInputChunk::at(&self.chunks, chunk_index))
+            .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(
+                self.next_chunk_index,
+            ))?;
+        let is_last_chunk = unread_chunk_indices.is_empty();
         let next_position = chunk.eval_single(
             &self.multimodal_context,
             llama_context,
@@ -55,7 +62,7 @@ impl MultimodalPromptIngestion {
 
         token_classifier.ingest_fitted_chunk(&chunk);
 
-        self.next_chunk_index += 1;
+        self.next_chunk_index = unread_chunk_indices.start;
 
         Ok(if is_last_chunk {
             MultimodalIngestionProgress::PromptIngested { next_position }

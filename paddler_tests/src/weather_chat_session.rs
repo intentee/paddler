@@ -12,9 +12,12 @@ use serde_json::Value;
 
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 
+use crate::constants::WEATHER_TOOL_QUESTION;
 use crate::get_weather_tool::get_weather_tool;
-use crate::weather_tool_question::WEATHER_TOOL_QUESTION;
 
+/// # Errors
+///
+/// Returns the [`ChatSessionError`] of a chat template that cannot render the weather question with its tool.
 pub fn weather_chat_session(
     model: &LlamaModel,
     chat_templates: &ChatTemplates,

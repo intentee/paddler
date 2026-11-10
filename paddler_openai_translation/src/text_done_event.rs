@@ -2,7 +2,6 @@ use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct TextDoneEvent {
-    pub sequence_number: u64,
     pub item_id: String,
     pub output_index: usize,
     pub content_index: usize,

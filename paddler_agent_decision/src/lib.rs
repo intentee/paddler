@@ -18,6 +18,7 @@ pub mod decision_token_layout;
 pub mod delimiter_vocabulary;
 pub mod escape_special_token_lookalikes;
 pub mod loaded_pointer_head;
+pub mod met_decision_prerequisites;
 pub mod prepared_decision_request;
 pub mod question_lane;
 pub mod question_lane_demand;

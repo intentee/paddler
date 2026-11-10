@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
+use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -13,6 +13,7 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -55,7 +56,7 @@ async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(token_count > 0);

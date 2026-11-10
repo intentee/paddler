@@ -7,7 +7,6 @@ use paddler_test_cluster_harness::running_agent::RunningAgent;
 use crate::pausable_agent_params::PausableAgentParams;
 use crate::signalled_subprocess::SignalledSubprocess;
 use crate::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
-use crate::spawn_signalled_agent_subprocess::spawn_signalled_agent_subprocess;
 use crate::subprocess_signals::SubprocessSignals;
 
 pub struct PausableAgent {
@@ -16,8 +15,16 @@ pub struct PausableAgent {
 }
 
 impl PausableAgent {
+    /// # Errors
+    ///
+    /// Fails when the agent subprocess cannot be spawned or signalled, and when it does not become ready with its expected slots.
     pub async fn join(
-        cluster: &mut Cluster,
+        Cluster {
+            agent_ids,
+            agents,
+            agents_watcher,
+            ..
+        }: &mut Cluster,
         PausableAgentParams {
             binary_path,
             config,
@@ -28,7 +35,7 @@ impl PausableAgent {
         let SignalledSubprocess {
             process: agent_process,
             signals,
-        } = spawn_signalled_agent_subprocess(SpawnAgentSubprocessParams {
+        } = SignalledSubprocess::spawn_agent(SpawnAgentSubprocessParams {
             binary_path,
             management_addr,
             name: config.name.clone(),
@@ -37,13 +44,13 @@ impl PausableAgent {
         let mut running_agent = RunningAgent::new(config, Box::new(agent_process));
         let ready_agent = running_agent
             .wait_until_ready(
-                &mut cluster.agents_watcher,
+                agents_watcher,
                 AgentReadiness::SlotsReady(expected_slots_total),
             )
             .await?;
 
-        cluster.agent_ids.push(ready_agent.id.clone());
-        cluster.agents.push(running_agent);
+        agent_ids.push(ready_agent.id.clone());
+        agents.push(running_agent);
 
         Ok(Self {
             id: ready_agent.id,

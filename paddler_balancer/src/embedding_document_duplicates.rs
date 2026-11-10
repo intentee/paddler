@@ -150,7 +150,7 @@ mod tests {
 
     fn embedding_of(source_document_id: &str) -> EmbeddingResult {
         EmbeddingResult::Embedding(Embedding {
-            embedding: EmbeddingVector::from(vec![0.25, 0.75]),
+            vector: EmbeddingVector::from(vec![0.25, 0.75]),
             normalization_method: EmbeddingNormalizationMethod::None,
             pooling_type: PoolingType::Mean,
             source_document_id: source_document_id.to_owned(),

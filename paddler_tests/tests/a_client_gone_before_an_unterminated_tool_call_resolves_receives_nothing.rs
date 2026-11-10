@@ -22,11 +22,9 @@ use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
+use paddler_tests::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
 use paddler_tests::weather_chat_session::weather_chat_session;
-
-use crate::decode_prompt_for_sampling::decode_prompt_for_sampling;
-use crate::ready_to_sample_request::ReadyToSampleRequest;
-use crate::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
 
 const PROMPT: &str = "Paddler balances";
 const TOOL_CALL_OPEN_MARKER: &str = "<tool_call>";
@@ -43,7 +41,9 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT);
+    let prompt_sampling_positions = runtime
+        .decode_prompt_for_sampling(&mut llama_context, PROMPT)
+        .expect("the prompt must decode");
     let model = &runtime.loaded_llama_model.model;
     let [tool_call_open_marker]: [LlamaToken; 1] = model
         .str_to_token(
@@ -61,9 +61,9 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
 
     assert_eq!(
         ReadyToSampleRequest {
-            batch_position,
             llama_context: &llama_context,
             prompt: PROMPT,
+            prompt_sampling_positions,
             runtime: &runtime,
         }
         .advance(|prepared_request| PreparedGenerationRequest {
@@ -85,13 +85,13 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
                 .expect("the sampler chain must initialize"),
                 grammar: GrammarSampling::Unconstrained,
             },
-            tool_call_handling: ToolCallHandling::Parsed(tool_call_pipeline_for_tools(&[Tool::<
-                Value,
-            >::from(
-                get_weather_tool()
-            ),])),
+            tool_call_handling: ToolCallHandling::Parsed(
+                tool_call_pipeline_for_tools(&[Tool::<Value>::from(get_weather_tool()),])
+                    .expect("the tools must validate")
+            ),
             ..prepared_request
-        }),
+        })
+        .expect("the request must be ready to sample"),
         ContinuousBatchTerminalOutcome::EmitNothing
     );
 }

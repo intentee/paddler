@@ -1,7 +1,7 @@
 use std::os::unix::process::ExitStatusExt as _;
 use std::process::ExitStatus;
 
-use paddler_cli_tests::clap_usage_error_exit_code::CLAP_USAGE_ERROR_EXIT_CODE;
+use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;

@@ -8,6 +8,9 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use crate::qwen3_desired_state::qwen3_desired_state;
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Qwen3 cannot start.
 pub async fn start_cluster_with_qwen3(agents: Vec<AgentConfig>) -> Result<Cluster> {
     start_cluster(ClusterParams {
         agents,

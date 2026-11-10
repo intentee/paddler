@@ -4,13 +4,15 @@ use std::mem::discriminant;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_tungstenite::tungstenite::error::ProtocolError;
 
+use paddler_cli_tests::agent_socket_of_a_vanished_balancer::AgentSocketOfAVanishedBalancer;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
-
-use crate::agent_socket_of_a_vanished_balancer::AgentSocketOfAVanishedBalancer;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn untrusted_agent_socket_waiting_for_a_close_frame_reports_a_balancer_that_vanished() {
-    let mut agent_socket_of_a_vanished_balancer = AgentSocketOfAVanishedBalancer::connect().await;
+    let mut agent_socket_of_a_vanished_balancer =
+        AgentSocketOfAVanishedBalancer::connect(env!("CARGO_BIN_EXE_paddler_cluster_node"))
+            .await
+            .expect("the agent socket must be connected to a balancer that is then killed");
 
     let receive_error = agent_socket_of_a_vanished_balancer
         .agent_socket
@@ -44,5 +46,8 @@ async fn untrusted_agent_socket_waiting_for_a_close_frame_reports_a_balancer_tha
         ))
     );
 
-    agent_socket_of_a_vanished_balancer.shut_down().await;
+    agent_socket_of_a_vanished_balancer
+        .shut_down()
+        .await
+        .expect("the cluster must shut down after its balancer was killed");
 }

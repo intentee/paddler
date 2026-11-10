@@ -5,7 +5,7 @@ use serde_json::Value;
 use serde_json::json;
 use std::num::NonZeroU32;
 
-use paddler_balancer::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::oversized_text::oversized_text;
@@ -27,7 +27,7 @@ async fn openai_chat_completion_non_streaming_reports_a_conversation_exceeding_t
     let response = post_openai_chat_completion(
         cluster
             .balancer
-            .compat_openai_url(OpenAIApiPath::CHAT_COMPLETIONS)
+            .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
             .expect("the balancer must serve the OpenAI compatibility service"),
         &json!({
             "model": "test",
@@ -49,7 +49,10 @@ async fn openai_chat_completion_non_streaming_reports_a_conversation_exceeding_t
         .validate_error_response(&error_body)
         .expect("the error body must be an OpenAI error");
 
-    assert_eq!(error_body["error"]["type"], "invalid_request_error");
+    assert_eq!(
+        error_body.pointer("/error/type").and_then(Value::as_str),
+        Some("invalid_request_error")
+    );
 
     cluster
         .shutdown()

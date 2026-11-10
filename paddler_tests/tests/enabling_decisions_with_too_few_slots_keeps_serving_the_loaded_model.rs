@@ -10,20 +10,20 @@ use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 const SLOTS_TOO_FEW_FOR_DECISIONS: u16 = 1;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn enabling_decisions_with_too_few_slots_keeps_serving_the_loaded_model() {
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(SLOTS_TOO_FEW_FOR_DECISIONS);
+    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(SLOTS_TOO_FEW_FOR_DECISIONS)
+        .expect("the model downloader must start");
 
     serving_pipeline_arbiter
         .serve(BalancerDesiredState {
@@ -33,7 +33,8 @@ async fn enabling_decisions_with_too_few_slots_keeps_serving_the_loaded_model() 
                 .into_balancer_desired_state()
                 .expect("the kev desired state must name absolute paths")
         })
-        .await;
+        .await
+        .expect("the desired state must be served");
     assert_eq!(
         discriminant(
             &serving_pipeline_arbiter

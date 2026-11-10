@@ -24,6 +24,9 @@ impl UntrustedBalancerSocket {
         Self { websocket }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentHungUpBeforeResponding`] when the agent hangs up before it sends a response.
     pub async fn next_agent_response(
         &mut self,
     ) -> Result<ResponseEnvelope<AgentJsonRpcResponse>, ClusterHarnessError> {
@@ -48,6 +51,9 @@ impl UntrustedBalancerSocket {
             .ok_or(ClusterHarnessError::AgentHungUpBeforeResponding)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::BalancerSocketSendFailed`] when the frame cannot be sent.
     pub async fn send(&mut self, message: Message) -> Result<(), ClusterHarnessError> {
         self.websocket
             .send(message)
@@ -55,6 +61,13 @@ impl UntrustedBalancerSocket {
             .map_err(ClusterHarnessError::BalancerSocketSendFailed)
     }
 
+    pub async fn wait_for_the_agent_to_hang_up(&mut self) {
+        self.websocket.by_ref().for_each(|_frame| ready(())).await;
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentHungUpBeforeServing`] when the agent hangs up before it reports serving its model.
     pub async fn wait_for_the_agent_to_serve(&mut self) -> Result<(), ClusterHarnessError> {
         self.websocket
             .by_ref()
@@ -86,9 +99,5 @@ impl UntrustedBalancerSocket {
             .await
             .map(|_serving_report| ())
             .ok_or(ClusterHarnessError::AgentHungUpBeforeServing)
-    }
-
-    pub async fn wait_for_the_agent_to_hang_up(&mut self) {
-        self.websocket.by_ref().for_each(|_frame| ready(())).await;
     }
 }

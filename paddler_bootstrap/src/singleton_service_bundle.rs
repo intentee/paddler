@@ -30,6 +30,9 @@ pub struct SingletonServiceBundle {
 }
 
 impl SingletonServiceBundle {
+    /// # Errors
+    ///
+    /// Returns the [`BootstrapError`] of [`BalancerServiceBundle::new`] when the balancer services cannot be set up.
     pub async fn new(
         SingletonBootstrapConfig {
             agent_runtime,

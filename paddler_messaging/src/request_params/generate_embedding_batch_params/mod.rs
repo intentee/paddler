@@ -24,26 +24,29 @@ impl GenerateEmbeddingBatchParams {
             input_batch,
             normalization_method,
         } = self;
-        let document_count = input_batch.len();
-
-        if document_count == 0 {
+        let Some(document_count) = NonZeroUsize::new(input_batch.len()) else {
             return Vec::new();
-        }
+        };
 
-        let chunks_to_honor_cap = document_count.div_ceil(max_documents_per_chunk.get());
-        let chunk_count = document_count.min(agent_count.max(chunks_to_honor_cap));
+        let chunks_to_honor_cap = document_count.div_ceil(max_documents_per_chunk);
+        let chunk_count = NonZeroUsize::new(agent_count)
+            .map_or(chunks_to_honor_cap, |available_agents| {
+                available_agents.max(chunks_to_honor_cap)
+            })
+            .min(document_count);
 
-        let quotient = document_count / chunk_count;
-        let remainder = document_count % chunk_count;
+        let larger_chunk_size = document_count.div_ceil(chunk_count).get();
+        let smaller_chunk_size = document_count.get() / chunk_count;
+        let larger_chunk_count = document_count.get() % chunk_count;
 
         let mut documents = input_batch.into_iter();
 
-        (0..chunk_count)
+        (0..chunk_count.get())
             .map(|chunk_index| {
-                let chunk_size = if chunk_index < remainder {
-                    quotient + 1
+                let chunk_size = if chunk_index < larger_chunk_count {
+                    larger_chunk_size
                 } else {
-                    quotient
+                    smaller_chunk_size
                 };
 
                 Self {
@@ -87,8 +90,47 @@ mod tests {
             .collect()
     }
 
+    fn input_batches(
+        sub_batches: Vec<GenerateEmbeddingBatchParams>,
+    ) -> Vec<Vec<EmbeddingInputDocument>> {
+        sub_batches
+            .into_iter()
+            .map(|GenerateEmbeddingBatchParams { input_batch, .. }| input_batch)
+            .collect()
+    }
+
+    fn sub_batch_sizes(sub_batches: &[GenerateEmbeddingBatchParams]) -> Vec<usize> {
+        sub_batches
+            .iter()
+            .map(|GenerateEmbeddingBatchParams { input_batch, .. }| input_batch.len())
+            .collect()
+    }
+
+    fn chunking_sweep_cases() -> impl Iterator<Item = ChunkingSweepCase> {
+        (0..=50)
+            .chain([256, 257, 1000, 2001])
+            .flat_map(|document_count| {
+                (0..=8).flat_map(move |agent_count| {
+                    [1, 2, 4, 100, 256].map(move |cap| ChunkingSweepCase {
+                        agent_count,
+                        cap,
+                        document_count,
+                        sub_batches: make_params(make_docs(document_count))
+                            .chunk_evenly_with_cap(agent_count, chunk_cap(cap)),
+                    })
+                })
+            })
+    }
+
+    struct ChunkingSweepCase {
+        agent_count: usize,
+        cap: usize,
+        document_count: usize,
+        sub_batches: Vec<GenerateEmbeddingBatchParams>,
+    }
+
     #[test]
-    fn chunk_evenly_with_cap_empty_input() {
+    fn chunk_evenly_with_cap_produces_no_sub_batches_from_an_empty_batch() {
         let params = make_params(vec![]);
 
         let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
@@ -97,25 +139,27 @@ mod tests {
     }
 
     #[test]
-    fn chunk_evenly_with_cap_single_doc_single_agent() {
+    fn chunk_evenly_with_cap_keeps_a_single_document_in_one_sub_batch_for_one_agent() {
         let params = make_params(vec![make_doc("only", "content")]);
 
         let sub_batches = params.chunk_evenly_with_cap(1, chunk_cap(256));
 
-        assert_eq!(sub_batches.len(), 1);
-        assert_eq!(sub_batches[0].input_batch.len(), 1);
-        assert_eq!(sub_batches[0].input_batch[0].id, "only");
+        assert_eq!(
+            input_batches(sub_batches),
+            vec![vec![make_doc("only", "content")]]
+        );
     }
 
     #[test]
-    fn chunk_evenly_with_cap_single_doc_many_agents() {
+    fn chunk_evenly_with_cap_keeps_a_single_document_in_one_sub_batch_for_many_agents() {
         let params = make_params(vec![make_doc("only", "content")]);
 
         let sub_batches = params.chunk_evenly_with_cap(5, chunk_cap(256));
 
-        assert_eq!(sub_batches.len(), 1);
-        assert_eq!(sub_batches[0].input_batch.len(), 1);
-        assert_eq!(sub_batches[0].input_batch[0].id, "only");
+        assert_eq!(
+            input_batches(sub_batches),
+            vec![vec![make_doc("only", "content")]]
+        );
     }
 
     #[test]
@@ -143,16 +187,12 @@ mod tests {
     }
 
     #[test]
-    fn chunk_evenly_with_cap_below_cap_uneven_split() {
+    fn chunk_evenly_with_cap_gives_the_remainder_of_an_uneven_split_to_the_first_sub_batches() {
         let params = make_params(make_docs(11));
 
         let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
-        assert_eq!(sub_batches.len(), 4);
-        assert_eq!(sub_batches[0].input_batch.len(), 3);
-        assert_eq!(sub_batches[1].input_batch.len(), 3);
-        assert_eq!(sub_batches[2].input_batch.len(), 3);
-        assert_eq!(sub_batches[3].input_batch.len(), 2);
+        assert_eq!(sub_batch_sizes(&sub_batches), vec![3, 3, 3, 2]);
     }
 
     #[test]
@@ -216,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn chunk_evenly_with_cap_extreme_large_n_small_cap() {
+    fn chunk_evenly_with_cap_of_one_puts_every_document_of_a_large_batch_in_its_own_sub_batch() {
         let params = make_params(make_docs(10_000));
 
         let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(1));
@@ -228,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn chunk_evenly_with_cap_extreme_one_doc_per_chunk() {
+    fn chunk_evenly_with_cap_gives_each_document_its_own_sub_batch_for_as_many_agents() {
         let params = make_params(make_docs(100));
 
         let sub_batches = params.chunk_evenly_with_cap(100, chunk_cap(256));
@@ -240,63 +280,72 @@ mod tests {
     }
 
     #[test]
-    fn chunk_evenly_with_cap_no_sub_batch_exceeds_cap_sweep() {
-        let document_counts: Vec<usize> = (0..=50).chain([256, 257, 1000, 2001]).collect();
-        let agent_counts: Vec<usize> = (0..=8).collect();
-        let caps: Vec<usize> = vec![1, 2, 4, 100, 256];
+    fn chunk_evenly_with_cap_never_exceeds_the_cap_across_the_sweep() {
+        for ChunkingSweepCase {
+            agent_count,
+            cap,
+            document_count,
+            sub_batches,
+        } in chunking_sweep_cases()
+        {
+            let largest_sub_batch_size = sub_batches
+                .iter()
+                .map(|GenerateEmbeddingBatchParams { input_batch, .. }| input_batch.len())
+                .max()
+                .unwrap_or_default();
 
-        for &document_count in &document_counts {
-            for &agent_count in &agent_counts {
-                for &cap in &caps {
-                    let params = make_params(make_docs(document_count));
+            assert!(
+                largest_sub_batch_size <= cap,
+                "largest sub-batch size {largest_sub_batch_size} exceeds cap {cap} (N={document_count}, agents={agent_count})",
+            );
+        }
+    }
 
-                    let sub_batches = params.chunk_evenly_with_cap(agent_count, chunk_cap(cap));
-
-                    let total_documents: usize =
-                        sub_batches.iter().map(|sub| sub.input_batch.len()).sum();
-                    assert_eq!(
-                        total_documents, document_count,
-                        "total documents must equal N (N={document_count}, agents={agent_count}, cap={cap})",
-                    );
-
-                    let largest_sub_batch_size = sub_batches
+    #[test]
+    fn chunk_evenly_with_cap_preserves_document_ids_and_order_across_the_sweep() {
+        for ChunkingSweepCase {
+            agent_count,
+            cap,
+            document_count,
+            sub_batches,
+        } in chunking_sweep_cases()
+        {
+            let collected_ids: Vec<String> = sub_batches
+                .iter()
+                .flat_map(|GenerateEmbeddingBatchParams { input_batch, .. }| {
+                    input_batch
                         .iter()
-                        .map(|sub| sub.input_batch.len())
-                        .max()
-                        .unwrap_or_default();
-                    assert!(
-                        largest_sub_batch_size <= cap,
-                        "largest sub-batch size {largest_sub_batch_size} exceeds cap {cap} (N={document_count}, agents={agent_count})",
-                    );
+                        .map(|EmbeddingInputDocument { id, .. }| id.clone())
+                })
+                .collect();
+            let expected_ids: Vec<String> = (0..document_count)
+                .map(|index| format!("doc{index:05}"))
+                .collect();
 
-                    let collected_ids: Vec<String> = sub_batches
-                        .iter()
-                        .flat_map(|sub| sub.input_batch.iter().map(|doc| doc.id.clone()))
-                        .collect();
-                    let expected_ids: Vec<String> = (0..document_count)
-                        .map(|index| format!("doc{index:05}"))
-                        .collect();
-                    assert_eq!(
-                        collected_ids, expected_ids,
-                        "concatenated IDs must equal original order (N={document_count}, agents={agent_count}, cap={cap})",
-                    );
+            assert_eq!(
+                collected_ids, expected_ids,
+                "concatenated IDs must equal original order (N={document_count}, agents={agent_count}, cap={cap})",
+            );
+        }
+    }
 
-                    if document_count > 0 {
-                        assert!(
-                            !sub_batches.is_empty(),
-                            "non-empty input must produce at least one sub-batch (N={document_count}, agents={agent_count}, cap={cap})",
-                        );
-                        for sub_batch in &sub_batches {
-                            assert!(
-                                !sub_batch.input_batch.is_empty(),
-                                "no sub-batch may be empty (N={document_count}, agents={agent_count}, cap={cap})",
-                            );
-                        }
-                    } else {
-                        assert!(sub_batches.is_empty(), "empty input must produce empty Vec");
-                    }
-                }
-            }
+    #[test]
+    fn chunk_evenly_with_cap_never_produces_an_empty_sub_batch_across_the_sweep() {
+        for ChunkingSweepCase {
+            agent_count,
+            cap,
+            document_count,
+            sub_batches,
+        } in chunking_sweep_cases()
+        {
+            assert!(
+                sub_batches
+                    .iter()
+                    .all(
+                        |GenerateEmbeddingBatchParams { input_batch, .. }| !input_batch.is_empty()
+                    ),
+                "no sub-batch may be empty (N={document_count}, agents={agent_count}, cap={cap})",
+            );
         }
     }
 
@@ -306,11 +355,7 @@ mod tests {
 
         let sub_batches = params.chunk_evenly_with_cap(0, chunk_cap(256));
 
-        let sizes: Vec<usize> = sub_batches
-            .iter()
-            .map(|sub_batch| sub_batch.input_batch.len())
-            .collect();
-        assert_eq!(sizes, vec![200, 200, 200]);
+        assert_eq!(sub_batch_sizes(&sub_batches), vec![200, 200, 200]);
     }
 
     #[test]
@@ -327,26 +372,12 @@ mod tests {
         };
 
         assert_eq!(sub_batches.len(), 4);
-        assert!(
-            sub_batches
-                .iter()
-                .all(|sub_batch| is_l2(&sub_batch.normalization_method))
-        );
+        assert!(sub_batches.iter().all(
+            |GenerateEmbeddingBatchParams {
+                 normalization_method,
+                 ..
+             }| is_l2(normalization_method)
+        ));
         assert!(!is_l2(&EmbeddingNormalizationMethod::None));
-    }
-
-    #[test]
-    fn chunk_evenly_with_cap_preserves_document_ids_and_order() {
-        let params = make_params(make_docs(12));
-
-        let sub_batches = params.chunk_evenly_with_cap(5, chunk_cap(256));
-
-        let collected_ids: Vec<String> = sub_batches
-            .iter()
-            .flat_map(|sub| sub.input_batch.iter().map(|doc| doc.id.clone()))
-            .collect();
-        let expected_ids: Vec<String> = (0..12).map(|index| format!("doc{index:05}")).collect();
-
-        assert_eq!(collected_ids, expected_ids);
     }
 }

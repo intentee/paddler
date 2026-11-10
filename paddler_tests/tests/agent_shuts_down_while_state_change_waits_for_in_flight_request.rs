@@ -3,6 +3,8 @@
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
@@ -45,9 +47,9 @@ async fn agent_shuts_down_while_state_change_waits_for_in_flight_request() {
 
     cluster
         .agents_watcher
-        .until_agent(&agent_id, |snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.status.state_application_status != AgentStateApplicationStatus::Applied
+        .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+            agents.iter().any(|AgentControllerSnapshot { status, .. }| {
+                status.state_application_status != AgentStateApplicationStatus::Applied
             })
         })
         .await

@@ -19,6 +19,9 @@ pub enum PointerHeadError {
         source: TryFromIntError,
     },
 
+    #[error("the pointer head dimension is zero, so its projections have no rows")]
+    HeadDimensionZero,
+
     #[error(
         "the pointer head declares the input normalization {declared}, which is not NFC, NFD, NFKC, NFKD or None"
     )]

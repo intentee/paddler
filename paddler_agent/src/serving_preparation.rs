@@ -47,7 +47,7 @@ impl ServingPreparation {
             Err(CapabilityStartupInterruption::Cancelled) => PreparationOutcome::Cancelled,
             Err(CapabilityStartupInterruption::Failed(error)) => PreparationOutcome::Failed {
                 agent_applicable_state,
-                error,
+                error: *error,
             },
         }
     }

@@ -20,5 +20,8 @@ url = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_spawn_resuming_panic = { workspace = true }
 
+[dev-dependencies]
+paddler_balancer_desired_state_fixture = { workspace = true }
+
 [lints]
 workspace = true

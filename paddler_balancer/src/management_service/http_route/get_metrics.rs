@@ -4,7 +4,7 @@ use actix_web::web::Data;
 use actix_web::web::ServiceConfig;
 use actix_web::web::get;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_METRICS;
 
 use crate::balancer_metrics::BalancerMetrics;
 use crate::management_service::app_data::AppData;
@@ -21,5 +21,5 @@ async fn respond(app_data: Data<AppData>) -> impl Responder {
 }
 
 pub fn get_metrics(cfg: &mut ServiceConfig) {
-    cfg.route(ApiPath::METRICS, get().to(respond));
+    cfg.route(API_PATH_METRICS, get().to(respond));
 }

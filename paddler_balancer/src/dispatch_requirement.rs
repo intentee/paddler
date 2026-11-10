@@ -14,7 +14,7 @@ pub struct DispatchRequirement {
 impl DispatchRequirement {
     #[must_use]
     pub fn reservable_slots(
-        &self,
+        self,
         agent_runtime_status: &AgentRuntimeStatus,
         slots_unavailable: u64,
     ) -> Option<NonZeroU16> {
@@ -26,7 +26,7 @@ impl DispatchRequirement {
     }
 
     #[must_use]
-    pub fn slots_held_while_waiting(&self, agent_runtime_status: &AgentRuntimeStatus) -> u64 {
+    pub fn slots_held_while_waiting(self, agent_runtime_status: &AgentRuntimeStatus) -> u64 {
         let minimum_slots = u64::from(self.slot_demand.minimum_slots());
 
         if agent_runtime_status.slots_serving(self.inference_capability) >= minimum_slots {
@@ -43,12 +43,10 @@ mod tests {
 
     use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
     use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
-    use paddler_messaging::decision_question::DecisionQuestion;
+    use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
     use paddler_messaging::inference_capability::InferenceCapability;
-    use paddler_messaging::request_params::decide_params::DecideParams;
 
     use super::DispatchRequirement;
-    use crate::agent_streaming_request::AgentStreamingRequest as _;
     use crate::slot_demand::SlotDemand;
 
     const SERVING_FOUR_SLOTS: AgentRuntimeStatus = AgentRuntimeStatus::Serving {
@@ -56,21 +54,11 @@ mod tests {
         slots_total: 4,
     };
 
-    fn decision_question(id: &str) -> DecisionQuestion {
-        DecisionQuestion {
-            id: id.to_owned(),
-            instructions: "Pick one".to_owned(),
-            options: vec!["yes".to_owned(), "no".to_owned()],
+    const fn decision_with_a_leading_question() -> DispatchRequirement {
+        DispatchRequirement {
+            inference_capability: InferenceCapability::Decisions,
+            slot_demand: SlotDemand::Exactly(DECISION_SLOTS_MINIMUM),
         }
-    }
-
-    fn decision_with_a_leading_question() -> DispatchRequirement {
-        DecideParams {
-            last_question: decision_question("last"),
-            leading_questions: vec![decision_question("leading")],
-            state: "state".to_owned(),
-        }
-        .dispatch_requirement()
     }
 
     fn requirement(inference_capability: InferenceCapability) -> DispatchRequirement {

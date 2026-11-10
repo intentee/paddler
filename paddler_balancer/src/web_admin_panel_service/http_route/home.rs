@@ -3,9 +3,9 @@ use actix_web::web;
 use actix_web::web::get;
 use askama::Template;
 
+use crate::constants::DASHBOARD_ASSETS_HTML;
 use crate::response::view::view;
 use crate::web_admin_panel_service::app_data::AppData;
-use crate::web_admin_panel_service::dashboard_assets_html::DASHBOARD_ASSETS_HTML;
 use crate::web_admin_panel_service::template_data::TemplateData;
 
 async fn respond(app_data: web::Data<AppData>) -> impl Responder {

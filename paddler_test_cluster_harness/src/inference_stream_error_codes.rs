@@ -5,6 +5,9 @@ use paddler_messaging::inference_client::message::Message as InferenceMessage;
 
 use crate::cluster_harness_error::ClusterHarnessError;
 
+/// # Errors
+///
+/// Returns [`ClusterHarnessError::TokenStreamFailed`] when the stream yields an error.
 pub async fn inference_stream_error_codes(
     mut stream: InferenceMessageStream,
 ) -> Result<Vec<i32>, ClusterHarnessError> {

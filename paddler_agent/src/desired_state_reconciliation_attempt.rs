@@ -113,9 +113,9 @@ mod tests {
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::DesiredStateReconciliationAttempt;

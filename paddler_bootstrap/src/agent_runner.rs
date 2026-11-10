@@ -26,11 +26,14 @@ impl AgentRunner {
         Self { thread }
     }
 
-    pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
-        self.thread.wait_for_completion().await
-    }
-
     pub fn cancel(&self) {
         self.thread.cancel();
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`BootstrapError::ServiceRunFailed`] when running the services failed, and [`BootstrapError::ServiceThreadPanicked`] when the thread running the services panicked.
+    pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
+        self.thread.wait_for_completion().await
     }
 }

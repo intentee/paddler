@@ -10,6 +10,7 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_deepseek_r1_distill_llama_8b::start_cluster_with_deepseek_r1_distill_llama_8b;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -44,7 +45,9 @@ async fn deepseek_r1_distill_llama_8b_internal_endpoint_emits_reasoning_tokens()
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+        })
         .count();
 
     assert!(

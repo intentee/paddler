@@ -1,7 +1,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_DECIDE;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -16,7 +16,7 @@ async fn a_cluster_without_a_pointer_head_refuses_decisions_as_unavailable() {
     let decide_url = cluster
         .balancer
         .inference_base_url
-        .join(ApiPath::DECIDE)
+        .join(API_PATH_DECIDE)
         .expect("the decide path must extend the inference address");
     let decision_rejection = cluster
         .client_inference

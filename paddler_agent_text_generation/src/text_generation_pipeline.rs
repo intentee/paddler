@@ -53,6 +53,9 @@ pub struct TextGenerationPipeline {
 }
 
 impl TextGenerationPipeline {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::AgentRuntime`] when the text generation context or the multimodal projection cannot claim the VRAM, or the context cannot be created or warmed up, [`TextGenerationError::SamplingParametersUnfitForTheSequenceContext`] when the penalty window exceeds the sequence context, [`TextGenerationError::ChatTemplateContainsNul`] or [`TextGenerationError::ChatTemplateDoesNotCompile`] when the chat template cannot be prepared, and [`TextGenerationError::MultimodalProjectionLoadFailed`] when the multimodal projection cannot be loaded.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,
@@ -65,6 +68,149 @@ impl TextGenerationPipeline {
             },
         )
         .await
+    }
+
+    fn chat_templates(
+        &self,
+        chat_template: ChatTemplate,
+    ) -> Result<ChatTemplates, TextGenerationError> {
+        let model_issue_path = self
+            .loaded_llama_model
+            .llama_model_settings
+            .reported_model_path();
+        let slot_aggregated_status = &self.inference_runtime_context.slot_aggregated_status;
+
+        match self.prepared_chat_templates(&chat_template) {
+            Ok(chat_templates) => {
+                slot_aggregated_status
+                    .register_fix(&AgentIssueFix::ChatTemplateIsCompiled(model_issue_path));
+
+                Ok(chat_templates)
+            }
+            Err(preparation_error) => {
+                slot_aggregated_status.register_pipeline_issue(
+                    AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
+                        error: preparation_error.to_string(),
+                        model_path: model_issue_path,
+                        template_content: chat_template.content,
+                    }),
+                );
+
+                Err(preparation_error)
+            }
+        }
+    }
+
+    fn conversation_support(
+        &self,
+        llama_context: &LlamaContext<'_>,
+        prompt_tokenizer: &PromptTokenizer,
+    ) -> Result<ConversationSupport, TextGenerationError> {
+        let chat_template = match &self.text_generation_settings.chat_template_source {
+            ChatTemplateSource::Override(chat_template_override) => chat_template_override.clone(),
+            ChatTemplateSource::EmbeddedInModel => {
+                let Some(embedded_chat_template) = self
+                    .loaded_llama_model
+                    .model_metadata
+                    .embedded_chat_template()
+                else {
+                    warn!(
+                        "{:?}: the model embeds no chat template, so it serves no conversations",
+                        self.inference_runtime_context.agent_name
+                    );
+
+                    return Ok(ConversationSupport::ChatTemplateMissing(
+                        self.loaded_llama_model
+                            .llama_model_settings
+                            .reported_model_path(),
+                    ));
+                };
+
+                embedded_chat_template
+            }
+        };
+        let chat_templates = self.chat_templates(chat_template)?;
+
+        Ok(ConversationSupport::Available(Box::new(
+            ConversationPromptSupport {
+                chat_templates,
+                image_input: self.image_input(llama_context, prompt_tokenizer)?,
+            },
+        )))
+    }
+
+    fn image_input(
+        &self,
+        llama_context: &LlamaContext<'_>,
+        &PromptTokenizer {
+            sequence_context_size,
+            ..
+        }: &PromptTokenizer,
+    ) -> Result<ImageInput, TextGenerationError> {
+        let MultimodalProjection::File(multimodal_projection_path) =
+            &self.text_generation_settings.multimodal_projection
+        else {
+            return Ok(ImageInput::Unsupported);
+        };
+        let multimodal_projection_issue_path =
+            ModelPath::from(multimodal_projection_path.as_path());
+        let slot_aggregated_status = &self.inference_runtime_context.slot_aggregated_status;
+        let vram_occupancy = self
+            .inference_runtime_context
+            .vram_residencies
+            .multimodal_projection
+            .try_occupy()?;
+
+        match ResidentMultimodalContext::load(
+            multimodal_projection_path,
+            &self.loaded_llama_model,
+            vram_occupancy,
+        ) {
+            Ok(resident_multimodal_context) => {
+                slot_aggregated_status.register_fix(&AgentIssueFix::MultimodalProjectionIsLoaded(
+                    multimodal_projection_issue_path,
+                ));
+
+                info!(
+                    "Multimodal context initialized from: {}",
+                    multimodal_projection_path.display()
+                );
+
+                Ok(ImageInput::Supported(MultimodalPromptSupport {
+                    micro_batch_tokens: ContextLimits::of(llama_context)
+                        .micro_batch_tokens(self.model_runtime_parameters.n_batch.tokens()),
+                    multimodal_context: Arc::new(resident_multimodal_context),
+                    n_batch: self.model_runtime_parameters.n_batch.tokens_i32(),
+                    sequence_context_size,
+                }))
+            }
+            Err(projection_load_error) => {
+                slot_aggregated_status.register_pipeline_issue(
+                    AgentIssue::MultimodalProjectionCannotBeLoaded(
+                        multimodal_projection_issue_path,
+                    ),
+                );
+
+                Err(projection_load_error)
+            }
+        }
+    }
+
+    fn prepared_chat_templates(
+        &self,
+        ChatTemplate { content }: &ChatTemplate,
+    ) -> Result<ChatTemplates, TextGenerationError> {
+        let model = &self.loaded_llama_model.model;
+
+        match &self.text_generation_settings.chat_template_source {
+            ChatTemplateSource::Override(_) => ChatTemplates::with_override(
+                model,
+                &LlamaChatTemplate::new(content)
+                    .map_err(TextGenerationError::ChatTemplateContainsNul)?,
+            ),
+            ChatTemplateSource::EmbeddedInModel => ChatTemplates::new(model),
+        }
+        .map_err(TextGenerationError::ChatTemplateDoesNotCompile)
     }
 
     fn run_scheduler(
@@ -161,148 +307,5 @@ impl TextGenerationPipeline {
                 })
             })
         })
-    }
-
-    fn conversation_support(
-        &self,
-        llama_context: &LlamaContext<'_>,
-        prompt_tokenizer: &PromptTokenizer,
-    ) -> Result<ConversationSupport, TextGenerationError> {
-        let chat_template = match &self.text_generation_settings.chat_template_source {
-            ChatTemplateSource::Override(chat_template_override) => chat_template_override.clone(),
-            ChatTemplateSource::EmbeddedInModel => {
-                let Some(embedded_chat_template) = self
-                    .loaded_llama_model
-                    .model_metadata
-                    .embedded_chat_template()
-                else {
-                    warn!(
-                        "{:?}: the model embeds no chat template, so it serves no conversations",
-                        self.inference_runtime_context.agent_name
-                    );
-
-                    return Ok(ConversationSupport::ChatTemplateMissing(
-                        self.loaded_llama_model
-                            .llama_model_settings
-                            .reported_model_path(),
-                    ));
-                };
-
-                embedded_chat_template
-            }
-        };
-        let chat_templates = self.chat_templates(chat_template)?;
-
-        Ok(ConversationSupport::Available(Box::new(
-            ConversationPromptSupport {
-                chat_templates,
-                image_input: self.image_input(llama_context, prompt_tokenizer)?,
-            },
-        )))
-    }
-
-    fn prepared_chat_templates(
-        &self,
-        chat_template: &ChatTemplate,
-    ) -> Result<ChatTemplates, TextGenerationError> {
-        let model = &self.loaded_llama_model.model;
-
-        match &self.text_generation_settings.chat_template_source {
-            ChatTemplateSource::Override(_) => ChatTemplates::with_override(
-                model,
-                &LlamaChatTemplate::new(&chat_template.content)
-                    .map_err(TextGenerationError::ChatTemplateContainsNul)?,
-            ),
-            ChatTemplateSource::EmbeddedInModel => ChatTemplates::new(model),
-        }
-        .map_err(TextGenerationError::ChatTemplateDoesNotCompile)
-    }
-
-    fn chat_templates(
-        &self,
-        chat_template: ChatTemplate,
-    ) -> Result<ChatTemplates, TextGenerationError> {
-        let model_issue_path = self
-            .loaded_llama_model
-            .llama_model_settings
-            .reported_model_path();
-        let slot_aggregated_status = &self.inference_runtime_context.slot_aggregated_status;
-
-        match self.prepared_chat_templates(&chat_template) {
-            Ok(chat_templates) => {
-                slot_aggregated_status
-                    .register_fix(&AgentIssueFix::ChatTemplateIsCompiled(model_issue_path));
-
-                Ok(chat_templates)
-            }
-            Err(preparation_error) => {
-                slot_aggregated_status.register_pipeline_issue(
-                    AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-                        error: preparation_error.to_string(),
-                        model_path: model_issue_path,
-                        template_content: chat_template.content,
-                    }),
-                );
-
-                Err(preparation_error)
-            }
-        }
-    }
-
-    fn image_input(
-        &self,
-        llama_context: &LlamaContext<'_>,
-        prompt_tokenizer: &PromptTokenizer,
-    ) -> Result<ImageInput, TextGenerationError> {
-        let MultimodalProjection::File(multimodal_projection_path) =
-            &self.text_generation_settings.multimodal_projection
-        else {
-            return Ok(ImageInput::Unsupported);
-        };
-        let multimodal_projection_issue_path =
-            ModelPath::from(multimodal_projection_path.as_path());
-        let slot_aggregated_status = &self.inference_runtime_context.slot_aggregated_status;
-        let vram_occupancy = self
-            .inference_runtime_context
-            .vram_residencies
-            .multimodal_projection
-            .try_occupy()?;
-
-        match ResidentMultimodalContext::load(
-            multimodal_projection_path,
-            &self.loaded_llama_model.model,
-            vram_occupancy,
-        ) {
-            Ok(resident_multimodal_context) => {
-                slot_aggregated_status.register_fix(&AgentIssueFix::MultimodalProjectionIsLoaded(
-                    multimodal_projection_issue_path,
-                ));
-
-                info!(
-                    "Multimodal context initialized from: {}",
-                    multimodal_projection_path.display()
-                );
-
-                Ok(ImageInput::Supported(MultimodalPromptSupport {
-                    micro_batch_tokens: ContextLimits::of(llama_context)
-                        .micro_batch_tokens(self.model_runtime_parameters.n_batch.tokens()),
-                    multimodal_context: Arc::new(resident_multimodal_context),
-                    n_batch: self.model_runtime_parameters.n_batch.tokens_i32(),
-                    sequence_context_size: prompt_tokenizer.sequence_context_size,
-                }))
-            }
-            Err(source) => {
-                slot_aggregated_status.register_pipeline_issue(
-                    AgentIssue::MultimodalProjectionCannotBeLoaded(
-                        multimodal_projection_issue_path,
-                    ),
-                );
-
-                Err(TextGenerationError::MultimodalProjectionLoadFailed {
-                    multimodal_projection_path: multimodal_projection_path.clone(),
-                    source,
-                })
-            }
-        }
     }
 }

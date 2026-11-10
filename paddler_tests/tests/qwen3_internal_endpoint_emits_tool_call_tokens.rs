@@ -10,9 +10,10 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::constants::WEATHER_TOOL_QUESTION;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
@@ -44,12 +45,16 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
     let tool_call_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ToolCallToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ToolCallToken(_))
+        })
         .count();
     let content_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ContentToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ContentToken(_))
+        })
         .count();
 
     let summary = collected

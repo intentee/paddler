@@ -33,7 +33,12 @@ async fn balancer_reports_chat_template_does_not_compile_for_invalid_jinja() {
         .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
         .await
         .expect("the agent must report ChatTemplateDoesNotCompile for invalid Jinja syntax");
-    let issues = &snapshot.agents[0].status.issues;
+    let issues = &snapshot
+        .agents
+        .first()
+        .expect("the snapshot must hold the agent")
+        .status
+        .issues;
 
     assert!(issues.contains(&expected_issue), "{issues:?}");
 

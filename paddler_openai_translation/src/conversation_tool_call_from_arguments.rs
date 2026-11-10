@@ -4,6 +4,9 @@ use paddler_messaging::conversation_tool_call::ConversationToolCall;
 
 use crate::openai_translation_error::OpenAITranslationError;
 
+/// # Errors
+///
+/// Returns [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`] when `arguments` is not a JSON object.
 pub fn conversation_tool_call_from_arguments(
     id: String,
     name: String,

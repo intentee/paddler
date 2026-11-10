@@ -4,11 +4,10 @@ use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand 
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
-
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 #[test]
 fn a_prompt_that_tokenizes_to_nothing_refuses_the_generation() {
@@ -21,7 +20,8 @@ fn a_prompt_that_tokenizes_to_nothing_refuses_the_generation() {
         llama_runtime: &runtime,
         sequence_context_size: runtime.model_runtime_parameters.context_size.get(),
     }
-    .into_generation_request_preparer();
+    .into_generation_request_preparer()
+    .expect("the first message content chat template must be prepared");
     let RawPromptGeneration {
         agent_request,
         generate_tokens_stop_tx: _generate_tokens_stop_tx,

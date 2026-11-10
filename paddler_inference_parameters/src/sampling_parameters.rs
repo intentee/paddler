@@ -56,6 +56,9 @@ impl SamplingParameters {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`InvalidInferenceParameters::PenaltyWindowExceedsSequenceContext`] when `penalty_last_n` is larger than the sequence context size.
     pub const fn ensure_penalty_window_fits(
         &self,
         sequence_context_size: u32,
@@ -228,7 +231,9 @@ mod tests {
     fn deserialization_rejects_parameters_that_fail_validation() {
         let mut parameters = to_value(SamplingParameters::default()).unwrap();
 
-        parameters["top_k"] = json!(-1);
+        *parameters
+            .get_mut("top_k")
+            .expect("the serialized parameters must hold top_k") = json!(-1);
 
         assert_eq!(
             from_value::<SamplingParameters>(parameters)

@@ -11,11 +11,11 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 
+use crate::classified_token::ClassifiedToken;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
-use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
 use crate::continuous_batch_scheduler::completion_check_phase::CompletionCheckPhase;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
@@ -138,69 +138,6 @@ impl AdvanceGeneratingPhase<'_> {
         }
     }
 
-    fn client_disconnected_while_emitting(
-        &mut self,
-        request: &mut ContinuousBatchActiveRequest<'_>,
-    ) -> bool {
-        for ingest_outcome in self.ingest_outcomes.drain(..) {
-            let classified =
-                ClassifiedToken::classify(ingest_outcome, &mut request.state.last_outcome_section);
-            let tool_call_result = request
-                .tool_call_handling
-                .resolve_on_section_exit(&classified, request.token_classifier.latest_reading());
-
-            if matches!(
-                EmitTokenPhase {
-                    generated_tokens_tx: &request.generated_tokens_tx,
-                }
-                .run(classified),
-                EmitTokenOutcome::ChannelDropped
-            ) || tool_call_result.is_some_and(|tool_call_result| {
-                request.generated_tokens_tx.send(tool_call_result).is_err()
-            }) {
-                warn!(
-                    "{:?}: sequence {:?} client disconnected (receiver dropped)",
-                    self.scheduler_context.agent_name,
-                    request.sequence_id_guard.sequence_id()
-                );
-
-                return true;
-            }
-        }
-
-        false
-    }
-
-    fn complete_after_resolving_tool_calls(
-        &self,
-        request: &mut ContinuousBatchActiveRequest<'_>,
-        finish: GenerationFinish,
-    ) -> AdvanceOutcome {
-        if let Some(tool_call_result) = request.tool_call_handling.resolve_at_completion(
-            request.token_classifier.latest_reading(),
-            request.state.last_outcome_section,
-            request.token_classifier.usage(),
-        ) {
-            send_result_or_warn(
-                self.scheduler_context.agent_name.as_deref(),
-                &request.generated_tokens_tx,
-                tool_call_result,
-            );
-        }
-
-        AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
-            finish,
-            usage: *request.token_classifier.usage(),
-        }))
-    }
-
-    fn completed_by_ingest_error(&self, ingest_error: IngestError) -> AdvanceOutcome {
-        AdvanceOutcome::Completed(
-            TextGenerationError::for_ingest_error(ingest_error)
-                .into_generated_token_result(self.scheduler_context.agent_name.as_deref()),
-        )
-    }
-
     fn apply_outcome(
         request: &mut ContinuousBatchActiveRequest<'_>,
         outcome: Option<AdvanceOutcome>,
@@ -219,5 +156,80 @@ impl AdvanceGeneratingPhase<'_> {
                     .mark_completed(ContinuousBatchTerminalOutcome::EmitNothing);
             }
         }
+    }
+
+    fn client_disconnected_while_emitting(
+        &mut self,
+        ContinuousBatchActiveRequest {
+            generated_tokens_tx,
+            sequence_id_guard,
+            state,
+            token_classifier,
+            tool_call_handling,
+            ..
+        }: &mut ContinuousBatchActiveRequest<'_>,
+    ) -> bool {
+        for ingest_outcome in self.ingest_outcomes.drain(..) {
+            let classified =
+                ClassifiedToken::classify(ingest_outcome, &mut state.last_outcome_section);
+            let tool_call_result = tool_call_handling
+                .resolve_on_section_exit(&classified, token_classifier.latest_reading());
+
+            if matches!(
+                EmitTokenPhase {
+                    generated_tokens_tx,
+                }
+                .run(classified),
+                EmitTokenOutcome::ChannelDropped
+            ) || tool_call_result
+                .is_some_and(|tool_call_result| generated_tokens_tx.send(tool_call_result).is_err())
+            {
+                warn!(
+                    "{:?}: sequence {:?} client disconnected (receiver dropped)",
+                    self.scheduler_context.agent_name,
+                    sequence_id_guard.sequence_id()
+                );
+
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn complete_after_resolving_tool_calls(
+        &self,
+        ContinuousBatchActiveRequest {
+            generated_tokens_tx,
+            state,
+            token_classifier,
+            tool_call_handling,
+            ..
+        }: &mut ContinuousBatchActiveRequest<'_>,
+        finish: GenerationFinish,
+    ) -> AdvanceOutcome {
+        if let Some(tool_call_result) = tool_call_handling.resolve_at_completion(
+            token_classifier.latest_reading(),
+            state.last_outcome_section,
+            token_classifier.usage(),
+        ) {
+            send_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                generated_tokens_tx,
+                tool_call_result,
+            );
+        }
+
+        AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
+            finish,
+            usage: *token_classifier.usage(),
+        }))
+    }
+
+    fn completed_by_ingest_error(&self, ingest_error: IngestError) -> AdvanceOutcome {
+        AdvanceOutcome::Completed(
+            TextGenerationError::for_ingest_error(ingest_error)
+                .into_generated_token_result(self.scheduler_context.agent_name.as_deref()),
+        )
     }
 }

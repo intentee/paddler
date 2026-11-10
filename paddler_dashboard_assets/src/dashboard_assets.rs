@@ -19,6 +19,9 @@ pub struct DashboardAssets {
 }
 
 impl DashboardAssets {
+    /// # Errors
+    ///
+    /// Returns [`DashboardAssetsError::DashboardInputMissing`] when the esbuild metafile does not describe one of the dashboard inputs.
     pub fn of(esbuild_metafile: &EsbuildMetafile) -> Result<Self, DashboardAssetsError> {
         let path_renderer = PathRenderer {};
         let mut rendered_includes = BTreeSet::new();

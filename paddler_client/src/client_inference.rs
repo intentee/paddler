@@ -4,7 +4,10 @@ use nanoid::nanoid;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
+use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
+use paddler_messaging::constants::API_PATH_DECIDE;
+use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
@@ -16,11 +19,11 @@ use paddler_messaging::request_params::decide_params::raw_decide_params::RawDeci
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::client_inference_params::ClientInferenceParams;
-use crate::error::Result;
 use crate::http_client::HttpClient;
 use crate::inference_message_stream::InferenceMessageStream;
 use crate::inference_socket::pool::Pool;
 use crate::reports_health::ReportsHealth;
+use crate::result::Result;
 use crate::stream::ndjson::Ndjson;
 
 #[derive(Clone)]
@@ -43,6 +46,96 @@ impl ClientInference {
             http_client: HttpClient::new(url),
             inference_socket_pool: Arc::new(inference_socket_pool),
         }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::InferenceRequestCancelled`](crate::error::Error::InferenceRequestCancelled) when the cancellation token fires before the request reaches an inference socket, [`Error::InferenceSocketUrlSchemeRejected`](crate::error::Error::InferenceSocketUrlSchemeRejected) when the client URL cannot be turned into an inference socket URL, [`Error::WebSocket`](crate::error::Error::WebSocket) when the inference socket cannot be opened, [`Error::Json`](crate::error::Error::Json) when the request cannot be serialized, [`Error::ConnectionDropped`](crate::error::Error::ConnectionDropped) when the inference socket closed before the request was registered, and [`Error::InferenceRequestIdInFlight`](crate::error::Error::InferenceRequestIdInFlight) when a request with the same id is already in flight on the connection.
+    pub async fn continue_from_conversation_history(
+        &self,
+        cancellation_token: CancellationToken,
+        params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+    ) -> Result<InferenceMessageStream> {
+        self.send_over_inference_socket(
+            cancellation_token,
+            InferenceServerRequest::ContinueFromConversationHistory(params),
+        )
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::InferenceRequestCancelled`](crate::error::Error::InferenceRequestCancelled) when the cancellation token fires before the request reaches an inference socket, [`Error::InferenceSocketUrlSchemeRejected`](crate::error::Error::InferenceSocketUrlSchemeRejected) when the client URL cannot be turned into an inference socket URL, [`Error::WebSocket`](crate::error::Error::WebSocket) when the inference socket cannot be opened, [`Error::Json`](crate::error::Error::Json) when the request cannot be serialized, [`Error::ConnectionDropped`](crate::error::Error::ConnectionDropped) when the inference socket closed before the request was registered, and [`Error::InferenceRequestIdInFlight`](crate::error::Error::InferenceRequestIdInFlight) when a request with the same id is already in flight on the connection.
+    pub async fn continue_from_raw_prompt(
+        &self,
+        cancellation_token: CancellationToken,
+        params: ContinueFromRawPromptParams,
+    ) -> Result<InferenceMessageStream> {
+        self.send_over_inference_socket(
+            cancellation_token,
+            InferenceServerRequest::ContinueFromRawPrompt(params),
+        )
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, including when the request body cannot be serialized.
+    pub async fn post_continue_from_conversation_history(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+    ) -> Result<InferenceMessageStream> {
+        self.post_streaming(
+            cancellation_token,
+            API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
+            params,
+        )
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, including when the request body cannot be serialized.
+    pub async fn post_continue_from_raw_prompt(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &ContinueFromRawPromptParams,
+    ) -> Result<InferenceMessageStream> {
+        self.post_streaming(
+            cancellation_token,
+            API_PATH_CONTINUE_FROM_RAW_PROMPT,
+            params,
+        )
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, including when the request body cannot be serialized.
+    pub async fn post_decide(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &RawDecideParams,
+    ) -> Result<InferenceMessageStream> {
+        self.post_streaming(cancellation_token, API_PATH_DECIDE, params)
+            .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::RequestCancelled`](crate::error::Error::RequestCancelled) when the cancellation token fires before the server responds, [`Error::Connect`](crate::error::Error::Connect) when the server cannot be reached, [`Error::ServiceUnavailable`](crate::error::Error::ServiceUnavailable) when the server answers with 503 Service Unavailable, [`Error::UnexpectedResponseStatus`](crate::error::Error::UnexpectedResponseStatus) when it answers with another unsuccessful status, and [`Error::Http`](crate::error::Error::Http) when the request fails in any other way or the body of an unsuccessful response cannot be read, including when the request body cannot be serialized.
+    pub async fn post_generate_embedding_batch(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &GenerateEmbeddingBatchParams,
+    ) -> Result<InferenceMessageStream> {
+        self.post_streaming(
+            cancellation_token,
+            API_PATH_GENERATE_EMBEDDING_BATCH,
+            params,
+        )
+        .await
     }
 
     async fn post_streaming<TParams: Serialize + Sync + ?Sized>(
@@ -77,78 +170,6 @@ impl ClientInference {
         self.inference_socket_pool
             .send_request(cancellation_token, request_id, message)
             .await
-    }
-
-    pub async fn continue_from_conversation_history(
-        &self,
-        cancellation_token: CancellationToken,
-        params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    ) -> Result<InferenceMessageStream> {
-        self.send_over_inference_socket(
-            cancellation_token,
-            InferenceServerRequest::ContinueFromConversationHistory(params),
-        )
-        .await
-    }
-
-    pub async fn continue_from_raw_prompt(
-        &self,
-        cancellation_token: CancellationToken,
-        params: ContinueFromRawPromptParams,
-    ) -> Result<InferenceMessageStream> {
-        self.send_over_inference_socket(
-            cancellation_token,
-            InferenceServerRequest::ContinueFromRawPrompt(params),
-        )
-        .await
-    }
-
-    pub async fn post_continue_from_conversation_history(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    ) -> Result<InferenceMessageStream> {
-        self.post_streaming(
-            cancellation_token,
-            ApiPath::CONTINUE_FROM_CONVERSATION_HISTORY,
-            params,
-        )
-        .await
-    }
-
-    pub async fn post_continue_from_raw_prompt(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &ContinueFromRawPromptParams,
-    ) -> Result<InferenceMessageStream> {
-        self.post_streaming(
-            cancellation_token,
-            ApiPath::CONTINUE_FROM_RAW_PROMPT,
-            params,
-        )
-        .await
-    }
-
-    pub async fn post_decide(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &RawDecideParams,
-    ) -> Result<InferenceMessageStream> {
-        self.post_streaming(cancellation_token, ApiPath::DECIDE, params)
-            .await
-    }
-
-    pub async fn post_generate_embedding_batch(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &GenerateEmbeddingBatchParams,
-    ) -> Result<InferenceMessageStream> {
-        self.post_streaming(
-            cancellation_token,
-            ApiPath::GENERATE_EMBEDDING_BATCH,
-            params,
-        )
-        .await
     }
 }
 

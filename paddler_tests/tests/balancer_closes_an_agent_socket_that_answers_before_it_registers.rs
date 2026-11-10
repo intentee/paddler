@@ -3,8 +3,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_closes_an_agent_socket_that_answers_before_it_registers() {

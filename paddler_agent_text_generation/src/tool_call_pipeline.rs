@@ -1,3 +1,5 @@
+use std::ops::RangeFrom;
+
 use llama_cpp_bindings::chat_classification::ChatClassification;
 use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_bindings::chat_reading::ChatReading;
@@ -13,7 +15,7 @@ use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 use crate::tool_call_event::ToolCallEvent;
 
 pub struct ToolCallPipeline {
-    tool_calls_numbered: usize,
+    tool_call_numbers: RangeFrom<usize>,
     tool_calls_resolved: usize,
     validator: ToolCallValidator,
 }
@@ -22,7 +24,7 @@ impl ToolCallPipeline {
     #[must_use]
     pub const fn new(validator: ToolCallValidator) -> Self {
         Self {
-            tool_calls_numbered: 0,
+            tool_call_numbers: 0..,
             tool_calls_resolved: 0,
             validator,
         }
@@ -32,14 +34,16 @@ impl ToolCallPipeline {
         &mut self,
         reading: &'reading ChatReading,
         final_section: SampledTokenSection,
-        usage: &TokenUsage,
+        &TokenUsage {
+            tool_call_tokens, ..
+        }: &TokenUsage,
     ) -> Option<ToolCallEvent<'reading>> {
         match reading.classification() {
             ChatClassification::OutputDoesNotMatchFormat(RawChatMessage {
                 text,
                 expected_format,
                 ..
-            }) if usage.tool_call_tokens > 0 => {
+            }) if tool_call_tokens > 0 => {
                 Some(ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
                     text: text.clone(),
                     expected_format: expected_format.clone(),
@@ -58,32 +62,10 @@ impl ToolCallPipeline {
     ) -> Option<ToolCallEvent<'reading>> {
         match reading.parse() {
             Ok(ChatMessageParseOutcome::Recognized(message)) => {
-                Some(self.resolve(message.tool_calls.iter()))
+                Some(self.resolve(&message.tool_calls))
             }
             Ok(ChatMessageParseOutcome::Unrecognized(_)) => None,
             Err(parse_failure) => Some(ToolCallEvent::ParseFailed(parse_failure)),
-        }
-    }
-
-    fn resolve<'reading, 'tool_call>(
-        &mut self,
-        parsed_tool_calls: impl Iterator<Item = &'tool_call ParsedToolCall>,
-    ) -> ToolCallEvent<'reading> {
-        let newly_resolved: Vec<ParsedToolCall> = parsed_tool_calls
-            .skip(self.tool_calls_resolved)
-            .cloned()
-            .collect();
-        let validation_errors: Vec<_> = newly_resolved
-            .iter()
-            .filter_map(|tool_call| self.validator.validate(tool_call).err())
-            .collect();
-
-        self.tool_calls_resolved += newly_resolved.len();
-
-        if validation_errors.is_empty() {
-            ToolCallEvent::Resolved(self.number_across_the_generation(newly_resolved))
-        } else {
-            ToolCallEvent::ValidationFailed(validation_errors)
         }
     }
 
@@ -93,14 +75,33 @@ impl ToolCallPipeline {
     ) -> Vec<GeneratedToolCall> {
         tool_calls
             .into_iter()
-            .map(|tool_call| {
-                let generated_tool_call =
-                    GeneratedToolCall::at_index(tool_call, self.tool_calls_numbered);
-
-                self.tool_calls_numbered += 1;
-
-                generated_tool_call
+            .zip(&mut self.tool_call_numbers)
+            .map(|(tool_call, tool_call_number)| {
+                GeneratedToolCall::at_index(tool_call, tool_call_number)
             })
             .collect()
+    }
+
+    fn resolve<'reading>(
+        &mut self,
+        parsed_tool_calls: &[ParsedToolCall],
+    ) -> ToolCallEvent<'reading> {
+        let newly_resolved: Vec<ParsedToolCall> = parsed_tool_calls
+            .iter()
+            .skip(self.tool_calls_resolved)
+            .cloned()
+            .collect();
+        let validation_errors: Vec<_> = newly_resolved
+            .iter()
+            .filter_map(|tool_call| self.validator.validate(tool_call).err())
+            .collect();
+
+        self.tool_calls_resolved = self.tool_calls_resolved.max(parsed_tool_calls.len());
+
+        if validation_errors.is_empty() {
+            ToolCallEvent::Resolved(self.number_across_the_generation(newly_resolved))
+        } else {
+            ToolCallEvent::ValidationFailed(validation_errors)
+        }
     }
 }

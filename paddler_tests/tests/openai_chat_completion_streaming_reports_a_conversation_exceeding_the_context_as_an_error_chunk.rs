@@ -31,9 +31,9 @@ async fn openai_chat_completion_streaming_reports_a_conversation_exceeding_the_c
     assert_eq!(
         chunks
             .iter()
-            .map(|chunk| chunk["error"]["type"].clone())
+            .map(|chunk| chunk.pointer("/error/type"))
             .collect::<Vec<_>>(),
-        vec![json!("invalid_request_error")]
+        vec![Some(&json!("invalid_request_error"))]
     );
 
     cluster

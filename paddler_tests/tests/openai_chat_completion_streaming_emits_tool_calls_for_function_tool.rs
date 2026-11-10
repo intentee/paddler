@@ -57,7 +57,9 @@ async fn openai_chat_completion_streaming_emits_tool_calls_for_function_tool() {
         "expected exactly one structured tool-call chunk per call"
     );
 
-    let structured_chunk = chunks_with_tool_calls[0];
+    let structured_chunk = chunks_with_tool_calls
+        .first()
+        .expect("the stream must carry the structured tool-call chunk");
 
     assert_eq!(
         structured_chunk

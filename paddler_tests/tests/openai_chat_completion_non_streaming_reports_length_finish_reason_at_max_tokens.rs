@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use serde_json::Value;
 use serde_json::json;
 
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
@@ -26,7 +27,12 @@ async fn openai_chat_completion_non_streaming_reports_length_finish_reason_at_ma
         .validate_chat_completion_response(&response)
         .expect("the payload must conform to the OpenAI schema");
 
-    assert_eq!(response["choices"][0]["finish_reason"], "length");
+    assert_eq!(
+        response
+            .pointer("/choices/0/finish_reason")
+            .and_then(Value::as_str),
+        Some("length")
+    );
 
     cluster
         .shutdown()

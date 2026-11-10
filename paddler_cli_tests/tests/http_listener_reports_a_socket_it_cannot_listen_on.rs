@@ -6,9 +6,8 @@ use libc::EPERM;
 use libc::SYS_listen;
 
 use paddler_balancer::http_listener::HttpListener;
-
-use crate::refused_syscall::RefusedSyscall;
-use crate::refused_syscalls::RefusedSyscalls;
+use paddler_cli_tests::refused_syscall::RefusedSyscall;
+use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 
 #[test]
 fn http_listener_reports_a_socket_it_cannot_listen_on() {
@@ -19,7 +18,8 @@ fn http_listener_reports_a_socket_it_cannot_listen_on() {
             rules: Vec::new(),
         }],
     }
-    .apply_to_every_thread();
+    .apply_to_every_thread()
+    .expect("the refusing filter must apply to every thread of the test process");
 
     assert_eq!(
         HttpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))

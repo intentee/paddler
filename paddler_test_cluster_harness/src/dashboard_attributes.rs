@@ -26,6 +26,9 @@ fn attributes_of(
         .collect()
 }
 
+/// # Errors
+///
+/// Returns [`ClusterHarnessError::DashboardMarkupUnreadable`] when the page cannot be read as markup, [`ClusterHarnessError::DashboardAttributeMalformed`] when an attribute is malformed, [`ClusterHarnessError::DashboardAttributeValueUnreadable`] when an attribute value cannot be unescaped, and [`ClusterHarnessError::DashboardElementMissing`] when the page has no dashboard element.
 pub fn dashboard_attributes(page: &str) -> Result<BTreeMap<String, String>, ClusterHarnessError> {
     let mut reader = Reader::from_str(page);
 

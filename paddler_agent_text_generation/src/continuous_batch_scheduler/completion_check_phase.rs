@@ -25,16 +25,16 @@ impl CompletionCheckPhase<'_> {
         }
     }
 
+    fn filled_sequence_context(&self) -> bool {
+        i64::from(self.request_state.current_token_position)
+            >= i64::from(self.sequence_context_size)
+    }
+
     fn reached_max_tokens(&self) -> bool {
         self.request_state
             .sampled_tokens
             .saturating_sub(self.usage.tool_call_tokens)
             >= u64::from(self.request_state.max_tokens.get())
-    }
-
-    fn filled_sequence_context(&self) -> bool {
-        i64::from(self.request_state.current_token_position)
-            >= i64::from(self.sequence_context_size)
     }
 }
 
@@ -65,9 +65,8 @@ mod tests {
             phase: ContinuousBatchRequestPhase::Generating(
                 ContinuousBatchGenerationStep::ReadyToSample { batch_position: 0 },
             ),
-            prompt_tokens: Vec::new(),
-            prompt_tokens_ingested: 0,
             sampled_tokens,
+            unread_prompt_tokens: Vec::new().into_iter(),
         }
     }
 

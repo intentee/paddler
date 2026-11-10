@@ -18,6 +18,9 @@ icu_normalizer = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+paddler_test_cluster_harness = { workspace = true }
+
 [features]
 default = []
 cuda = ["llama-cpp-bindings/cuda"]

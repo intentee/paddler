@@ -6,7 +6,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::agent_spawner::AgentSpawner;
 use paddler_test_cluster_harness::managed_process::ManagedProcess;
 
-use crate::spawn_agent_subprocess::spawn_agent_subprocess;
 use crate::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
 use crate::subprocess_process::SubprocessProcess;
 
@@ -26,13 +25,17 @@ impl SubprocessAgentSpawner {
 }
 
 impl AgentSpawner for SubprocessAgentSpawner {
-    fn spawn(&self, config: &AgentConfig) -> Result<Box<dyn ManagedProcess>> {
-        let child = spawn_agent_subprocess(SpawnAgentSubprocessParams {
+    fn spawn(
+        &self,
+        AgentConfig { name, slot_count }: &AgentConfig,
+    ) -> Result<Box<dyn ManagedProcess>> {
+        let child = SpawnAgentSubprocessParams {
             binary_path: self.binary_path.clone(),
             management_addr: self.management_addr,
-            name: config.name.clone(),
-            slots: config.slot_count,
-        })?;
+            name: name.clone(),
+            slots: *slot_count,
+        }
+        .spawn()?;
 
         Ok(Box::new(SubprocessProcess::new(child)))
     }

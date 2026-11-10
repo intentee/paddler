@@ -13,16 +13,16 @@ use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 use paddler_tests::prepared_decision::PreparedDecision;
-
-use crate::kev_decision_model::KevDecisionModel;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u16 = 1;
 const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 2;
 
 #[test]
 fn a_decision_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_removal() {
-    let kev_decision_model = KevDecisionModel::load(SEQUENCES_THE_LEDGER_HANDS_OUT);
+    let kev_decision_model = KevDecisionModel::load(SEQUENCES_THE_LEDGER_HANDS_OUT)
+        .expect("the kev decision model must load");
     let prepared_decision = |question_id: &str| {
         PreparedDecision::new(
             kev_decision_model
@@ -38,8 +38,8 @@ fn a_decision_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_
     let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
     for prepared_decision_request in [
-        decision_on_a_clearable_sequence.prepared_decision_request,
-        decision_on_a_sequence_beyond_the_context.prepared_decision_request,
+        decision_on_a_clearable_sequence.request,
+        decision_on_a_sequence_beyond_the_context.request,
     ] {
         scheduler_message_tx
             .send(SchedulerMessage::Command(prepared_decision_request))
@@ -48,14 +48,16 @@ fn a_decision_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_
 
     drop(scheduler_message_tx);
 
-    kev_decision_model.run_scheduler(DecisionSchedulerRun {
-        active_requests: VecDeque::new(),
-        agent_shutdown: CancellationToken::new(),
-        capacity_ledger: DecisionCapacityLedger::new(SEQUENCES_THE_LEDGER_HANDS_OUT),
-        pending_requests: VecDeque::new(),
-        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-        sequences: SEQUENCES_THE_CONTEXT_HOLDS,
-    });
+    kev_decision_model
+        .run_scheduler(DecisionSchedulerRun {
+            active_requests: VecDeque::new(),
+            agent_shutdown: CancellationToken::new(),
+            capacity_ledger: DecisionCapacityLedger::new(SEQUENCES_THE_LEDGER_HANDS_OUT),
+            pending_requests: VecDeque::new(),
+            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+            sequences: SEQUENCES_THE_CONTEXT_HOLDS,
+        })
+        .expect("the decision context must be created");
 
     assert_eq!(
         decision_on_a_sequence_beyond_the_context

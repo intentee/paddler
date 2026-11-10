@@ -17,6 +17,9 @@ impl StateDatabase {
         Self::Memory(StateDatabaseMemory::new(stored_balancer_desired_state))
     }
 
+    /// # Errors
+    ///
+    /// Returns [`StateDatabaseError::FileReadFailed`] when the state database file exists but cannot be read, [`StateDatabaseError::FileContentsInvalid`] when its contents are not a valid state database, and [`StateDatabaseError::SchemaVersionUnsupported`] when it uses a schema version this Paddler does not read.
     pub async fn read_balancer_desired_state(
         &self,
     ) -> Result<StoredBalancerDesiredState, StateDatabaseError> {
@@ -26,6 +29,9 @@ impl StateDatabase {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`StateDatabaseError::FileHasNoParentDirectory`] when the state database file has no parent directory, [`StateDatabaseError::FilePermissionsUnreadable`] when the access mode of the existing file cannot be read, [`StateDatabaseError::FileReplacementCreationFailed`] when the replacement file cannot be created, [`StateDatabaseError::FileWriteFailed`] when the state cannot be written into it, [`StateDatabaseError::FileSyncFailed`] when it cannot be synced, and [`StateDatabaseError::FileReplaceFailed`] when it cannot replace the state database file.
     pub async fn store_balancer_desired_state(
         &self,
         balancer_desired_state: &BalancerDesiredState,

@@ -12,14 +12,14 @@ use paddler_test_cluster_harness::collect_decision_results::collect_decision_res
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::many_question_decision::many_question_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const QUESTIONS_OUTLASTING_A_STATE_CHANGE: usize = 96;
 const CHANGED_CONTEXT_SIZE: u32 = 4096;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_in_flight_is_answered_in_full_when_the_desired_state_changes() {
-    let cluster = start_decision_cluster(DecisionClusterParams::default())
+    let cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let mut decision_stream = cluster

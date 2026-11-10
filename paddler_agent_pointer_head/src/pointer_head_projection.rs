@@ -1,6 +1,9 @@
+use std::num::NonZeroU16;
+use std::num::NonZeroUsize;
+
 pub struct PointerHeadProjection {
     pub bias: Vec<f32>,
-    pub hidden_size: usize,
+    pub head_dim: NonZeroU16,
     pub weight: Vec<f32>,
 }
 
@@ -8,7 +11,7 @@ impl PointerHeadProjection {
     #[must_use]
     pub fn project(&self, hidden_state: &[f32]) -> Vec<f32> {
         self.weight
-            .chunks_exact(self.hidden_size)
+            .chunks_exact(self.weight.len() / NonZeroUsize::from(self.head_dim))
             .zip(&self.bias)
             .map(|(weight_row, bias)| {
                 weight_row
@@ -24,13 +27,15 @@ impl PointerHeadProjection {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU16;
+
     use super::PointerHeadProjection;
 
     #[test]
     fn projects_a_hidden_state_through_every_weight_row_and_adds_its_bias() {
         let projection = PointerHeadProjection {
             bias: vec![0.5, -1.0],
-            hidden_size: 3,
+            head_dim: NonZeroU16::new(2).unwrap(),
             weight: vec![1.0, 2.0, 3.0, -1.0, 0.0, 1.0],
         };
 

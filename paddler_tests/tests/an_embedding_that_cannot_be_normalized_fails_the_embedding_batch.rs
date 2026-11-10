@@ -10,17 +10,17 @@ use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
-use paddler_tests::normalization_of_an_embedding_too_long_for_rms_norm::DIMENSIONS_TOO_MANY_FOR_RMS_NORM;
+use paddler_tests::constants::DIMENSIONS_TOO_MANY_FOR_RMS_NORM;
+use paddler_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 use paddler_tests::normalization_of_an_embedding_too_long_for_rms_norm::NormalizationOfAnEmbeddingTooLongForRmsNorm;
-
-use crate::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 
 const REQUEST_SEQUENCES: NonZeroU16 = NonZeroU16::new(2).unwrap();
 
 #[test]
 fn an_embedding_that_cannot_be_normalized_fails_the_embedding_batch() {
     let nomic_embedding_batch_processing =
-        NomicEmbeddingBatchProcessing::load(PoolingType::Mean, REQUEST_SEQUENCES);
+        NomicEmbeddingBatchProcessing::load(PoolingType::Mean, REQUEST_SEQUENCES)
+            .expect("the nomic embedding model must load");
     let ActiveEmbeddingRequestFixture {
         admitted_requests,
         generate_embedding_stop_tx: _generate_embedding_stop_tx,
@@ -36,10 +36,12 @@ fn an_embedding_that_cannot_be_normalized_fails_the_embedding_batch() {
         },
     ]);
 
-    let continuing_requests = nomic_embedding_batch_processing.embed_next_batch(
-        NormalizationOfAnEmbeddingTooLongForRmsNorm,
-        admitted_requests,
-    );
+    let continuing_requests = nomic_embedding_batch_processing
+        .embed_next_batch(
+            NormalizationOfAnEmbeddingTooLongForRmsNorm,
+            admitted_requests,
+        )
+        .expect("the embedding context must be created");
 
     assert_eq!(continuing_requests.len(), 0);
     assert_eq!(

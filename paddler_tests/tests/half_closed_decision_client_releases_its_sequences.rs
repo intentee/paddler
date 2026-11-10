@@ -6,7 +6,7 @@ use serde_json::to_value;
 use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_DECIDE;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
@@ -14,21 +14,21 @@ use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const SMALL_BATCH_TOKENS: u32 = 32;
 const STATE_REPETITIONS_SPANNING_MANY_DECODES: usize = 120;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_decision_client_releases_its_sequences() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams {
+    let mut cluster = DecisionClusterParams {
         agents: vec![AgentConfig::single(2)],
         desired_state: DecisionDesiredState {
             n_batch: BatchSize::try_from(SMALL_BATCH_TOKENS).expect("the batch size is valid"),
             ..DecisionDesiredState::default()
         },
         ..DecisionClusterParams::default()
-    })
+    }
+    .start_cluster()
     .await
     .expect("the cluster must start");
     let agent_id = cluster
@@ -38,7 +38,7 @@ async fn half_closed_decision_client_releases_its_sequences() {
         .clone();
     let mut half_closed_client = HalfClosedClient::post_json_then_half_close(
         cluster.balancer.addresses.inference,
-        ApiPath::DECIDE,
+        API_PATH_DECIDE,
         &to_value(RawDecideParams {
             state: sample_decision()
                 .state

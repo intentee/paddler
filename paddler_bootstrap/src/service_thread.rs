@@ -39,14 +39,17 @@ impl ServiceThread {
         }
     }
 
+    pub fn cancel(&self) {
+        self.cancellation_token.cancel();
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`BootstrapError::ServiceRunFailed`] when the run stopped with an error, and [`BootstrapError::ServiceThreadPanicked`] when the service thread panicked.
     pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
         let Err(_thread_finished) = (&mut self.finished_rx).await;
 
         self.join_thread()
-    }
-
-    pub fn cancel(&self) {
-        self.cancellation_token.cancel();
     }
 
     fn join_thread(&mut self) -> Result<(), BootstrapError> {
@@ -149,7 +152,11 @@ mod tests {
     async fn wait_for_completion_errors_when_service_thread_panics() {
         let mut service_thread =
             ServiceThread::spawn(CancellationToken::new(), |_task_cancellation_token| async {
-                panic!("service thread crashed")
+                "not a number"
+                    .parse::<u32>()
+                    .expect("service thread crashed");
+
+                Ok(())
             });
 
         let completion_result = service_thread.wait_for_completion().await;

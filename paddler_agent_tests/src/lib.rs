@@ -1,0 +1,10 @@
+pub mod agent_tests_error;
+pub mod arbiter_under_test;
+pub mod reconciliation_after_replacement;
+pub mod reconciliation_replaced_before_its_worker_runs;
+pub mod settings_whose_model_cannot_load;
+pub mod slots_insufficient_for_decisions;
+pub mod startup_superseded_while_its_blocking_work_waits;
+pub mod state_enabling_decisions;
+pub mod state_overriding_the_chat_template;
+pub mod state_whose_model_cannot_load;
