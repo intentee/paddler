@@ -41,18 +41,25 @@ impl LlamaContextSettings<'_> {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::context::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
+
+    use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
     use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 
     use super::LlamaContextSettings;
 
     #[test]
     fn carries_the_model_runtime_parameters_into_the_context() {
-        let model_runtime_parameters = ModelRuntimeParameters::default();
+        let model_runtime_parameters = ModelRuntimeParameters {
+            k_cache_dtype: KvCacheDtype::F16,
+            v_cache_dtype: KvCacheDtype::Q40,
+            ..ModelRuntimeParameters::default()
+        };
 
         let llama_context_params = LlamaContextSettings {
             model_runtime_parameters: &model_runtime_parameters,
-            n_seq_max: 4,
-            thread_count: 6,
+            n_seq_max: 1,
+            thread_count: 1,
         }
         .into_llama_context_params();
 
@@ -64,6 +71,19 @@ mod tests {
             llama_context_params.n_batch(),
             model_runtime_parameters.n_batch.tokens().get()
         );
+        assert_eq!(llama_context_params.type_k(), LlamaKvCacheDtype::F16);
+        assert_eq!(llama_context_params.type_v(), LlamaKvCacheDtype::Q40);
+    }
+
+    #[test]
+    fn carries_the_sequence_and_thread_limits_into_the_context() {
+        let llama_context_params = LlamaContextSettings {
+            model_runtime_parameters: &ModelRuntimeParameters::default(),
+            n_seq_max: 4,
+            thread_count: 6,
+        }
+        .into_llama_context_params();
+
         assert_eq!(llama_context_params.n_seq_max(), 4);
         assert_eq!(llama_context_params.n_threads(), 6);
         assert_eq!(llama_context_params.n_threads_batch(), 6);

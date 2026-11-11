@@ -36,7 +36,12 @@ async fn agent_labels_embeddings_as_unnormalized_when_requested() {
     assert_eq!(collected.embeddings.len(), 1);
     assert!(collected.saw_done);
     assert_eq!(
-        collected.embeddings[0].embedding.normalization_method,
+        collected
+            .embeddings
+            .first()
+            .expect("the batch must produce an embedding")
+            .embedding
+            .normalization_method,
         EmbeddingNormalizationMethod::None
     );
 

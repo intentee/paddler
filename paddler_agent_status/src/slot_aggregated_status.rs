@@ -30,7 +30,7 @@ pub struct SlotAggregatedStatus {
     pipeline_issues: DashSet<AgentIssue>,
     runtime: RwLock<AgentRuntimeStatus>,
     serving_issues: RwLock<BTreeSet<AgentIssue>>,
-    slots_processing: RwLock<u64>,
+    slots_processing: AtomicValue<AtomicU64>,
     slots_released: Notify,
     state_application_status: RwLock<AgentStateApplicationStatus>,
     update_tx: watch::Sender<()>,
@@ -52,7 +52,7 @@ impl SlotAggregatedStatus {
             runtime: RwLock::new(AgentRuntimeStatus::Idle),
             serving_issues: RwLock::new(BTreeSet::new()),
             state_application_status: RwLock::new(AgentStateApplicationStatus::Fresh),
-            slots_processing: RwLock::new(0),
+            slots_processing: AtomicValue::<AtomicU64>::new(0),
             slots_released: Notify::new(),
             update_tx,
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
@@ -60,9 +60,22 @@ impl SlotAggregatedStatus {
         }
     }
 
-    fn announce_change(&self) {
-        self.version.increment();
-        self.update_tx.send_replace(());
+    pub fn begin_desired_state(&self) {
+        self.desired_state_issues.clear();
+        *self.download_status.write() = ModelDownloadStatus::NotDownloading;
+        self.announce_change();
+    }
+
+    pub fn begin_pipeline(&self) {
+        self.pipeline_issues.clear();
+        *self.state_application_status.write() = AgentStateApplicationStatus::Fresh;
+        self.announce_change();
+    }
+
+    pub fn fail_download(&self, issue: AgentIssue) {
+        *self.download_status.write() = ModelDownloadStatus::NotDownloading;
+        self.desired_state_issues.insert(issue);
+        self.announce_change();
     }
 
     pub fn get_state_application_status(&self) -> AgentStateApplicationStatus {
@@ -86,30 +99,31 @@ impl SlotAggregatedStatus {
             || self.serving_issues.read().iter().any(issue_like)
     }
 
-    pub fn add_downloaded_bytes(&self, added_bytes: u64) {
-        self.download_status
-            .write()
-            .add_downloaded_bytes(added_bytes);
-        self.announce_change();
+    pub fn register_desired_state_issue(&self, issue: AgentIssue) {
+        if self.desired_state_issues.insert(issue) {
+            self.announce_change();
+        }
     }
 
-    pub fn set_downloaded_bytes(&self, downloaded_bytes: u64) {
-        self.download_status
-            .write()
-            .set_downloaded_bytes(downloaded_bytes);
-        self.announce_change();
+    pub fn register_fix(&self, fix: &AgentIssueFix) {
+        let desired_state_issues_before = self.desired_state_issues.len();
+        let pipeline_issues_before = self.pipeline_issues.len();
+
+        self.desired_state_issues
+            .retain(|issue| !fix.can_fix(issue));
+        self.pipeline_issues.retain(|issue| !fix.can_fix(issue));
+
+        if self.desired_state_issues.len() < desired_state_issues_before
+            || self.pipeline_issues.len() < pipeline_issues_before
+        {
+            self.announce_change();
+        }
     }
 
-    pub fn begin_desired_state(&self) {
-        self.desired_state_issues.clear();
-        *self.download_status.write() = ModelDownloadStatus::NotDownloading;
-        self.announce_change();
-    }
-
-    pub fn begin_pipeline(&self) {
-        self.pipeline_issues.clear();
-        *self.state_application_status.write() = AgentStateApplicationStatus::Fresh;
-        self.announce_change();
+    pub fn register_pipeline_issue(&self, issue: AgentIssue) {
+        if self.pipeline_issues.insert(issue) {
+            self.announce_change();
+        }
     }
 
     pub fn retry_pipeline(&self) {
@@ -128,36 +142,6 @@ impl SlotAggregatedStatus {
         self.announce_change();
     }
 
-    pub fn fail_download(&self, issue: AgentIssue) {
-        *self.download_status.write() = ModelDownloadStatus::NotDownloading;
-        self.desired_state_issues.insert(issue);
-        self.announce_change();
-    }
-
-    pub fn register_desired_state_issue(&self, issue: AgentIssue) {
-        if self.desired_state_issues.insert(issue) {
-            self.announce_change();
-        }
-    }
-
-    pub fn register_pipeline_issue(&self, issue: AgentIssue) {
-        if self.pipeline_issues.insert(issue) {
-            self.announce_change();
-        }
-    }
-
-    pub fn register_fix(&self, fix: &AgentIssueFix) {
-        let issues_before = self.desired_state_issues.len() + self.pipeline_issues.len();
-
-        self.desired_state_issues
-            .retain(|issue| !fix.can_fix(issue));
-        self.pipeline_issues.retain(|issue| !fix.can_fix(issue));
-
-        if self.desired_state_issues.len() + self.pipeline_issues.len() < issues_before {
-            self.announce_change();
-        }
-    }
-
     pub fn serve_nothing(&self, uses_chat_template_override: bool) {
         *self.model_path.write() = None;
         *self.runtime.write() = AgentRuntimeStatus::Idle;
@@ -168,16 +152,20 @@ impl SlotAggregatedStatus {
         self.announce_change();
     }
 
-    pub fn withdraw_serving(&self) {
-        *self.model_path.write() = None;
-        *self.runtime.write() = AgentRuntimeStatus::Idle;
-        self.serving_issues.write().clear();
-        self.announce_change();
-    }
-
     pub fn set_download_status(&self, download_status: ModelDownloadStatus) {
         *self.download_status.write() = download_status;
         self.announce_change();
+    }
+
+    pub fn set_downloaded_bytes(&self, downloaded_bytes: u64) {
+        self.download_status
+            .write()
+            .set_downloaded_bytes(downloaded_bytes);
+        self.announce_change();
+    }
+
+    pub fn slots_processing_count(&self) -> u64 {
+        self.slots_processing.get()
     }
 
     pub fn start_serving(
@@ -205,10 +193,6 @@ impl SlotAggregatedStatus {
         self.announce_change();
     }
 
-    pub fn slots_processing_count(&self) -> u64 {
-        *self.slots_processing.read()
-    }
-
     pub async fn wait_until_no_slots_are_processing(&self) {
         loop {
             let slots_released = self.slots_released.notified();
@@ -220,16 +204,28 @@ impl SlotAggregatedStatus {
             slots_released.await;
         }
     }
+
+    pub fn withdraw_serving(&self) {
+        *self.model_path.write() = None;
+        *self.runtime.write() = AgentRuntimeStatus::Idle;
+        self.serving_issues.write().clear();
+        self.announce_change();
+    }
+
+    fn announce_change(&self) {
+        self.version.add(1);
+        self.update_tx.send_replace(());
+    }
 }
 
 impl DispensesSlots for SlotAggregatedStatus {
     fn release_slots(&self, slots: NonZeroU16) {
-        *self.slots_processing.write() -= u64::from(slots.get());
+        self.slots_processing.subtract(u64::from(slots.get()));
         self.slots_released.notify_waiters();
     }
 
     fn take_slots(&self, slots: NonZeroU16) {
-        *self.slots_processing.write() += u64::from(slots.get());
+        self.slots_processing.add(u64::from(slots.get()));
     }
 }
 
@@ -299,16 +295,10 @@ mod tests {
 
     fn serving_without_a_chat_template() -> ServingReport {
         ServingReport {
-            serving_issues: BTreeSet::from([AgentIssue::UnableToFindChatTemplate(model_path(
-                "model",
-            ))]),
+            serving_issues: BTreeSet::from([AgentIssue::UnableToFindChatTemplate(
+                ModelPath::from("model"),
+            )]),
             ..serving_report(AgentDecisionsServing::NotServed)
-        }
-    }
-
-    fn model_path(path: &str) -> ModelPath {
-        ModelPath {
-            model_path: path.to_owned(),
         }
     }
 
@@ -343,9 +333,9 @@ mod tests {
     }
 
     #[test]
-    fn register_issue_and_has_issue_round_trip() {
+    fn has_issue_reports_an_issue_only_once_it_is_registered() {
         let status = SlotAggregatedStatus::new(2);
-        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_test"));
+        let issue = AgentIssue::ModelFileDoesNotExist(ModelPath::from("model_test"));
 
         assert!(!status.has_issue(&issue));
 
@@ -357,10 +347,12 @@ mod tests {
     #[test]
     fn register_fix_removes_matching_issues() {
         let status = SlotAggregatedStatus::new(2);
-        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_test"));
+        let issue = AgentIssue::ModelFileDoesNotExist(ModelPath::from("model_test"));
 
         status.register_desired_state_issue(issue.clone());
-        status.register_fix(&AgentIssueFix::ModelFileExists(model_path("model_test")));
+        status.register_fix(&AgentIssueFix::ModelFileExists(ModelPath::from(
+            "model_test",
+        )));
 
         assert!(!status.has_issue(&issue));
     }
@@ -369,7 +361,7 @@ mod tests {
     fn has_issue_like_matches_with_predicate() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.register_desired_state_issue(AgentIssue::ModelFileDoesNotExist(model_path(
+        status.register_desired_state_issue(AgentIssue::ModelFileDoesNotExist(ModelPath::from(
             "model_test",
         )));
 
@@ -419,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn starting_to_serve_reports_the_model_its_decisions_and_the_applied_state() {
+    fn starting_to_serve_reports_the_model_its_slots_its_decisions_and_the_applied_state() {
         let status = SlotAggregatedStatus::new(4);
 
         status.start_serving(serving_report(AgentDecisionsServing::Served));
@@ -470,7 +462,7 @@ mod tests {
     #[test]
     fn register_issue_twice_keeps_single_entry() {
         let status = SlotAggregatedStatus::new(2);
-        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_test"));
+        let issue = AgentIssue::ModelFileDoesNotExist(ModelPath::from("model_test"));
 
         status.register_desired_state_issue(issue.clone());
         status.register_desired_state_issue(issue);
@@ -481,10 +473,12 @@ mod tests {
     #[test]
     fn register_fix_without_matching_issue_keeps_issues() {
         let status = SlotAggregatedStatus::new(2);
-        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_test"));
+        let issue = AgentIssue::ModelFileDoesNotExist(ModelPath::from("model_test"));
 
         status.register_desired_state_issue(issue.clone());
-        status.register_fix(&AgentIssueFix::ModelFileExists(model_path("other_model")));
+        status.register_fix(&AgentIssueFix::ModelFileExists(ModelPath::from(
+            "other_model",
+        )));
 
         assert!(status.has_issue(&issue));
     }
@@ -523,25 +517,35 @@ mod tests {
     #[test]
     fn beginning_a_desired_state_clears_only_the_desired_state_issues() {
         let status = SlotAggregatedStatus::new(2);
-        let pipeline_issue = AgentIssue::ModelCannotBeLoaded(model_path("serving_model"));
+        let pipeline_issue = AgentIssue::ModelCannotBeLoaded(ModelPath::from("serving_model"));
 
-        status.set_download_status(ModelDownloadStatus::Downloading {
-            downloaded_bytes: 500,
-            model_path: "https://example.com/model.gguf".to_owned(),
-            total_bytes: 1000,
-        });
-        status.register_desired_state_issue(AgentIssue::ModelFileDoesNotExist(model_path(
+        status.register_desired_state_issue(AgentIssue::ModelFileDoesNotExist(ModelPath::from(
             "replaced_model",
         )));
         status.register_pipeline_issue(pipeline_issue.clone());
 
         status.begin_desired_state();
 
-        let snapshot = status.make_snapshot();
-
-        assert_eq!(snapshot.status.issues, BTreeSet::from([pipeline_issue]));
         assert_eq!(
-            snapshot.status.download_status,
+            status.make_snapshot().status.issues,
+            BTreeSet::from([pipeline_issue])
+        );
+    }
+
+    #[test]
+    fn beginning_a_desired_state_stops_the_download_of_the_one_it_replaces() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(ModelDownloadStatus::Downloading {
+            downloaded_bytes: 500,
+            model_path: "https://example.com/model.gguf".to_owned(),
+            total_bytes: 1000,
+        });
+
+        status.begin_desired_state();
+
+        assert_eq!(
+            status.make_snapshot().status.download_status,
             ModelDownloadStatus::NotDownloading
         );
     }
@@ -549,10 +553,11 @@ mod tests {
     #[test]
     fn beginning_a_pipeline_clears_only_the_pipeline_issues() {
         let status = SlotAggregatedStatus::new(2);
-        let desired_state_issue = AgentIssue::ModelFileDoesNotExist(model_path("desired_model"));
+        let desired_state_issue =
+            AgentIssue::ModelFileDoesNotExist(ModelPath::from("desired_model"));
 
         status.register_desired_state_issue(desired_state_issue.clone());
-        status.register_pipeline_issue(AgentIssue::ModelCannotBeLoaded(model_path(
+        status.register_pipeline_issue(AgentIssue::ModelCannotBeLoaded(ModelPath::from(
             "replaced_model",
         )));
 
@@ -567,7 +572,8 @@ mod tests {
     #[test]
     fn failing_a_download_stops_it_and_registers_the_issue() {
         let status = SlotAggregatedStatus::new(2);
-        let issue = AgentIssue::DownloadInterrupted(model_path("https://example.com/model.gguf"));
+        let issue =
+            AgentIssue::DownloadInterrupted(ModelPath::from("https://example.com/model.gguf"));
 
         status.set_download_status(ModelDownloadStatus::Downloading {
             downloaded_bytes: 500,
@@ -606,7 +612,7 @@ mod tests {
     #[test]
     fn serving_issues_stay_reported_while_a_new_pipeline_begins() {
         let status = SlotAggregatedStatus::new(2);
-        let serving_issue = AgentIssue::UnableToFindChatTemplate(model_path("model"));
+        let serving_issue = AgentIssue::UnableToFindChatTemplate(ModelPath::from("model"));
 
         status.start_serving(serving_without_a_chat_template());
         status.begin_pipeline();

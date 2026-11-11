@@ -47,7 +47,10 @@ async fn openai_responses_text_format_json_schema_constrains_the_output() {
             .map(|answer_fields| answer_fields.keys().map(String::as_str).collect::<Vec<_>>()),
         Some(vec!["answer"])
     );
-    assert!(answer["answer"].is_i64(), "{answer}");
+    assert!(
+        answer.pointer("/answer").is_some_and(Value::is_i64),
+        "{answer}"
+    );
 
     cluster
         .shutdown()

@@ -12,6 +12,9 @@ use crate::cluster_harness_error::ClusterHarnessError;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::token_result_with_producer::TokenResultWithProducer;
 
+/// # Errors
+///
+/// Returns [`ClusterHarnessError::TokenStreamFailed`] when the stream yields an error, [`ClusterHarnessError::TokenStreamReturnedError`] when it carries an error response, and [`ClusterHarnessError::TokenStreamMessageUnexpected`] when it carries a response that is not a generated token.
 pub async fn collect_generated_tokens(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedGeneratedTokens> {

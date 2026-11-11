@@ -14,16 +14,28 @@ use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchSc
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::generation_done_discriminant::generation_done_discriminant;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::last_generated_token_result::last_generated_token_result;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-
 const SENTENCE: &str = "Paddler balances inference across agents. ";
 const SLOTS: u16 = 2;
+
+fn raw_prompt_generation(
+    LlamaRuntime {
+        inference_runtime_context,
+        ..
+    }: &LlamaRuntime,
+    prompt: &str,
+) -> RawPromptGeneration {
+    RawPromptGeneration::new(
+        prompt,
+        inference_runtime_context.slot_aggregated_status.clone(),
+    )
+}
 
 #[test]
 fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
@@ -71,29 +83,18 @@ fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
         llama_runtime: &runtime,
         sequence_context_size,
     }
-    .into_generation_request_preparer();
+    .into_generation_request_preparer()
+    .expect("the first message content chat template must be prepared");
     let RawPromptGeneration {
         agent_request: batch_filling_generation,
         generate_tokens_stop_tx: _batch_filling_generate_tokens_stop_tx,
         generated_tokens_rx: batch_filling_generated_tokens_rx,
-    } = RawPromptGeneration::new(
-        &batch_filling_prompt,
-        runtime
-            .inference_runtime_context
-            .slot_aggregated_status
-            .clone(),
-    );
+    } = raw_prompt_generation(&runtime, &batch_filling_prompt);
     let RawPromptGeneration {
         agent_request: deferred_generation,
         generate_tokens_stop_tx: _deferred_generate_tokens_stop_tx,
         generated_tokens_rx: deferred_generated_tokens_rx,
-    } = RawPromptGeneration::new(
-        "Paddler",
-        runtime
-            .inference_runtime_context
-            .slot_aggregated_status
-            .clone(),
-    );
+    } = raw_prompt_generation(&runtime, "Paddler");
     let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
     for agent_request in [batch_filling_generation, deferred_generation] {

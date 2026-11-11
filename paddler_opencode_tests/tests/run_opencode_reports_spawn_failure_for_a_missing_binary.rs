@@ -3,20 +3,16 @@ use std::io;
 use std::path::Path;
 
 use paddler_opencode_tests::opencode_test_error::OpenCodeTestError;
-use paddler_opencode_tests::run_opencode::run_opencode;
-
-use crate::unreachable_api_opencode_test_project::unreachable_api_opencode_test_project;
+use paddler_opencode_tests::opencode_test_project::OpenCodeTestProject;
 
 #[tokio::test]
 async fn run_opencode_reports_spawn_failure_for_a_missing_binary() {
     let missing_binary = Path::new("/paddler/definitely/missing/opencode");
-    let run_error = run_opencode(
-        missing_binary,
-        &unreachable_api_opencode_test_project(),
-        "hello",
-    )
-    .await
-    .expect_err("a missing binary must fail to spawn");
+    let run_error = OpenCodeTestProject::with_an_unreachable_api()
+        .expect("an OpenCode test project must be creatable")
+        .run_opencode(missing_binary, "hello")
+        .await
+        .expect_err("a missing binary must fail to spawn");
 
     assert_eq!(
         run_error.to_string(),

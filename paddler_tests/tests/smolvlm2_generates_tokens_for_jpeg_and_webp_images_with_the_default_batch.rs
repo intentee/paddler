@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::jpeg_and_webp_image_fixtures::JPEG_AND_WEBP_IMAGE_FIXTURES;
+use paddler_tests::constants::JPEG_AND_WEBP_IMAGE_FIXTURES;
 use paddler_tests::single_image_question::SingleImageQuestion;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 

@@ -120,7 +120,9 @@ mod tests {
 
     #[actix_web::test]
     async fn answers_every_failure_with_its_status_and_openai_error_body() {
-        let clock_error = (UNIX_EPOCH - Duration::from_secs(1))
+        let clock_error = UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("one second before the Unix epoch must be representable")
             .duration_since(UNIX_EPOCH)
             .unwrap_err();
 

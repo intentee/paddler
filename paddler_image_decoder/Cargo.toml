@@ -12,6 +12,7 @@ version.workspace = true
 base64 = { workspace = true }
 image = { workspace = true }
 log = { workspace = true }
+num-traits = { workspace = true }
 paddler_messaging = { workspace = true }
 resvg = { workspace = true }
 thiserror = { workspace = true }

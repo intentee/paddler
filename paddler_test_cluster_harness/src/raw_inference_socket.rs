@@ -15,7 +15,7 @@ use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_tungstenite::tungstenite::Message;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
@@ -61,15 +61,18 @@ pub struct RawInferenceSocket {
 }
 
 impl RawInferenceSocket {
+    /// # Errors
+    ///
+    /// Returns the [`WebSocketError`] of a connection to the inference socket that cannot be established.
     pub async fn connect(inference_addr: SocketAddr) -> Result<Self, WebSocketError> {
-        connect_async(format!(
-            "ws://{inference_addr}{}",
-            ApiPath::INFERENCE_SOCKET
-        ))
-        .await
-        .map(|(websocket, _handshake_response)| Self { websocket })
+        connect_async(format!("ws://{inference_addr}{API_PATH_INFERENCE_SOCKET}"))
+            .await
+            .map(|(websocket, _handshake_response)| Self { websocket })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::InferenceSocketReceiveFailed`] when a frame cannot be received, [`ClusterHarnessError::InferenceSocketMessageUnreadable`] when a text frame cannot be read as a message, and [`ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer`] when the socket closes before any answer.
     pub async fn next_answer(&mut self) -> Result<InferenceClientMessage, ClusterHarnessError> {
         self.next_selected_frame(|frame| awaited_answer(frame, |_answered_request_id| true))
             .await
@@ -78,6 +81,9 @@ impl RawInferenceSocket {
             })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::InferenceSocketReceiveFailed`] when a frame cannot be received, [`ClusterHarnessError::InferenceSocketMessageUnreadable`] when a text frame cannot be read as a message, and [`ClusterHarnessError::InferenceSocketClosedBeforeAnswer`] when the socket closes before answering the request.
     pub async fn next_answer_to(
         &mut self,
         request_id: &str,
@@ -95,38 +101,25 @@ impl RawInferenceSocket {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::InferenceSocketReceiveFailed`] when a frame cannot be received, and [`ClusterHarnessError::InferenceSocketClosedBeforePong`] when the socket closes before answering the ping.
     pub async fn next_pong(&mut self) -> Result<Bytes, ClusterHarnessError> {
         self.next_selected_frame(pong_payload)
             .await
             .and_then(|pong| pong.ok_or(ClusterHarnessError::InferenceSocketClosedBeforePong))
     }
 
-    async fn next_selected_frame<TSelected>(
-        &mut self,
-        select: impl Fn(Message) -> Option<Result<TSelected, ClusterHarnessError>>,
-    ) -> Result<Option<TSelected>, ClusterHarnessError> {
-        while let Some(frame) = self.next_frame_before_close().await? {
-            if let Some(selected) = select(frame) {
-                return selected.map(Some);
-            }
-        }
-
-        Ok(None)
-    }
-
-    async fn next_frame_before_close(&mut self) -> Result<Option<Message>, ClusterHarnessError> {
-        match self.websocket.next().await {
-            None | Some(Ok(Message::Close(_))) => Ok(None),
-            Some(frame) => frame
-                .map(Some)
-                .map_err(ClusterHarnessError::InferenceSocketReceiveFailed),
-        }
-    }
-
+    /// # Errors
+    ///
+    /// Returns the [`WebSocketError`] of a frame that cannot be sent.
     pub async fn send(&mut self, message: Message) -> Result<(), WebSocketError> {
         self.websocket.send(message).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::InferenceSocketRequestUnserializable`] when the request cannot be serialized, and [`ClusterHarnessError::InferenceSocketSendFailed`] when it cannot be sent.
     pub async fn send_raw_prompt_request(
         &mut self,
         request_id: &str,
@@ -154,5 +147,27 @@ impl RawInferenceSocket {
                 .map_err(ClusterHarnessError::InferenceSocketSendFailed)
         })
         .await
+    }
+
+    async fn next_frame_before_close(&mut self) -> Result<Option<Message>, ClusterHarnessError> {
+        match self.websocket.next().await {
+            None | Some(Ok(Message::Close(_))) => Ok(None),
+            Some(frame) => frame
+                .map(Some)
+                .map_err(ClusterHarnessError::InferenceSocketReceiveFailed),
+        }
+    }
+
+    async fn next_selected_frame<TSelected>(
+        &mut self,
+        select: impl Fn(Message) -> Option<Result<TSelected, ClusterHarnessError>>,
+    ) -> Result<Option<TSelected>, ClusterHarnessError> {
+        while let Some(frame) = self.next_frame_before_close().await? {
+            if let Some(selected) = select(frame) {
+                return selected.map(Some);
+            }
+        }
+
+        Ok(None)
     }
 }

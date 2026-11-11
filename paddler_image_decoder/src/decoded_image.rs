@@ -8,7 +8,9 @@ use image::guess_format;
 use image::imageops::FilterType;
 use image::load_from_memory_with_format;
 use log::info;
+use num_traits::ToPrimitive as _;
 use resvg::render;
+use resvg::tiny_skia::IntSize;
 use resvg::tiny_skia::Pixmap;
 use resvg::tiny_skia::Transform;
 use resvg::usvg::Options;
@@ -21,14 +23,25 @@ use crate::decoded_image_error::DecodedImageError;
 const RGBA_BYTES_PER_PIXEL: usize = 4;
 const RGB_BYTES_PER_PIXEL: usize = 3;
 
-fn compute_target_dimension(svg_dim: f64, scale: f64) -> Result<u32, DecodedImageError> {
-    let target = (svg_dim * scale).ceil();
+fn scaled_dimension(svg_dimension: f64, scale: f64) -> Result<u32, DecodedImageError> {
+    let target = (svg_dimension * scale).ceil();
 
-    if !target.is_finite() || target < 1.0 || target > f64::from(u32::MAX) {
-        return Err(DecodedImageError::SvgDimensionOutOfRange { dimension: target });
-    }
+    target
+        .to_u32()
+        .ok_or(DecodedImageError::SvgDimensionOutOfRange { dimension: target })
+}
 
-    Ok(target as u32)
+fn compute_target_size(
+    svg_width: f64,
+    svg_height: f64,
+    scale: f64,
+) -> Result<IntSize, DecodedImageError> {
+    let target_width = scaled_dimension(svg_width, scale)?;
+    let target_height = scaled_dimension(svg_height, scale)?;
+
+    IntSize::from_wh(target_width, target_height).ok_or(DecodedImageError::SvgDimensionOutOfRange {
+        dimension: f64::from(target_width.min(target_height)),
+    })
 }
 
 fn rasterize_svg(
@@ -42,25 +55,26 @@ fn rasterize_svg(
 
     let scale = (max_dim / svg_width).min(max_dim / svg_height).min(1.0);
 
-    let target_width = compute_target_dimension(svg_width, scale)?;
-    let target_height = compute_target_dimension(svg_height, scale)?;
+    let target_size = compute_target_size(svg_width, svg_height, scale)?;
 
-    let mut pixmap = Pixmap::new(target_width, target_height).ok_or(
+    let mut pixmap = Pixmap::new(target_size.width(), target_size.height()).ok_or(
         DecodedImageError::SvgPixmapAllocationFailed {
-            width: target_width,
-            height: target_height,
+            width: target_size.width(),
+            height: target_size.height(),
         },
     )?;
 
-    let render_scale_x = f64::from(target_width) / svg_width;
-    let render_scale_y = f64::from(target_height) / svg_height;
+    let target_render_size = target_size.to_size();
 
-    let transform = Transform::from_scale(render_scale_x as f32, render_scale_y as f32);
+    let transform = Transform::from_scale(
+        target_render_size.width() / svg_size.width(),
+        target_render_size.height() / svg_size.height(),
+    );
 
     render(svg_tree, transform, &mut pixmap.as_mut());
 
     Ok(DecodedImage {
-        height: target_height,
+        height: target_size.height(),
         rgb_pixels: pixmap
             .data()
             .as_chunks::<RGBA_BYTES_PER_PIXEL>()
@@ -69,7 +83,7 @@ fn rasterize_svg(
             .flat_map(|rgba_pixel| &rgba_pixel[..RGB_BYTES_PER_PIXEL])
             .copied()
             .collect(),
-        width: target_width,
+        width: target_size.width(),
     })
 }
 
@@ -102,15 +116,34 @@ fn fit_raster_image(image: DynamicImage, max_dimension: u32) -> DecodedImage {
     }
 }
 
-fn decode_data_uri_payload(image_url: &ImageUrl) -> Result<Vec<u8>, DecodedImageError> {
-    let after_data = image_url
-        .url
+fn decode_data_uri_payload(ImageUrl { url }: &ImageUrl) -> Result<Vec<u8>, DecodedImageError> {
+    let after_data = url
         .strip_prefix("data:")
         .ok_or(DecodedImageError::RemoteUrlNotSupported)?;
 
-    let (_metadata, encoded_data) = after_data
+    let (metadata, encoded_data) = after_data
         .split_once(',')
         .ok_or(DecodedImageError::MissingCommaSeparator)?;
+    let media_type = metadata.strip_suffix(";base64").ok_or_else(|| {
+        DecodedImageError::DataUriIsNotBase64Encoded {
+            metadata: metadata.to_owned(),
+        }
+    })?;
+    let image_subtype = media_type.strip_prefix("image/").ok_or_else(|| {
+        DecodedImageError::DataUriMediaTypeIsNotAnImage {
+            media_type: media_type.to_owned(),
+        }
+    })?;
+
+    if image_subtype.is_empty() {
+        return Err(DecodedImageError::DataUriImageSubtypeIsEmpty);
+    }
+
+    if image_subtype.contains(';') {
+        return Err(DecodedImageError::DataUriMediaTypeHasParameters {
+            media_type: media_type.to_owned(),
+        });
+    }
 
     BASE64_STANDARD
         .decode(encoded_data)
@@ -125,6 +158,9 @@ pub struct DecodedImage {
 }
 
 impl DecodedImage {
+    /// # Errors
+    ///
+    /// Returns [`DecodedImageError::RemoteUrlNotSupported`] when the URL is not a data URI, [`DecodedImageError::MissingCommaSeparator`], [`DecodedImageError::DataUriIsNotBase64Encoded`], [`DecodedImageError::DataUriMediaTypeIsNotAnImage`], [`DecodedImageError::DataUriImageSubtypeIsEmpty`] or [`DecodedImageError::DataUriMediaTypeHasParameters`] when the data URI header is malformed, [`DecodedImageError::InvalidBase64Payload`] when the payload is not valid base64, [`DecodedImageError::UnsupportedFormat`] when the raster format cannot be read, [`DecodedImageError::PixelDecodingFailed`] when the raster pixels cannot be decoded, [`DecodedImageError::UnrecognizedFormat`] when the payload is neither a known raster format nor an SVG, [`DecodedImageError::SvgDimensionOutOfRange`] when a scaled SVG dimension is below one pixel or above `u32::MAX`, and [`DecodedImageError::SvgPixmapAllocationFailed`] when the SVG pixmap cannot be allocated.
     pub fn from_data_uri(
         image_url: &ImageUrl,
         max_dimension: NonZeroU32,
@@ -171,19 +207,20 @@ mod tests {
     use image::Rgb32FImage;
     use image::RgbImage;
     use image::RgbaImage;
+    use resvg::tiny_skia::IntSize;
     use resvg::usvg::Error as SvgError;
 
     use paddler_messaging::image_url::ImageUrl;
 
     use crate::decoded_image::DecodedImage;
-    use crate::decoded_image::compute_target_dimension;
+    use crate::decoded_image::compute_target_size;
     use crate::decoded_image_error::DecodedImageError;
 
     fn unrelated_image_error() -> ImageError {
         ImageError::IoError(io::Error::other("unrelated"))
     }
 
-    fn encode_image(image: DynamicImage, format: ImageFormat) -> Vec<u8> {
+    fn encode_image(image: &DynamicImage, format: ImageFormat) -> Vec<u8> {
         let mut output_buffer = Cursor::new(Vec::new());
 
         image.write_to(&mut output_buffer, format).unwrap();
@@ -193,7 +230,7 @@ mod tests {
 
     fn create_rgb_image(width: u32, height: u32, format: ImageFormat) -> Vec<u8> {
         encode_image(
-            DynamicImage::ImageRgb8(RgbImage::from_pixel(width, height, Rgb([10, 20, 30]))),
+            &DynamicImage::ImageRgb8(RgbImage::from_pixel(width, height, Rgb([10, 20, 30]))),
             format,
         )
     }
@@ -270,6 +307,70 @@ mod tests {
     }
 
     #[test]
+    fn rejects_data_uri_without_base64_marker() {
+        let image_url = ImageUrl {
+            url: "data:image/jpegbase64,abc123".to_owned(),
+        };
+
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            DecodedImageError::DataUriIsNotBase64Encoded { metadata } if metadata == "image/jpegbase64"
+        ));
+    }
+
+    #[test]
+    fn rejects_data_uri_of_a_media_type_that_is_not_an_image() {
+        let image_url = ImageUrl {
+            url: "data:text/plain;base64,aGVsbG8=".to_owned(),
+        };
+
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            DecodedImageError::DataUriMediaTypeIsNotAnImage { media_type } if media_type == "text/plain"
+        ));
+    }
+
+    #[test]
+    fn rejects_data_uri_of_an_image_without_a_subtype() {
+        let image_url = ImageUrl {
+            url: "data:image/;base64,AAAA".to_owned(),
+        };
+
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
+
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::DataUriImageSubtypeIsEmpty)
+        );
+    }
+
+    #[test]
+    fn rejects_data_uri_whose_media_type_has_parameters() {
+        let image_url = ImageUrl {
+            url: "data:image/png;name=photo.png;base64,AAAA".to_owned(),
+        };
+
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            DecodedImageError::DataUriMediaTypeHasParameters { media_type } if media_type == "image/png;name=photo.png"
+        ));
+    }
+
+    #[test]
     fn rejects_invalid_base64_payload() {
         let image_url = ImageUrl {
             url: "data:image/png;base64,!!!not-valid-base64!!!".to_owned(),
@@ -310,7 +411,7 @@ mod tests {
     #[test]
     fn decodes_small_gif_without_resizing() {
         let gif_data = encode_image(
-            DynamicImage::ImageRgba8(RgbaImage::new(100, 60)),
+            &DynamicImage::ImageRgba8(RgbaImage::new(100, 60)),
             ImageFormat::Gif,
         );
 
@@ -331,7 +432,7 @@ mod tests {
     #[test]
     fn converts_float_pixel_format_to_rgb() {
         let openexr_data = encode_image(
-            DynamicImage::ImageRgb32F(Rgb32FImage::from_pixel(
+            &DynamicImage::ImageRgb32F(Rgb32FImage::from_pixel(
                 4,
                 4,
                 Rgb([0.25f32, 0.5f32, 0.75f32]),
@@ -354,7 +455,7 @@ mod tests {
 
         assert_eq!(decoded_image.width, 50);
         assert_eq!(decoded_image.height, 50);
-        assert_eq!(&decoded_image.rgb_pixels[0..3], &[255, 0, 0]);
+        assert_eq!(decoded_image.rgb_pixels.first_chunk(), Some(&[255, 0, 0]));
     }
 
     #[test]
@@ -460,13 +561,16 @@ mod tests {
     }
 
     #[test]
-    fn compute_target_dimension_rounds_up_within_range() {
-        assert_eq!(compute_target_dimension(49.2, 1.0).unwrap(), 50);
+    fn compute_target_size_rounds_up_within_range() {
+        assert_eq!(
+            compute_target_size(49.2, 9.1, 1.0).unwrap(),
+            IntSize::from_wh(50, 10).unwrap()
+        );
     }
 
     #[test]
-    fn compute_target_dimension_rejects_below_one() {
-        let error = compute_target_dimension(0.0, 1.0).err().unwrap();
+    fn compute_target_size_rejects_below_one() {
+        let error = compute_target_size(0.0, 1.0, 1.0).err().unwrap();
 
         assert_eq!(
             discriminant(&error),
@@ -475,8 +579,8 @@ mod tests {
     }
 
     #[test]
-    fn compute_target_dimension_rejects_non_finite() {
-        let error = compute_target_dimension(f64::INFINITY, 1.0).err().unwrap();
+    fn compute_target_size_rejects_non_finite() {
+        let error = compute_target_size(f64::INFINITY, 1.0, 1.0).err().unwrap();
 
         assert_eq!(
             discriminant(&error),
@@ -485,8 +589,8 @@ mod tests {
     }
 
     #[test]
-    fn compute_target_dimension_rejects_above_u32_max() {
-        let error = compute_target_dimension(f64::from(u32::MAX) + 1.0, 1.0)
+    fn compute_target_size_rejects_above_u32_max() {
+        let error = compute_target_size(f64::from(u32::MAX) + 1.0, 1.0, 1.0)
             .err()
             .unwrap();
 

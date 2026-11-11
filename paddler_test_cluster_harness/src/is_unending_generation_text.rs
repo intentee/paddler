@@ -1,10 +1,9 @@
-use crate::unending_grammar::UNENDING_GENERATION_CYCLE;
+use crate::constants::UNENDING_GENERATION_CYCLE;
 
 #[must_use]
 pub fn is_unending_generation_text(text: &str) -> bool {
-    UNENDING_GENERATION_CYCLE
-        .repeat(text.len() / UNENDING_GENERATION_CYCLE.len() + 1)
-        .starts_with(text)
+    text.bytes()
+        .eq(UNENDING_GENERATION_CYCLE.bytes().cycle().take(text.len()))
 }
 
 #[cfg(test)]

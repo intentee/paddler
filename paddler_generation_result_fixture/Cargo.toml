@@ -1,0 +1,17 @@
+[package]
+name = "paddler_generation_result_fixture"
+authors.workspace = true
+description = "Generated tool calls and generation summaries for Paddler tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+paddler_messaging = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

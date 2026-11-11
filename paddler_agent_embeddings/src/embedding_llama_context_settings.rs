@@ -15,6 +15,9 @@ pub struct EmbeddingLlamaContextSettings<'parameters> {
 }
 
 impl EmbeddingLlamaContextSettings<'_> {
+    /// # Errors
+    ///
+    /// Returns [`AgentRuntimeError::LlamaContextAlreadyResident`] when an embeddings context already occupies the VRAM, and [`AgentRuntimeError::ContextCreationFailed`] when llama.cpp cannot create the context.
     pub fn create_llama_context<'model>(
         self,
         loaded_llama_model: &'model LoadedLlamaModel,

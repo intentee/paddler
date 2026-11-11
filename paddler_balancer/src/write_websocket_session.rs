@@ -65,7 +65,7 @@ mod tests {
     use super::write_websocket_session;
     use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 
-    async fn open_websocket_session() -> (HttpResponse, Session) {
+    fn open_websocket_session() -> OpenedWebSocketSession {
         let (http_request, mut request_payload) = TestRequest::default()
             .insert_header((UPGRADE, "websocket"))
             .insert_header((CONNECTION, "upgrade"))
@@ -73,17 +73,28 @@ mod tests {
             .insert_header((SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
             .to_http_parts();
         let payload = Payload::from_request(&http_request, &mut request_payload)
-            .await
+            .into_inner()
             .unwrap();
         let (handshake_response, session, _message_stream) =
             handle(&http_request, payload).unwrap();
 
-        (handshake_response, session)
+        OpenedWebSocketSession {
+            handshake_response,
+            session,
+        }
+    }
+
+    struct OpenedWebSocketSession {
+        handshake_response: HttpResponse,
+        session: Session,
     }
 
     #[tokio::test]
     async fn a_writer_abandons_the_writes_its_peer_does_not_read_once_the_connection_closes() {
-        let (_unread_handshake_response, session) = open_websocket_session().await;
+        let OpenedWebSocketSession {
+            handshake_response: _unread_handshake_response,
+            session,
+        } = open_websocket_session();
         let connection_close = CancellationToken::new();
         let (outbound_tx, outbound_rx) = unbounded_channel();
         let writer = spawn(write_websocket_session(
@@ -104,7 +115,10 @@ mod tests {
 
     #[tokio::test]
     async fn a_writer_stops_once_its_session_closes() {
-        let (handshake_response, session) = open_websocket_session().await;
+        let OpenedWebSocketSession {
+            handshake_response,
+            session,
+        } = open_websocket_session();
         let (outbound_tx, outbound_rx) = unbounded_channel();
         let writer = spawn(write_websocket_session(
             CancellationToken::new(),

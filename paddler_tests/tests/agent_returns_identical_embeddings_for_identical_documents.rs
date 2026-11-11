@@ -7,6 +7,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -47,17 +48,19 @@ async fn agent_returns_identical_embeddings_for_identical_documents() {
     let first = collected
         .embeddings
         .iter()
-        .find(|produced| produced.embedding.source_document_id == "doc-first")
+        .find(|EmbeddingWithProducer { embedding, .. }| embedding.source_document_id == "doc-first")
         .expect("first embedding missing");
 
     let second = collected
         .embeddings
         .iter()
-        .find(|produced| produced.embedding.source_document_id == "doc-second")
+        .find(|EmbeddingWithProducer { embedding, .. }| {
+            embedding.source_document_id == "doc-second"
+        })
         .expect("second embedding missing");
 
     assert_eq!(
-        first.embedding.embedding, second.embedding.embedding,
+        first.embedding.vector, second.embedding.vector,
         "identical documents must produce identical embedding vectors"
     );
 

@@ -3,6 +3,9 @@ use std::time::UNIX_EPOCH;
 
 use crate::openai_translation_error::OpenAITranslationError;
 
+/// # Errors
+///
+/// Returns [`OpenAITranslationError::ClockBeforeUnixEpoch`] when `now` precedes the Unix epoch.
 pub fn timestamp_from(now: SystemTime) -> Result<u64, OpenAITranslationError> {
     now.duration_since(UNIX_EPOCH)
         .map(|since_unix_epoch| since_unix_epoch.as_secs())

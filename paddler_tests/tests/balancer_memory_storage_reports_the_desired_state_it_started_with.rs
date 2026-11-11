@@ -31,7 +31,7 @@ async fn balancer_memory_storage_reports_the_desired_state_it_started_with() {
         .await
         .expect("failed to read desired state from memory backend");
 
-    assert_eq!(observed.model, desired_state.model);
+    assert_eq!(observed, desired_state);
 
     cluster
         .shutdown()

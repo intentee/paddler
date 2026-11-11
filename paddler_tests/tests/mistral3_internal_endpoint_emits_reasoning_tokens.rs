@@ -9,12 +9,13 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
-use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::ministral3_cluster_params::Ministral3ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn mistral3_internal_endpoint_emits_reasoning_tokens() {
-    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default())
+    let cluster = Ministral3ClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
 
@@ -44,7 +45,9 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() {
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+        })
         .count();
 
     assert!(
@@ -56,13 +59,11 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() {
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.prompt_tokens > 0);
-    assert!(summary.usage.reasoning_tokens > 0);
+    assert!(summary.usage.prompt > 0);
+    assert!(summary.usage.reasoning > 0);
     assert_eq!(
         summary.usage.completion_tokens(),
-        summary.usage.content_tokens
-            + summary.usage.reasoning_tokens
-            + summary.usage.undeterminable_tokens
+        summary.usage.content + summary.usage.reasoning + summary.usage.undeterminable
     );
 
     let reasoning_stream = collected.reasoning_text();

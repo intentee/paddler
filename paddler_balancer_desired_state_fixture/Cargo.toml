@@ -1,0 +1,16 @@
+[package]
+name = "paddler_balancer_desired_state_fixture"
+authors.workspace = true
+description = "Balancer desired states for Paddler tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+paddler_messaging = { workspace = true }
+
+[lints]
+workspace = true

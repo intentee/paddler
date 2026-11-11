@@ -2,7 +2,7 @@
 
 use std::process::Command;
 
-use paddler_test_cluster_harness::failed_run_exit_code::FAILED_RUN_EXIT_CODE;
+use paddler_test_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
 
 #[test]
 fn run_with_test_cluster_fails_without_a_temporary_directory_for_agent_models() {

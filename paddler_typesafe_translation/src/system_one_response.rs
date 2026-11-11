@@ -9,5 +9,5 @@ pub struct SystemOneResponse {
     pub model: String,
     pub answers: Map<String, Value>,
     pub usage: SystemOneUsage,
-    pub latency_ms: u64,
+    pub latency_ms: u128,
 }

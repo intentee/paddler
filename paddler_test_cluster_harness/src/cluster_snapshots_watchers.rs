@@ -16,6 +16,9 @@ pub struct ClusterSnapshotsWatchers {
 }
 
 impl ClusterSnapshotsWatchers {
+    /// # Errors
+    ///
+    /// Fails when the agents or buffered requests stream cannot be opened, and returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when such a stream ends or fails before its first snapshot.
     pub async fn open(
         client_management: &ClientManagement,
         cancellation_token: CancellationToken,

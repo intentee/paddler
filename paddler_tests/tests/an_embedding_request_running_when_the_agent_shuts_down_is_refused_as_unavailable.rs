@@ -4,9 +4,8 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_messaging::embedding_result::EmbeddingResult;
-
-use crate::embedding_documents_fixture::EmbeddingDocumentsFixture;
-use crate::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::embedding_documents_fixture::EmbeddingDocumentsFixture;
+use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
 
 const DOCUMENT_COUNT: usize = 64;
 
@@ -17,7 +16,10 @@ async fn an_embedding_request_running_when_the_agent_shuts_down_is_refused_as_un
         llama_runtime,
         served_model,
         ..
-    } = KevModelServingWithoutDecisions::start(&agent_shutdown).await;
+    } = KevModelServingWithoutDecisions::start(&agent_shutdown)
+        .await
+        .expect("the model must load")
+        .expect("text generation and embeddings must start");
     let EmbeddingDocumentsFixture {
         agent_request,
         generate_embedding_stop_tx: _generate_embedding_stop_tx,

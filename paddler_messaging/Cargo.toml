@@ -9,7 +9,6 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-llama-cpp-bindings-types = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

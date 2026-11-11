@@ -5,8 +5,9 @@ use reqwest::RequestBuilder;
 use serde_json::Value;
 use url::Url;
 
-use paddler_balancer::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
-use paddler_balancer::compatibility::typesafe_service::typesafe_header::TypeSafeHeader;
+use paddler_balancer::constants::TYPESAFE_API_PATH_MODELS;
+use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer::constants::TYPESAFE_HEADER_REQUEST_ID;
 
 use crate::typesafe_api_response::TypeSafeApiResponse;
 
@@ -40,10 +41,16 @@ impl TypeSafeApiClient {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`ReqwestError`] of a models request that fails or whose body is not JSON.
     pub async fn models(&self) -> Result<TypeSafeApiResponse, ReqwestError> {
-        answered(self.client.get(self.endpoint(TypeSafeApiPath::MODELS))).await
+        answered(self.client.get(self.endpoint(TYPESAFE_API_PATH_MODELS))).await
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`ReqwestError`] of a system one request that fails or whose body is not JSON.
     pub async fn system_one(
         &self,
         request_id: &str,
@@ -51,8 +58,8 @@ impl TypeSafeApiClient {
     ) -> Result<TypeSafeApiResponse, ReqwestError> {
         answered(
             self.client
-                .post(self.endpoint(TypeSafeApiPath::SYSTEM_ONE))
-                .header(TypeSafeHeader::REQUEST_ID, request_id)
+                .post(self.endpoint(TYPESAFE_API_PATH_SYSTEM_ONE))
+                .header(TYPESAFE_HEADER_REQUEST_ID, request_id)
                 .json(body),
         )
         .await

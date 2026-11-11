@@ -10,7 +10,6 @@ version.workspace = true
 
 [dependencies]
 hf-hub = { workspace = true }
-log = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
@@ -25,7 +24,6 @@ paddler_messaging = { workspace = true }
 [dev-dependencies]
 paddler_local_http_fixture = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["test-util"] }
 
 [lints]
 workspace = true

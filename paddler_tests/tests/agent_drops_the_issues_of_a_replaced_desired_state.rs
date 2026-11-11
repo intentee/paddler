@@ -46,7 +46,12 @@ async fn agent_drops_the_issues_of_a_replaced_desired_state() {
         .expect("the agent must report the issue of the replacement desired state");
 
     assert_eq!(
-        snapshot.agents[0].status.issues,
+        snapshot
+            .agents
+            .first()
+            .expect("the snapshot must hold the agent")
+            .status
+            .issues,
         BTreeSet::from([AgentIssue::HuggingFaceModelUriIsMalformed(ModelPath {
             model_path: replacement_model_uri,
         })])

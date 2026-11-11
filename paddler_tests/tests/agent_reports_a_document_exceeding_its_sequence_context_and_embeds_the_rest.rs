@@ -77,7 +77,10 @@ async fn agent_reports_a_document_exceeding_its_sequence_context_and_embeds_the_
         vec!["longer-than-a-sequence"]
     );
 
-    let exceeding_document = &collected.documents_exceeding_sequence_context[0];
+    let exceeding_document = collected
+        .documents_exceeding_sequence_context
+        .first()
+        .expect("the document exceeding the sequence context must be reported");
 
     assert_eq!(
         exceeding_document.sequence_context_size,

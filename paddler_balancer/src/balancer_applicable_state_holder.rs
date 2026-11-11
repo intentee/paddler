@@ -44,6 +44,9 @@ impl BalancerApplicableStateHolder {
             .clone()
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterServesNoDecisions`] when the applicable desired state serves no decisions.
     pub fn require_decisions(&self) -> Result<(), ClusterServesNoDecisions> {
         match self
             .balancer_applicable_state_rx

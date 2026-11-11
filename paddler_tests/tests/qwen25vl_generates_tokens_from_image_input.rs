@@ -12,6 +12,7 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen2_5_vl::start_cluster_with_qwen2_5_vl;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -55,7 +56,7 @@ async fn qwen25vl_generates_tokens_from_image_input() {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(token_count > 0);

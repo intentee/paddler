@@ -5,11 +5,11 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_answers_equal_separate_single_question_decisions() {
-    let cluster = start_decision_cluster(DecisionClusterParams::default())
+    let cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let decision = sample_decision();

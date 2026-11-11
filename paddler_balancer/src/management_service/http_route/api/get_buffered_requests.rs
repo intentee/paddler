@@ -2,7 +2,7 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::get;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_BUFFERED_REQUESTS;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
 use crate::management_service::app_data::AppData;
@@ -12,7 +12,7 @@ async fn respond(app_data: web::Data<AppData>) -> HttpResponse {
 }
 
 pub fn get_buffered_requests(cfg: &mut web::ServiceConfig) {
-    cfg.route(ApiPath::BUFFERED_REQUESTS, get().to(respond));
+    cfg.route(API_PATH_BUFFERED_REQUESTS, get().to(respond));
 }
 
 #[cfg(test)]
@@ -29,14 +29,15 @@ mod tests {
     use actix_web::web::Data;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+    use paddler_messaging::constants::API_PATH_BUFFERED_REQUESTS;
     use paddler_state_database::state_database::StateDatabase;
     use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::get_buffered_requests;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::balancer_desired_state_store::BalancerDesiredStateStore;
+    use crate::buffered_request_count_guard::BufferedRequestCountGuard;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::management_service::app_data::AppData;
 
@@ -48,12 +49,12 @@ mod tests {
             10,
         ));
 
-        let _first_buffered_request = buffered_request_manager
-            .buffered_request_counter
-            .try_admit();
-        let _second_buffered_request = buffered_request_manager
-            .buffered_request_counter
-            .try_admit();
+        let _first_buffered_request = BufferedRequestCountGuard::try_admit(
+            &buffered_request_manager.buffered_request_counter,
+        );
+        let _second_buffered_request = BufferedRequestCountGuard::try_admit(
+            &buffered_request_manager.buffered_request_counter,
+        );
 
         let balancer_desired_state_store = BalancerDesiredStateStore::load(Arc::new(
             StateDatabase::in_memory(StoredBalancerDesiredState::NothingStored),
@@ -78,7 +79,7 @@ mod tests {
         )
         .await;
         let request = TestRequest::get()
-            .uri(ApiPath::BUFFERED_REQUESTS)
+            .uri(API_PATH_BUFFERED_REQUESTS)
             .to_request();
         let response = call_service(&app, request).await;
 

@@ -10,13 +10,13 @@ use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
-
-use crate::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
+use paddler_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 
 #[test]
 fn an_embedding_batch_stopped_before_its_first_batch_produces_no_embeddings() {
     let nomic_embedding_batch_processing =
-        NomicEmbeddingBatchProcessing::load(PoolingType::Mean, NonZeroU16::MIN);
+        NomicEmbeddingBatchProcessing::load(PoolingType::Mean, NonZeroU16::MIN)
+            .expect("the nomic embedding model must load");
     let ActiveEmbeddingRequestFixture {
         admitted_requests,
         generate_embedding_stop_tx,
@@ -31,7 +31,8 @@ fn an_embedding_batch_stopped_before_its_first_batch_produces_no_embeddings() {
         .expect("the stop request must reach the embedding batch");
 
     let continuing_requests = nomic_embedding_batch_processing
-        .embed_next_batch(EmbeddingNormalization, admitted_requests);
+        .embed_next_batch(EmbeddingNormalization, admitted_requests)
+        .expect("the embedding context must be created");
 
     assert_eq!(continuing_requests.len(), 0);
     assert_eq!(

@@ -10,10 +10,10 @@ use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
+use paddler_tests::constants::UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
-use paddler_tests::uncompilable_chat_template::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
-use paddler_tests::uncompilable_chat_template::UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE;
 use paddler_tests::write_patched_gguf::write_patched_gguf;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -32,6 +32,8 @@ async fn a_text_generation_pipeline_refuses_a_model_whose_embedded_template_does
         &model_path,
         |gguf_context| {
             gguf_context.set_val_str(c"tokenizer.chat_template", &uncompilable_chat_template);
+
+            Ok(())
         },
     )
     .expect("the model with a template that does not compile must be writable");

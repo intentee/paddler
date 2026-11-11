@@ -5,15 +5,15 @@ use nanoid::nanoid;
 use serde::Deserialize;
 
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_messaging::constants::SYSTEM_ROLE;
+use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::system_role::SYSTEM_ROLE;
-use paddler_messaging::user_role::USER_ROLE;
 use paddler_messaging::validates::Validates;
 
-use crate::default_max_tokens::DEFAULT_MAX_TOKENS;
+use crate::constants::DEFAULT_MAX_TOKENS;
 use crate::openai_translation_error::OpenAITranslationError;
 use crate::responses_delivery::ResponsesDelivery;
 use crate::responses_input::ResponsesInput;
@@ -45,6 +45,9 @@ pub struct ResponsesRequest {
 }
 
 impl ResponsesRequest {
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`] when the arguments of a function call input item are not a JSON object, [`OpenAITranslationError::ReasoningItemWithoutContent`] when a reasoning input item carries no reasoning text, [`OpenAITranslationError::ToolRejected`] when a tool does not describe valid parameters, and [`OpenAITranslationError::ClockBeforeUnixEpoch`] when `now` precedes the Unix epoch.
     pub fn translate(
         self,
         now: SystemTime,
@@ -147,13 +150,6 @@ mod tests {
     use crate::openai_translation_error::OpenAITranslationError;
     use crate::translated_responses_request::TranslatedResponsesRequest;
 
-    fn text_message(role: &str, text: &str) -> ConversationMessage {
-        ConversationMessage::Message {
-            content: ConversationMessageContent::Text(text.to_owned()),
-            role: role.to_owned(),
-        }
-    }
-
     fn weather_call(call_id: &str, location: &str) -> ConversationToolCall {
         ConversationToolCall {
             arguments: json!({ "location": location }).as_object().unwrap().clone(),
@@ -179,7 +175,10 @@ mod tests {
             .conversation_history
             .messages;
 
-        assert_eq!(*messages, vec![text_message("user", "Say hello")]);
+        assert_eq!(
+            *messages,
+            vec![ConversationMessage::from_text("user", "Say hello")]
+        );
     }
 
     #[test]
@@ -198,8 +197,8 @@ mod tests {
         assert_eq!(
             *messages,
             vec![
-                text_message("system", "be terse"),
-                text_message("user", "hi")
+                ConversationMessage::from_text("system", "be terse"),
+                ConversationMessage::from_text("user", "hi")
             ]
         );
     }
@@ -268,7 +267,7 @@ mod tests {
                 .conversation_history
                 .messages,
             vec![
-                text_message("user", "weather in Paris and Rome?"),
+                ConversationMessage::from_text("user", "weather in Paris and Rome?"),
                 ConversationMessage::AssistantToolCalls {
                     content: ConversationMessageContent::Text("Checking both.".to_owned()),
                     tool_calls: vec![
@@ -361,8 +360,8 @@ mod tests {
                 .conversation_history
                 .messages,
             vec![
-                text_message("system", "rules"),
-                text_message("system", "more rules")
+                ConversationMessage::from_text("system", "rules"),
+                ConversationMessage::from_text("system", "more rules")
             ]
         );
     }
@@ -408,7 +407,11 @@ mod tests {
 
         assert!(translated.conversation_history_params.parse_tool_calls);
 
-        let Tool::Function(function_call) = &translated.conversation_history_params.tools[0];
+        let Tool::Function(function_call) = translated
+            .conversation_history_params
+            .tools
+            .first()
+            .expect("the translated request carries the tool");
 
         assert_eq!(function_call.function.name, "get_weather");
         assert_eq!(function_call.function.description, "");
@@ -505,7 +508,10 @@ mod tests {
             .messages;
 
         assert_eq!(messages.len(), 1);
-        assert_eq!(*messages, vec![text_message("system", "be terse")]);
+        assert_eq!(
+            *messages,
+            vec![ConversationMessage::from_text("system", "be terse")]
+        );
     }
 
     #[test]
@@ -520,7 +526,10 @@ mod tests {
             .conversation_history
             .messages;
 
-        assert_eq!(*messages, vec![text_message("user", "hi")]);
+        assert_eq!(
+            *messages,
+            vec![ConversationMessage::from_text("user", "hi")]
+        );
     }
 
     #[test]
@@ -597,7 +606,7 @@ mod tests {
                 .conversation_history
                 .messages,
             vec![
-                text_message("user", "What is the weather in Paris?"),
+                ConversationMessage::from_text("user", "What is the weather in Paris?"),
                 ConversationMessage::AssistantReasoning {
                     reasoning_content: "I should check the weather.".to_owned(),
                 },

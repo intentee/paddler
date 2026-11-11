@@ -37,12 +37,12 @@ impl ToolCallEvent<'_> {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
     use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
 
     use super::ToolCallEvent;
@@ -75,12 +75,18 @@ mod tests {
 
     #[test]
     fn validation_failed_converts_to_tool_call_validation_failed_with_every_message() {
-        let validation_error = ToolCallValidationError::UnknownToolName("missing".to_owned());
-        let expected_message = validation_error.to_string();
+        let first_validation_error = ToolCallValidationError::UnknownToolName("missing".to_owned());
+        let second_validation_error =
+            ToolCallValidationError::UnknownToolName("also_missing".to_owned());
+        let expected_messages = vec![
+            first_validation_error.to_string(),
+            second_validation_error.to_string(),
+        ];
 
         assert_eq!(
-            ToolCallEvent::ValidationFailed(vec![validation_error]).into_generated_token_result(),
-            GeneratedTokenResult::ToolCallValidationFailed(vec![expected_message])
+            ToolCallEvent::ValidationFailed(vec![first_validation_error, second_validation_error])
+                .into_generated_token_result(),
+            GeneratedTokenResult::ToolCallValidationFailed(expected_messages)
         );
     }
 

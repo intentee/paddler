@@ -4,10 +4,9 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use tokio::spawn;
 
-use paddler_balancer::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
-use paddler_cli_tests::start_pausable_agent_cluster::start_pausable_agent_cluster;
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -20,7 +19,7 @@ async fn openai_chat_completion_reports_an_agent_killed_mid_generation_as_a_bad_
     let PausableAgentCluster {
         mut cluster,
         pausable_agent,
-    } = start_pausable_agent_cluster(PausableAgentClusterParams {
+    } = PausableAgentCluster::start(PausableAgentClusterParams {
         binary_path: env!("CARGO_BIN_EXE_paddler_cluster_node").to_owned(),
         desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         expected_slots_total: TEXT_GENERATION_SLOTS,
@@ -37,7 +36,7 @@ async fn openai_chat_completion_reports_an_agent_killed_mid_generation_as_a_bad_
     let chat_completion = spawn(minimal_openai_chat_completion(
         cluster
             .balancer
-            .compat_openai_url(OpenAIApiPath::CHAT_COMPLETIONS)
+            .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
             .expect("the balancer must serve the OpenAI compatibility service"),
     ));
 

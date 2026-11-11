@@ -1,9 +1,10 @@
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const REPEATING_AGENT_ID: &str = "repeating-agent";
 
@@ -37,10 +38,12 @@ async fn balancer_keeps_an_agent_that_repeats_its_status_registered() {
 
     cluster
         .agents_watcher
-        .until(|snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.id == REPEATING_AGENT_ID && agent.status.desired_slots_total == 2
-            })
+        .until(|AgentControllerPoolSnapshot { agents }| {
+            agents
+                .iter()
+                .any(|AgentControllerSnapshot { id, status, .. }| {
+                    id == REPEATING_AGENT_ID && status.desired_slots_total == 2
+                })
         })
         .await
         .expect("the balancer must keep the agent and take its changed status");

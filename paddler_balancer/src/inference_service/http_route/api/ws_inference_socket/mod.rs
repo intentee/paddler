@@ -1,5 +1,7 @@
 mod inference_socket_controller_context;
 
+use std::future::Ready;
+use std::future::ready;
 use std::sync::Arc;
 
 use actix_web::Error;
@@ -18,7 +20,7 @@ use serde_json::from_str;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_server::identified_request::IdentifiedRequest;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
@@ -34,13 +36,10 @@ use self::inference_socket_controller_context::InferenceSocketControllerContext;
 use crate::agent_relay::AgentRelay;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::awaiting_agent_relay::AwaitingAgentRelay;
-use crate::buffered_request_manager::BufferedRequestManager;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::dispatchable_request::DispatchableRequest;
-use crate::forward_agent_relay::forward_agent_relay;
 use crate::inference_service::app_data::AppData;
-use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::invalid_request_parameters_description::invalid_request_parameters_description;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
 use crate::respond_with_error::respond_with_error;
@@ -83,15 +82,15 @@ async fn handle_inference_request<TParams>(
     rt::spawn(async move {
         let _request_registration = request_registration;
 
-        forward_agent_relay(
-            AgentRelay::awaiting(AwaitingAgentRelay {
-                buffered_request_manager: context.buffered_request_manager.clone(),
-                dispatchable_request: DispatchableRequest::from(params),
-                inference_item_timeout: context
-                    .inference_service_configuration
-                    .inference_item_timeout,
-                shutdown: context.shutdown.clone(),
-            }),
+        AgentRelay::awaiting(AwaitingAgentRelay {
+            buffered_request_manager: context.buffered_request_manager.clone(),
+            dispatchable_request: DispatchableRequest::from(params),
+            inference_item_timeout: context
+                .inference_service_configuration
+                .inference_item_timeout,
+            shutdown: context.shutdown.clone(),
+        })
+        .forward(
             request_close,
             OutgoingMessageRelayReceiver {
                 request_id,
@@ -102,18 +101,14 @@ async fn handle_inference_request<TParams>(
     });
 }
 
-async fn respond(
+fn respond(
     app_data: Data<AppData>,
     payload: Payload,
     http_request: HttpRequest,
-) -> Result<HttpResponse, Error> {
-    let inference_socket_controller = InferenceSocketController {
-        buffered_request_manager: app_data.buffered_request_manager.clone(),
-        inference_service_configuration: app_data.inference_service_configuration.clone(),
-        shutdown: app_data.shutdown.clone(),
-    };
+) -> Ready<Result<HttpResponse, Error>> {
+    let shutdown = app_data.shutdown.clone();
 
-    inference_socket_controller.respond(payload, http_request, app_data.shutdown.clone())
+    ready(InferenceSocketController { app_data }.respond(payload, http_request, shutdown))
 }
 
 type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
@@ -121,9 +116,7 @@ type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
 type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 
 struct InferenceSocketController {
-    buffered_request_manager: Arc<BufferedRequestManager>,
-    inference_service_configuration: InferenceServiceConfiguration,
-    shutdown: CancellationToken,
+    app_data: Data<AppData>,
 }
 
 impl ControlsWebSocketEndpoint for InferenceSocketController {
@@ -133,10 +126,10 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 
     fn create_context(&self) -> Self::Context {
         InferenceSocketControllerContext {
-            buffered_request_manager: self.buffered_request_manager.clone(),
-            inference_service_configuration: self.inference_service_configuration.clone(),
+            buffered_request_manager: self.app_data.buffered_request_manager.clone(),
+            inference_service_configuration: self.app_data.inference_service_configuration.clone(),
             request_cancellation_tokens: Arc::default(),
-            shutdown: self.shutdown.clone(),
+            shutdown: self.app_data.shutdown.clone(),
         }
     }
 
@@ -247,5 +240,5 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 }
 
 pub fn ws_inference_socket(service_config: &mut ServiceConfig) {
-    service_config.route(ApiPath::INFERENCE_SOCKET, get().to(respond));
+    service_config.route(API_PATH_INFERENCE_SOCKET, get().to(respond));
 }

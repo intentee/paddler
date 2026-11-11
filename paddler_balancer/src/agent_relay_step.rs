@@ -1,17 +1,15 @@
 use paddler_messaging::streamable_result::StreamableResult;
 
-use crate::agent_relay::AgentRelay;
 use crate::agent_relay_conclusion::AgentRelayConclusion;
-use crate::agent_streaming_request::AgentStreamingRequest;
 
-pub enum AgentRelayStep<TParams>
+pub enum AgentRelayStep<TResponse, TRelay>
 where
-    TParams: AgentStreamingRequest,
+    TResponse: StreamableResult,
 {
-    Concluded(AgentRelayConclusion<<TParams::Response as StreamableResult>::Final>),
+    Concluded(AgentRelayConclusion<TResponse::Final>),
     Partial {
         generated_by: Option<String>,
-        partial_result: <TParams::Response as StreamableResult>::Partial,
-        relay: AgentRelay<TParams>,
+        partial_result: TResponse::Partial,
+        relay: TRelay,
     },
 }

@@ -12,13 +12,12 @@ use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
 use paddler_tests::conversation_generation::ConversationGeneration;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::weather_question_conversation::weather_question_conversation;
-
-use crate::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
 
 const BYTE_THE_FAULT_RETURNS_IN_PLACE_OF_THE_GRAMMAR: u8 = 0xff;
 

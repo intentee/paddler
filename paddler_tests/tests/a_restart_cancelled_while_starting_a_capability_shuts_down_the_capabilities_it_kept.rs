@@ -16,10 +16,9 @@ use paddler_agent::serving_replacement::ServingReplacement;
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
-
-use crate::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabilities_it_kept() {
@@ -32,7 +31,10 @@ async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabili
             },
         model_serving_settings,
         served_model,
-    } = KevModelServingWithoutDecisions::start(&CancellationToken::new()).await;
+    } = KevModelServingWithoutDecisions::start(&CancellationToken::new())
+        .await
+        .expect("the model must load")
+        .expect("text generation and embeddings must start");
 
     drop(kev_model_loaded_for_serving);
 

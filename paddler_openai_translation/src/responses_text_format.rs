@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
+use std::iter::from_fn;
 
 use serde::Deserialize;
 use serde::Deserializer;
@@ -15,34 +16,14 @@ use crate::responses_text_format_refusal::ResponsesTextFormatRefusal;
 use crate::responses_text_format_schema_occurrences::ResponsesTextFormatSchemaOccurrences;
 use crate::responses_text_format_type::ResponsesTextFormatType;
 
-fn count_leftover_elements<'de, TSeqAccess>(
+fn remaining_elements<'de, TElement, TSeqAccess>(
     mut format_elements: TSeqAccess,
-) -> Result<usize, TSeqAccess::Error>
+) -> Result<Vec<TElement>, TSeqAccess::Error>
 where
+    TElement: Deserialize<'de>,
     TSeqAccess: SeqAccess<'de>,
 {
-    let mut leftover_elements = 0;
-
-    while format_elements.next_element::<IgnoredAny>()?.is_some() {
-        leftover_elements += 1;
-    }
-
-    Ok(leftover_elements)
-}
-
-fn without_leftover_elements(
-    format: ResponsesTextFormat,
-    consumed_elements: usize,
-    leftover_elements: usize,
-) -> Result<ResponsesTextFormat, ResponsesTextFormatRefusal> {
-    if leftover_elements == 0 {
-        Ok(format)
-    } else {
-        Err(ResponsesTextFormatRefusal::ElementsLeftOver {
-            consumed_elements,
-            leftover_elements,
-        })
-    }
+    from_fn(|| format_elements.next_element::<TElement>().transpose()).collect()
 }
 
 struct ResponsesTextFormatVisitor;
@@ -63,20 +44,31 @@ impl<'de> Visitor<'de> for ResponsesTextFormatVisitor {
     {
         match format_elements.next_element::<ResponsesTextFormatType>()? {
             None => Err(TSeqAccess::Error::missing_field("type")),
-            Some(ResponsesTextFormatType::Text) => Ok(without_leftover_elements(
-                ResponsesTextFormat::Text,
-                0,
-                count_leftover_elements(format_elements)?,
-            )),
+            Some(ResponsesTextFormatType::Text) => {
+                let leftover_elements = remaining_elements::<IgnoredAny, _>(format_elements)?;
+
+                Ok(if leftover_elements.is_empty() {
+                    Ok(ResponsesTextFormat::Text)
+                } else {
+                    Err(ResponsesTextFormatRefusal::ElementsLeftOver {
+                        expected_elements: 0,
+                        received_elements: leftover_elements.len(),
+                    })
+                })
+            }
             Some(ResponsesTextFormatType::JsonSchema) => {
-                match format_elements.next_element::<Box<RawValue>>()? {
-                    None => Ok(Err(ResponsesTextFormatRefusal::SchemaElementMissing)),
-                    Some(schema) => Ok(without_leftover_elements(
-                        ResponsesTextFormat::JsonSchema { schema },
-                        1,
-                        count_leftover_elements(format_elements)?,
-                    )),
-                }
+                let schema_elements = remaining_elements::<Box<RawValue>, _>(format_elements)?;
+
+                Ok(match <[Box<RawValue>; 1]>::try_from(schema_elements) {
+                    Ok([schema]) => Ok(ResponsesTextFormat::JsonSchema { schema }),
+                    Err(schema_elements) if schema_elements.is_empty() => {
+                        Err(ResponsesTextFormatRefusal::SchemaElementMissing)
+                    }
+                    Err(schema_elements) => Err(ResponsesTextFormatRefusal::ElementsLeftOver {
+                        expected_elements: 1,
+                        received_elements: schema_elements.len(),
+                    }),
+                })
             }
         }
     }
@@ -150,12 +142,6 @@ mod tests {
 
     use super::ResponsesTextFormat;
 
-    #[derive(Debug, Eq, PartialEq)]
-    enum DeserializedFormat {
-        JsonSchema(String),
-        Text,
-    }
-
     fn deserialized(format: &str) -> Result<DeserializedFormat, String> {
         from_str::<ResponsesTextFormat>(format)
             .map(|deserialized_format| match deserialized_format {
@@ -165,6 +151,12 @@ mod tests {
                 ResponsesTextFormat::Text => DeserializedFormat::Text,
             })
             .map_err(|deserialization_error| deserialization_error.to_string())
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    enum DeserializedFormat {
+        JsonSchema(String),
+        Text,
     }
 
     #[test]

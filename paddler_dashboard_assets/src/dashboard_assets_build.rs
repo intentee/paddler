@@ -10,16 +10,31 @@ use esbuild_metafile::esbuild_metafile::EsbuildMetafile;
 
 use crate::dashboard_assets::DashboardAssets;
 use crate::dashboard_assets_error::DashboardAssetsError;
+use crate::web_admin_panel_feature::WebAdminPanelFeature;
 
 const DASHBOARD_ASSETS_HTML_FILE_NAME: &str = "dashboard_assets.html";
 
 pub struct DashboardAssetsBuild {
     pub metafile_path: PathBuf,
     pub out_dir: Option<OsString>,
+    pub web_admin_panel: WebAdminPanelFeature,
 }
 
 impl DashboardAssetsBuild {
-    pub fn run(&self, mut cargo_instructions: impl Write) -> Result<(), DashboardAssetsError> {
+    /// # Errors
+    ///
+    /// Returns [`DashboardAssetsError::MetafileUnreadable`] when the esbuild metafile cannot be read, [`DashboardAssetsError::MetafileMalformed`] when it is not an esbuild metafile, [`DashboardAssetsError::DashboardInputMissing`] when it does not describe one of the dashboard inputs, [`DashboardAssetsError::OutDirMissing`] when no output directory is set, [`DashboardAssetsError::HtmlUnwritable`] when the dashboard assets cannot be written into the output directory, and [`DashboardAssetsError::CargoInstructionsUnwritable`] when the Cargo instructions cannot be written.
+    pub fn run(&self, cargo_instructions: impl Write) -> Result<(), DashboardAssetsError> {
+        match self.web_admin_panel {
+            WebAdminPanelFeature::Disabled => Ok(()),
+            WebAdminPanelFeature::Enabled => self.write_the_dashboard_assets(cargo_instructions),
+        }
+    }
+
+    fn write_the_dashboard_assets(
+        &self,
+        mut cargo_instructions: impl Write,
+    ) -> Result<(), DashboardAssetsError> {
         let metafile_contents = read_to_string(&self.metafile_path).map_err(|source| {
             DashboardAssetsError::MetafileUnreadable {
                 path: self.metafile_path.clone(),
@@ -74,6 +89,7 @@ mod tests {
     use super::DashboardAssetsBuild;
     use crate::dashboard_assets::DashboardAssets;
     use crate::dashboard_assets_error::DashboardAssetsError;
+    use crate::web_admin_panel_feature::WebAdminPanelFeature;
 
     const DASHBOARD_METAFILE: &str = include_str!("../fixtures/dashboard_metafile.json");
 
@@ -93,7 +109,25 @@ mod tests {
         DashboardAssetsBuild {
             metafile_path,
             out_dir: Some(OsString::from(out_dir)),
+            web_admin_panel: WebAdminPanelFeature::Enabled,
         }
+    }
+
+    #[test]
+    fn a_build_without_the_web_admin_panel_writes_no_assets_and_no_cargo_instructions() {
+        let out_dir = TempDir::new().unwrap();
+        let mut cargo_instructions = Vec::new();
+
+        DashboardAssetsBuild {
+            metafile_path: dashboard_metafile_path(),
+            out_dir: Some(OsString::from(out_dir.path())),
+            web_admin_panel: WebAdminPanelFeature::Disabled,
+        }
+        .run(&mut cargo_instructions)
+        .unwrap();
+
+        assert_eq!(cargo_instructions, Vec::<u8>::new());
+        assert!(!out_dir.path().join("dashboard_assets.html").exists());
     }
 
     #[test]
@@ -164,6 +198,7 @@ mod tests {
             DashboardAssetsBuild {
                 metafile_path: dashboard_metafile_path(),
                 out_dir: None,
+                web_admin_panel: WebAdminPanelFeature::Enabled,
             }
             .run(Vec::new())
             .err()

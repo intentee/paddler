@@ -11,8 +11,9 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::agent_model_uri_not_canonical_params::AgentModelUriNotCanonicalParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
+use crate::constants::AGENT_LOCAL_MODEL_PATH_SCHEME;
+use crate::constants::URL_PATH_SEGMENT_ENCODE_SET;
 use crate::model_source_error::ModelSourceError;
-use crate::url_path_segment_encode_set::URL_PATH_SEGMENT_ENCODE_SET;
 
 fn canonical_agent_uri(normalized_absolute_path: &Path) -> String {
     let mut encoded_path = String::new();
@@ -26,9 +27,9 @@ fn canonical_agent_uri(normalized_absolute_path: &Path) -> String {
     }
 
     if encoded_path.is_empty() {
-        format!("{}:///", AgentLocalModelPath::SCHEME)
+        format!("{AGENT_LOCAL_MODEL_PATH_SCHEME}:///")
     } else {
-        format!("{}://{encoded_path}", AgentLocalModelPath::SCHEME)
+        format!("{AGENT_LOCAL_MODEL_PATH_SCHEME}://{encoded_path}")
     }
 }
 
@@ -39,8 +40,9 @@ pub struct AgentLocalModelPath {
 }
 
 impl AgentLocalModelPath {
-    pub const SCHEME: &str = "agent";
-
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::LocalModelPathNotAbsolute`] when the path is relative, and [`ModelSourceError::LocalModelPathClimbsToParentDirectory`] when it contains a parent directory component.
     pub fn from_absolute_path(path: &Path) -> Result<Self, ModelSourceError> {
         if !path.is_absolute() {
             return Err(ModelSourceError::LocalModelPathNotAbsolute {
@@ -62,17 +64,17 @@ impl AgentLocalModelPath {
         ))
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::AgentUriNotAnAbsoluteLocalPath`] when the agent URL does not name an absolute local path, and [`ModelSourceError::AgentUriNotCanonical`] when the URI differs from the canonical URI of that path.
     pub fn from_agent_url(
         uri: &str,
         agent_url: &Url,
         slot_aggregated_status: &SlotAggregatedStatus,
     ) -> Result<Self, ModelSourceError> {
-        let model_path = || ModelPath {
-            model_path: uri.to_owned(),
-        };
         let path = agent_url.to_file_path().map_err(|()| {
             slot_aggregated_status.register_desired_state_issue(
-                AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(model_path()),
+                AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(ModelPath::from(uri)),
             );
 
             ModelSourceError::AgentUriNotAnAbsoluteLocalPath {
@@ -85,7 +87,7 @@ impl AgentLocalModelPath {
             slot_aggregated_status.register_desired_state_issue(
                 AgentIssue::AgentModelUriIsNotCanonical(AgentModelUriNotCanonicalParams {
                     canonical_uri: agent_local_model_path.canonical_uri.clone(),
-                    model_path: model_path(),
+                    model_path: ModelPath::from(uri),
                 }),
             );
 
@@ -98,6 +100,13 @@ impl AgentLocalModelPath {
         Ok(agent_local_model_path)
     }
 
+    fn from_normalized_absolute_path(path: PathBuf) -> Self {
+        Self {
+            canonical_uri: canonical_agent_uri(&path),
+            path,
+        }
+    }
+
     #[must_use]
     pub fn canonical_uri(&self) -> &str {
         &self.canonical_uri
@@ -106,13 +115,6 @@ impl AgentLocalModelPath {
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
-    }
-
-    fn from_normalized_absolute_path(path: PathBuf) -> Self {
-        Self {
-            canonical_uri: canonical_agent_uri(&path),
-            path,
-        }
     }
 }
 

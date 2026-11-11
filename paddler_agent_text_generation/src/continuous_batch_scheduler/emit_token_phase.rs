@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
-use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
+use crate::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
 const fn token_to_event(sampled_token: SampledToken, text: String) -> GeneratedTokenResult {
@@ -63,7 +63,7 @@ mod tests {
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
     use super::EmitTokenPhase;
-    use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
+    use crate::classified_token::ClassifiedToken;
     use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
     fn classified(sampled_token: SampledToken, piece: TokenPiece) -> ClassifiedToken {

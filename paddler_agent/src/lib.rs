@@ -13,8 +13,6 @@ pub mod desired_model_file;
 pub mod desired_state_reconciler;
 pub mod desired_state_reconciliation;
 pub mod desired_state_reconciliation_attempt;
-pub mod enqueue_management_message;
-pub mod enqueue_outbound_frame;
 pub mod finished_serving_startup;
 pub mod inference_capabilities;
 pub mod last_announced_agent_status;

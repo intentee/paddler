@@ -6,9 +6,9 @@ use paddler_messaging::request_params::decide_params::DecideParams;
 
 use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
-use crate::compatibility::typesafe_service::cluster_serves_no_decisions_http_response::cluster_serves_no_decisions_http_response;
-use crate::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
+use crate::compatibility::typesafe_service::typesafe_decision_failure::TypeSafeDecisionFailure;
 use crate::compatibility::typesafe_service::typesafe_models::TypeSafeModels;
+use crate::constants::TYPESAFE_API_PATH_MODELS;
 
 async fn respond(app_data: web::Data<CompatibilityAppData>) -> HttpResponse {
     match app_data
@@ -21,11 +21,11 @@ async fn respond(app_data: web::Data<CompatibilityAppData>) -> HttpResponse {
                 .model_paths_serving(DecideParams::INFERENCE_CAPABILITY),
         )),
         Err(cluster_serves_no_decisions) => {
-            cluster_serves_no_decisions_http_response(cluster_serves_no_decisions)
+            TypeSafeDecisionFailure::from(cluster_serves_no_decisions).into_http_response()
         }
     }
 }
 
 pub fn get_models(cfg: &mut web::ServiceConfig) {
-    cfg.route(TypeSafeApiPath::MODELS, get().to(respond));
+    cfg.route(TYPESAFE_API_PATH_MODELS, get().to(respond));
 }

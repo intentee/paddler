@@ -1,4 +1,4 @@
-use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
 #[must_use]
 pub fn arguments_to_tool_call_string(arguments: &ToolCallArguments) -> String {
@@ -10,8 +10,10 @@ pub fn arguments_to_tool_call_string(arguments: &ToolCallArguments) -> String {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
+
+    use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::arguments_to_tool_call_string;
 
@@ -26,8 +28,14 @@ mod tests {
 
     #[test]
     fn passes_invalid_json_through_verbatim() {
-        let serialized =
-            arguments_to_tool_call_string(&ToolCallArguments::from_string("{not valid".to_owned()));
+        let serialized = arguments_to_tool_call_string(&ToolCallArguments::InvalidJson {
+            raw: "{not valid".to_owned(),
+            error: InvalidArgumentsJson {
+                message: "key must be a string at line 1 column 2".to_owned(),
+                line: 1,
+                column: 2,
+            },
+        });
 
         assert_eq!(serialized, "{not valid");
     }

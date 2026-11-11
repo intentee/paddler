@@ -1,3 +1,4 @@
+use std::num::NonZeroU16;
 use std::path::Path;
 
 use llama_cpp_bindings::gguf_context::GgufContext;
@@ -48,6 +49,7 @@ fn softmax(logits: &[f32]) -> Vec<f32> {
 
 pub struct PointerHead {
     pub delimiters: PointerHeadDelimiters,
+    hidden_size: i64,
     pub input_normalization: PointerHeadInputNormalization,
     pub key_projection: PointerHeadProjection,
     pub logit_scale: f32,
@@ -56,6 +58,9 @@ pub struct PointerHead {
 }
 
 impl PointerHead {
+    /// # Errors
+    ///
+    /// Returns [`PointerHeadError::FileUnreadable`] when the file is not a readable GGUF file, [`PointerHeadError::KeyUnreadable`] or [`PointerHeadError::TemperatureOutOfRange`] when the temperature is missing or not a finite positive number, [`PointerHeadError::KeyUnreadable`] or [`PointerHeadError::InputNormalizationUnknown`] when a delimiter or the input normalization cannot be read, [`PointerHeadError::TensorUnreadable`] when a projection tensor is missing or not stored as f32, [`PointerHeadError::TensorShapeMismatch`] when the projections do not share one head and hidden dimension, [`PointerHeadError::HeadDimensionOutOfRange`] when the head dimension does not fit sixteen bits, and [`PointerHeadError::HeadDimensionZero`] when it is zero.
     pub fn load(path: &Path) -> Result<Self, PointerHeadError> {
         let gguf_context =
             GgufContext::from_file(path).map_err(|source| PointerHeadError::FileUnreadable {
@@ -86,10 +91,10 @@ impl PointerHead {
         }
 
         let [key_bias_shape, key_weight_shape, _, _] = tensor_shapes;
-        let head_dim = key_bias_shape[0];
+        let declared_head_dim = key_bias_shape[0];
         let hidden_size = key_weight_shape[0];
-        let bias_shape = [head_dim, 1, 1, 1];
-        let weight_shape = [hidden_size, head_dim, 1, 1];
+        let bias_shape = [declared_head_dim, 1, 1, 1];
+        let weight_shape = [hidden_size, declared_head_dim, 1, 1];
 
         for ((tensor, actual), expected) in TENSORS.iter().zip(tensor_shapes).zip([
             bias_shape,
@@ -108,25 +113,27 @@ impl PointerHead {
 
         let [key_bias, key_weight, query_bias, query_weight] = tensor_values;
 
-        let logit_scale =
-            f32::from(u16::try_from(head_dim).map_err(|source| {
-                PointerHeadError::HeadDimensionOutOfRange { head_dim, source }
-            })?)
-            .sqrt()
-            .recip();
+        let head_dim = NonZeroU16::new(u16::try_from(declared_head_dim).map_err(|source| {
+            PointerHeadError::HeadDimensionOutOfRange {
+                head_dim: declared_head_dim,
+                source,
+            }
+        })?)
+        .ok_or(PointerHeadError::HeadDimensionZero)?;
 
         Ok(Self {
             delimiters,
+            hidden_size,
             input_normalization,
             key_projection: PointerHeadProjection {
                 bias: key_bias,
-                hidden_size: hidden_size as usize,
+                head_dim,
                 weight: key_weight,
             },
-            logit_scale,
+            logit_scale: f32::from(head_dim.get()).sqrt().recip(),
             query_projection: PointerHeadProjection {
                 bias: query_bias,
-                hidden_size: hidden_size as usize,
+                head_dim,
                 weight: query_weight,
             },
             temperature,
@@ -134,8 +141,8 @@ impl PointerHead {
     }
 
     #[must_use]
-    pub const fn hidden_size(&self) -> usize {
-        self.key_projection.hidden_size
+    pub const fn hidden_size(&self) -> i64 {
+        self.hidden_size
     }
 
     #[must_use]
@@ -166,6 +173,8 @@ impl PointerHead {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU16;
+
     use super::PointerHead;
     use crate::pointer_head_delimiters::PointerHeadDelimiters;
     use crate::pointer_head_input_normalization::PointerHeadInputNormalization;
@@ -174,7 +183,7 @@ mod tests {
     fn identity_projection() -> PointerHeadProjection {
         PointerHeadProjection {
             bias: vec![0.0, 0.0],
-            hidden_size: 2,
+            head_dim: NonZeroU16::new(2).unwrap(),
             weight: vec![1.0, 0.0, 0.0, 1.0],
         }
     }
@@ -188,6 +197,7 @@ mod tests {
                 question: "<question>".to_owned(),
                 state: "<state>".to_owned(),
             },
+            hidden_size: 2,
             input_normalization: PointerHeadInputNormalization::Unnormalized,
             key_projection: identity_projection(),
             logit_scale: 0.5,
@@ -198,12 +208,16 @@ mod tests {
 
     #[test]
     fn options_aligned_with_the_decision_get_the_most_probability() {
-        let probabilities =
-            pointer_head().option_probabilities(&[vec![1.0, 0.0], vec![0.0, 1.0], vec![4.0, 0.0]]);
+        let [aligned_probability, misaligned_probability]: [f32; 2] = pointer_head()
+            .option_probabilities(&[vec![1.0, 0.0], vec![0.0, 1.0], vec![4.0, 0.0]])
+            .try_into()
+            .expect("two options must yield two probabilities");
         let expected_aligned_probability = 1.0 / (1.0 + (-1.0_f32).exp());
 
-        assert!((probabilities[0] - expected_aligned_probability).abs() < f32::EPSILON);
-        assert!((probabilities[1] - (1.0 - expected_aligned_probability)).abs() < f32::EPSILON);
+        assert!((aligned_probability - expected_aligned_probability).abs() < f32::EPSILON);
+        assert!(
+            (misaligned_probability - (1.0 - expected_aligned_probability)).abs() < f32::EPSILON
+        );
     }
 
     #[test]

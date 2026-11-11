@@ -33,6 +33,9 @@ pub struct EmbeddingPipeline {
 }
 
 impl EmbeddingPipeline {
+    /// # Errors
+    ///
+    /// Returns [`EmbeddingError::AgentRuntime`] when the embeddings context cannot be created or warmed up.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,

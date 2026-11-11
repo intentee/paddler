@@ -2,7 +2,7 @@
 
 use std::process::Command;
 
-use paddler_test_cluster_harness::failed_run_exit_code::FAILED_RUN_EXIT_CODE;
+use paddler_test_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
 
 const USER_AGENT_ORIGIN_WITH_A_LINE_BREAK: &str = "paddler\ntests";
 

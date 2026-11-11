@@ -9,17 +9,18 @@ use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::swappable_model_file::SwappableModelFile;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
 use paddler_tests::uncompilable_chat_template_issue::uncompilable_chat_template_issue;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
-use crate::swappable_model_file::SwappableModelFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failed_attempt_retries_without_reloading_its_model() {
     let swappable_model_file =
-        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"));
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"))
+            .expect("the model must be linked into a swappable model file");
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
 
     assert_eq!(
         discriminant(
@@ -27,7 +28,9 @@ async fn a_failed_attempt_retries_without_reloading_its_model() {
                 .apply(desired_state_with_chat_template_override(
                     BalancerDesiredState {
                         decision: DecisionSettings::default(),
-                        model: swappable_model_file.agent_desired_model(),
+                        model: swappable_model_file
+                            .agent_desired_model()
+                            .expect("the swappable model file must be at an absolute path"),
                         ..KevCheckpoint::Kev0_8b
                             .decision_desired_state()
                             .into_balancer_desired_state()
@@ -47,7 +50,9 @@ async fn a_failed_attempt_retries_without_reloading_its_model() {
         .next_finished_startup()
         .await;
 
-    swappable_model_file.replace_with_an_unloadable_file();
+    swappable_model_file
+        .replace_with_an_unloadable_file()
+        .expect("the unloadable file must replace the model");
     serving_pipeline_arbiter
         .pipeline_arbiter
         .conclude(failed_attempt);

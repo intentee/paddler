@@ -11,6 +11,7 @@ use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_fans_out_embedding_batch_to_all_agents() {
@@ -51,7 +52,7 @@ async fn balancer_fans_out_embedding_batch_to_all_agents() {
     let producers: BTreeSet<&str> = collected
         .embeddings
         .iter()
-        .filter_map(|produced| produced.generated_by.as_deref())
+        .filter_map(|EmbeddingWithProducer { generated_by, .. }| generated_by.as_deref())
         .collect();
 
     assert_eq!(

@@ -56,15 +56,15 @@ impl SubprocessProcess {
 
 #[async_trait]
 impl ManagedProcess for SubprocessProcess {
+    async fn exited(&mut self) -> ProcessEnd {
+        self.wait_for_exit().await
+    }
+
     fn terminate(&mut self) -> Result<()> {
         let Some(signals) = self.signals() else {
             return Ok(());
         };
 
         signals.terminate().map_err(Into::into)
-    }
-
-    async fn exited(&mut self) -> ProcessEnd {
-        self.wait_for_exit().await
     }
 }

@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use jsonschema::Validator;
 use jsonschema::validator_for;
-use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
-use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 use serde_json::Value;
 
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
+use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
 use crate::tool_call_validation_error::ToolCallValidationError;
 
@@ -21,6 +21,9 @@ pub struct ToolCallValidator {
 }
 
 impl ToolCallValidator {
+    /// # Errors
+    ///
+    /// Returns [`ToolCallValidationError::InvalidSchema`] when the parameters of a tool are not a valid JSON Schema.
     pub fn from_tools(tools: &[Tool<Value>]) -> Result<Self, ToolCallValidationError> {
         let mut strategies = HashMap::with_capacity(tools.len());
 
@@ -47,17 +50,30 @@ impl ToolCallValidator {
         Ok(Self { strategies })
     }
 
-    pub fn validate(&self, parsed: &ParsedToolCall) -> Result<(), ToolCallValidationError> {
+    #[must_use]
+    pub fn known_tool_names(&self) -> Vec<&str> {
+        self.strategies.keys().map(String::as_str).collect()
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ToolCallValidationError::UnknownToolName`] when no registered tool has the called name, [`ToolCallValidationError::ArgumentsAreNotJson`] when the arguments are not valid JSON, [`ToolCallValidationError::ArgumentsAreNotAnObject`] when a tool without a parameters schema receives arguments that are not a JSON object, and [`ToolCallValidationError::SchemaMismatch`] when the arguments violate the parameters schema of the tool.
+    pub fn validate(
+        &self,
+        GeneratedToolCall {
+            name, arguments, ..
+        }: &GeneratedToolCall,
+    ) -> Result<(), ToolCallValidationError> {
         let strategy = self
             .strategies
-            .get(&parsed.name)
-            .ok_or_else(|| ToolCallValidationError::UnknownToolName(parsed.name.clone()))?;
+            .get(name)
+            .ok_or_else(|| ToolCallValidationError::UnknownToolName(name.clone()))?;
 
-        let arguments_value = match &parsed.arguments {
+        let arguments_value = match arguments {
             ToolCallArguments::ValidJson(value) => value,
             ToolCallArguments::InvalidJson { raw, error } => {
                 return Err(ToolCallValidationError::ArgumentsAreNotJson {
-                    tool_name: parsed.name.clone(),
+                    tool_name: name.clone(),
                     raw_arguments: raw.clone(),
                     parse_failure: error.clone(),
                 });
@@ -68,7 +84,7 @@ impl ToolCallValidator {
             ValidationStrategy::JsonObjectOnly if arguments_value.is_object() => Ok(()),
             ValidationStrategy::JsonObjectOnly => {
                 Err(ToolCallValidationError::ArgumentsAreNotAnObject {
-                    tool_name: parsed.name.clone(),
+                    tool_name: name.clone(),
                     arguments: arguments_value.clone(),
                 })
             }
@@ -82,41 +98,40 @@ impl ToolCallValidator {
                     Ok(())
                 } else {
                     Err(ToolCallValidationError::SchemaMismatch {
-                        tool_name: parsed.name.clone(),
+                        tool_name: name.clone(),
                         violations,
                     })
                 }
             }
         }
     }
-
-    #[must_use]
-    pub fn known_tool_names(&self) -> Vec<&str> {
-        self.strategies.keys().map(String::as_str).collect()
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::model_provided_tool_call_id::ModelProvidedToolCallId;
-    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
-    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::Map;
     use serde_json::Value;
     use serde_json::json;
 
+    use paddler_messaging::generated_tool_call::GeneratedToolCall;
+    use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::ToolCallValidator;
     use crate::tool_call_validation_error::ToolCallValidationError;
 
-    fn model_provided_id() -> ParsedToolCallId {
-        ParsedToolCallId::ModelProvided(ModelProvidedToolCallId::try_from("id".to_owned()).unwrap())
+    fn called_tool(name: &str, arguments: ToolCallArguments) -> GeneratedToolCall {
+        GeneratedToolCall {
+            arguments,
+            id: "id".to_owned(),
+            index: 0,
+            name: name.to_owned(),
+        }
     }
 
     fn valid_json_arguments(value: Value) -> ToolCallArguments {
@@ -154,12 +169,44 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
         }))
     }
 
+    fn tool_with_invalid_property_schema() -> Tool<Value> {
+        let mut properties = Map::new();
+        properties.insert("location".to_owned(), json!({"type": 42}));
+
+        Tool::from(Tool::Function(FunctionCall {
+            function: Function {
+                name: "broken_tool".to_owned(),
+                description: "tool whose property schema is not valid JSON Schema".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: Some(properties),
+                    required: None,
+                    additional_properties: None,
+                }),
+            },
+        }))
+    }
+
+    fn tool_with_invalid_additional_properties_schema() -> Tool<Value> {
+        Tool::from(Tool::Function(FunctionCall {
+            function: Function {
+                name: "broken_additional".to_owned(),
+                description: "tool whose additionalProperties schema is invalid".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: None,
+                    required: None,
+                    additional_properties: Some(json!({"type": "not_a_type"})),
+                }),
+            },
+        }))
+    }
+
     #[test]
     fn schema_validator_accepts_matching_arguments() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "get_weather".to_owned(),
+        let parsed = called_tool(
+            "get_weather",
             valid_json_arguments(json!({"location": "Paris"})),
         );
 
@@ -169,11 +216,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn schema_validator_rejects_missing_required_field() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "get_weather".to_owned(),
-            valid_json_arguments(json!({})),
-        );
+        let parsed = called_tool("get_weather", valid_json_arguments(json!({})));
 
         let validation_error = validator.validate(&parsed).err().unwrap();
 
@@ -186,11 +229,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn schema_validator_rejects_wrong_type() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "get_weather".to_owned(),
-            valid_json_arguments(json!({"location": 42})),
-        );
+        let parsed = called_tool("get_weather", valid_json_arguments(json!({"location": 42})));
 
         let validation_error = validator.validate(&parsed).err().unwrap();
 
@@ -203,11 +242,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn unknown_tool_name_returns_error() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "set_thermostat".to_owned(),
-            valid_json_arguments(json!({"value": 21})),
-        );
+        let parsed = called_tool("set_thermostat", valid_json_arguments(json!({"value": 21})));
 
         let validation_error = validator.validate(&parsed).err().unwrap();
 
@@ -220,10 +255,16 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn rejects_arguments_that_are_not_json() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "get_weather".to_owned(),
-            ToolCallArguments::from_string("not json".to_owned()),
+        let parsed = called_tool(
+            "get_weather",
+            ToolCallArguments::InvalidJson {
+                raw: "not json".to_owned(),
+                error: InvalidArgumentsJson {
+                    message: "expected ident at line 1 column 2".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+            },
         );
 
         assert_eq!(
@@ -240,11 +281,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn schemaless_tool_rejects_arguments_that_are_not_an_object() {
         let validator = ToolCallValidator::from_tools(&[schemaless_tool()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "freeform".to_owned(),
-            valid_json_arguments(json!([1, 2])),
-        );
+        let parsed = called_tool("freeform", valid_json_arguments(json!([1, 2])));
 
         let validation_error = validator.validate(&parsed).err().unwrap();
 
@@ -258,11 +295,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn schemaless_tool_accepts_any_object() {
         let validator = ToolCallValidator::from_tools(&[schemaless_tool()]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "freeform".to_owned(),
-            valid_json_arguments(json!({"x": 1, "y": 2})),
-        );
+        let parsed = called_tool("freeform", valid_json_arguments(json!({"x": 1, "y": 2})));
 
         assert!(validator.validate(&parsed).is_ok());
     }
@@ -282,11 +315,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     #[test]
     fn empty_tools_yields_validator_that_rejects_any_call() {
         let validator = ToolCallValidator::from_tools(&[]).unwrap();
-        let parsed = ParsedToolCall::new(
-            model_provided_id(),
-            "anything".to_owned(),
-            valid_json_arguments(json!({})),
-        );
+        let parsed = called_tool("anything", valid_json_arguments(json!({})));
 
         let validation_error = validator.validate(&parsed).err().unwrap();
 
@@ -294,24 +323,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
             validation_error,
             ToolCallValidationError::UnknownToolName(name) if name == "anything"
         ));
-    }
-
-    fn tool_with_invalid_property_schema() -> Tool<Value> {
-        let mut properties = Map::new();
-        properties.insert("location".to_owned(), json!({"type": 42}));
-
-        Tool::from(Tool::Function(FunctionCall {
-            function: Function {
-                name: "broken_tool".to_owned(),
-                description: "tool whose property schema is not valid JSON Schema".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: Some(properties),
-                    required: None,
-                    additional_properties: None,
-                }),
-            },
-        }))
     }
 
     #[test]
@@ -324,21 +335,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
             build_error,
             ToolCallValidationError::InvalidSchema { tool_name, .. } if tool_name == "broken_tool"
         ));
-    }
-
-    fn tool_with_invalid_additional_properties_schema() -> Tool<Value> {
-        Tool::from(Tool::Function(FunctionCall {
-            function: Function {
-                name: "broken_additional".to_owned(),
-                description: "tool whose additionalProperties schema is invalid".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: None,
-                    required: None,
-                    additional_properties: Some(json!({"type": "not_a_type"})),
-                }),
-            },
-        }))
     }
 
     #[test]

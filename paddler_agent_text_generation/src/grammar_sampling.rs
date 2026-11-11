@@ -10,16 +10,22 @@ pub enum GrammarSampling {
 }
 
 impl GrammarSampling {
-    pub fn constrain(&self, candidates: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
+    /// # Errors
+    ///
+    /// Returns the [`SamplerAcceptError`] of the grammar sampler when the grammar rejects the token.
+    pub fn accept(&mut self, token: LlamaToken) -> Result<(), SamplerAcceptError> {
         match self {
-            Self::Constrained(grammar_sampler) => grammar_sampler.apply(candidates),
+            Self::Constrained(grammar_sampler) => grammar_sampler.accept(token),
             Self::Unconstrained => Ok(()),
         }
     }
 
-    pub fn accept(&mut self, token: LlamaToken) -> Result<(), SamplerAcceptError> {
+    /// # Errors
+    ///
+    /// Returns the [`SampleError`] of the grammar sampler when it cannot constrain the candidates.
+    pub fn constrain(&self, candidates: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
         match self {
-            Self::Constrained(grammar_sampler) => grammar_sampler.accept(token),
+            Self::Constrained(grammar_sampler) => grammar_sampler.apply(candidates),
             Self::Unconstrained => Ok(()),
         }
     }

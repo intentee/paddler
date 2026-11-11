@@ -53,7 +53,7 @@ mod tests {
     }
 
     #[test]
-    fn dropping_an_uncommitted_guard_releases_the_sequence_id() {
+    fn dropping_a_guard_releases_its_sequence_id() {
         let sequence_id_pool = SequenceIdPool::new(1);
 
         {

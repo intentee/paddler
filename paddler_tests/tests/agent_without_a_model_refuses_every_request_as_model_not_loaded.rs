@@ -1,9 +1,6 @@
 use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 
-use serde_json::to_string;
-use tokio_tungstenite::tungstenite::Message;
-
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_runtime::rejection_description::rejection_description;
@@ -25,23 +22,12 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::reserved_request::ReservedRequest;
-use paddler_test_cluster_harness::untrusted_balancer_socket_server::UntrustedBalancerSocketServer;
-
-use crate::agent_runner_connected_to::agent_runner_connected_to;
+use paddler_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 
 const AGENT_NAME: Option<&str> = Some("test-agent");
 
-#[tokio::test(flavor = "multi_thread")]
-async fn agent_without_a_model_refuses_every_request_as_model_not_loaded() {
-    let untrusted_balancer = UntrustedBalancerSocketServer::bind()
-        .await
-        .expect("the untrusted balancer must bind");
-    let _agent_runner = agent_runner_connected_to(untrusted_balancer.management_addr, 1);
-    let mut connection = untrusted_balancer
-        .accept_agent()
-        .await
-        .expect("the agent must connect");
-    let requests = [
+fn requests_of_every_kind() -> [RequestEnvelope<AgentJsonRpcRequest>; 4] {
+    [
         RequestEnvelope {
             id: "conversation".to_owned(),
             request: AgentJsonRpcRequest::ContinueFromConversationHistory(ReservedRequest {
@@ -96,15 +82,20 @@ async fn agent_without_a_model_refuses_every_request_as_model_not_loaded() {
                 reserved_slots: NonZeroU16::MIN,
             }),
         },
-    ];
+    ]
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_without_a_model_refuses_every_request_as_model_not_loaded() {
+    let mut connected_agent = AgentConnectedToAnUntrustedBalancer::connect()
+        .await
+        .expect("the agent must connect to the untrusted balancer");
+    let requests = requests_of_every_kind();
     let request_count = requests.len();
 
     for request in requests {
-        connection
-            .send(Message::text(
-                to_string(&AgentJsonRpcMessage::Request(request))
-                    .expect("the request must serialize"),
-            ))
+        connected_agent = connected_agent
+            .send_agent_message(AgentJsonRpcMessage::Request(request))
             .await
             .expect("the request must be sent");
     }
@@ -113,16 +104,24 @@ async fn agent_without_a_model_refuses_every_request_as_model_not_loaded() {
 
     for _request in 0..request_count {
         responses.push(
-            connection
+            connected_agent
+                .connection
                 .next_agent_response()
                 .await
                 .expect("the agent must answer every request"),
         );
     }
 
-    responses.sort_by(|first_response, second_response| {
-        first_response.request_id.cmp(&second_response.request_id)
-    });
+    responses.sort_by(
+        |ResponseEnvelope {
+             request_id: first_request_id,
+             ..
+         },
+         ResponseEnvelope {
+             request_id: second_request_id,
+             ..
+         }| first_request_id.cmp(second_request_id),
+    );
 
     assert_eq!(
         responses,

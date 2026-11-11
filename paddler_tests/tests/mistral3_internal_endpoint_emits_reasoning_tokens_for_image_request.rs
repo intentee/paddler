@@ -13,6 +13,7 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_ministral_3_and_mmproj::start_cluster_with_ministral_3_and_mmproj;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -56,7 +57,9 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() {
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+        })
         .count();
 
     assert!(
@@ -68,8 +71,8 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() {
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.reasoning_tokens > 0);
-    assert!(summary.usage.input_image_tokens > 0);
+    assert!(summary.usage.reasoning > 0);
+    assert!(summary.usage.input_image > 0);
 
     cluster
         .shutdown()

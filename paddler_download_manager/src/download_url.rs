@@ -8,6 +8,9 @@ pub struct DownloadUrl {
 }
 
 impl DownloadUrl {
+    /// # Errors
+    ///
+    /// Returns [`DownloadError::InvalidUrl`] when the URL is malformed, and [`DownloadError::UnsupportedUrlScheme`] when its scheme is neither http nor https.
     pub fn parse(url: &str) -> Result<Self, DownloadError> {
         Self::try_from(Url::parse(url).map_err(|source| DownloadError::InvalidUrl {
             url: url.to_owned(),

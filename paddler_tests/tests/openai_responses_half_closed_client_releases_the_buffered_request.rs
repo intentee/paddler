@@ -1,13 +1,12 @@
 use serde_json::json;
 
-use paddler_balancer::compatibility::openai_service::openai_api_path::OpenAIApiPath;
-
-use crate::release_half_closed_openai_request::release_half_closed_openai_request;
+use paddler_balancer::constants::OPENAI_API_PATH_RESPONSES;
+use paddler_tests::release_half_closed_openai_request::release_half_closed_openai_request;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_half_closed_client_releases_the_buffered_request() {
     release_half_closed_openai_request(
-        OpenAIApiPath::RESPONSES,
+        OPENAI_API_PATH_RESPONSES,
         &json!({
             "input": "hi",
             "max_output_tokens": 2048,
@@ -15,5 +14,6 @@ async fn openai_responses_half_closed_client_releases_the_buffered_request() {
             "stream": true,
         }),
     )
-    .await;
+    .await
+    .expect("the half-closed request must be released");
 }

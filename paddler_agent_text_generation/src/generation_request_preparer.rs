@@ -14,7 +14,6 @@ use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
 use paddler_image_decoder::decoded_image::DecodedImage;
-use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -23,6 +22,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
+use crate::chat_template_conversation::ChatTemplateConversation;
+use crate::chat_template_tool::ChatTemplateTool;
 use crate::conversation_prompt_support::ConversationPromptSupport;
 use crate::conversation_support::ConversationSupport;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
@@ -68,36 +69,9 @@ pub struct GenerationRequestPreparer {
 }
 
 impl GenerationRequestPreparer {
-    pub fn prepare_raw_prompt(
-        &self,
-        AgentRequest {
-            params:
-                ContinueFromRawPromptParams {
-                    grammar,
-                    max_tokens,
-                    raw_prompt,
-                },
-            response_tx: generated_tokens_tx,
-            slot_guard,
-            stop_rx: generate_tokens_stop_rx,
-        }: AgentRequest<ContinueFromRawPromptParams, GeneratedTokenResult>,
-    ) -> Result<PreparedGenerationRequest, TextGenerationError> {
-        let prompt = PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?);
-        let token_sampling =
-            self.build_token_sampling(resolve_grammar(grammar, &self.loaded_llama_model.model)?)?;
-
-        Ok(PreparedGenerationRequest {
-            generate_tokens_stop_rx,
-            generated_tokens_tx,
-            max_tokens,
-            prompt,
-            slot_guard,
-            token_classification: TokenClassification::Undeterminable,
-            token_sampling,
-            tool_call_handling: ToolCallHandling::Streamed,
-        })
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::ConversationRequiresChatTemplate`] when the model serves no chat template, [`TextGenerationError::GrammarIncompatibleWithThinking`] when a grammar is requested with thinking, [`TextGenerationError::ToolSchemaInvalid`] when a tool schema cannot be compiled, [`TextGenerationError::MultimodalNotSupported`] when images are sent without a multimodal projection, [`TextGenerationError::ChatSessionCreationFailed`] when the chat session cannot be created, [`TextGenerationError::ImageDecodingFailed`] or [`TextGenerationError::ImageBitmapCreationFailed`] when an image cannot be decoded, [`TextGenerationError::ChatPromptUnreadable`], [`TextGenerationError::ChatPromptTokenizationFailed`], [`TextGenerationError::PromptTokenizedToNothing`] or [`TextGenerationError::PromptExceedsContextSize`] when the prompt cannot be served, [`TextGenerationError::RenderedMediaMarkersMismatchImages`], [`TextGenerationError::MultimodalTokenizationFailed`], [`TextGenerationError::MediaExceedsMicroBatch`] or [`TextGenerationError::MediaMicroBatchCheckFailed`] when a multimodal prompt cannot be prepared, [`TextGenerationError::GrammarInvalid`], [`TextGenerationError::GrammarConversionFailed`], [`TextGenerationError::GrammarSamplerInitializationFailed`] or [`TextGenerationError::ChatSessionGrammarUnavailable`] when the grammar cannot be resolved, and [`TextGenerationError::SamplerChainCreationFailed`] when the sampler chain cannot be created.
     pub fn prepare_conversation_history(
         &self,
         AgentRequest {
@@ -139,13 +113,16 @@ impl GenerationRequestPreparer {
         };
         let chat_tools: Vec<ChatTool> = tools_with_schema_documents
             .iter()
-            .map(ChatTool::from)
+            .map(|tool| ChatTemplateTool(tool).to_chat_tool())
             .collect();
         let media_marker = request_media_marker(&conversation_history, &chat_tools);
         let ChatTemplateConversation {
             image_urls,
             messages,
-        } = conversation_history.into_chat_template_conversation(&media_marker);
+        } = ChatTemplateConversation::from_conversation_history(
+            conversation_history,
+            &media_marker,
+        );
         let prompt_modality = image_input.prompt_modality_for(&image_urls)?;
         let chat_session = ChatSession::new(
             model,
@@ -202,6 +179,58 @@ impl GenerationRequestPreparer {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::PromptTokenizationFailed`], [`TextGenerationError::PromptTokenizedToNothing`] or [`TextGenerationError::PromptExceedsContextSize`] when the prompt cannot be served, [`TextGenerationError::GrammarInvalid`], [`TextGenerationError::GrammarConversionFailed`] or [`TextGenerationError::GrammarSamplerInitializationFailed`] when the grammar cannot be resolved, and [`TextGenerationError::SamplerChainCreationFailed`] when the sampler chain cannot be created.
+    pub fn prepare_raw_prompt(
+        &self,
+        AgentRequest {
+            params:
+                ContinueFromRawPromptParams {
+                    grammar,
+                    max_tokens,
+                    raw_prompt,
+                },
+            response_tx: generated_tokens_tx,
+            slot_guard,
+            stop_rx: generate_tokens_stop_rx,
+        }: AgentRequest<ContinueFromRawPromptParams, GeneratedTokenResult>,
+    ) -> Result<PreparedGenerationRequest, TextGenerationError> {
+        let prompt = PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?);
+        let token_sampling =
+            self.build_token_sampling(resolve_grammar(grammar, &self.loaded_llama_model.model)?)?;
+
+        Ok(PreparedGenerationRequest {
+            generate_tokens_stop_rx,
+            generated_tokens_tx,
+            max_tokens,
+            prompt,
+            slot_guard,
+            token_classification: TokenClassification::Undeterminable,
+            token_sampling,
+            tool_call_handling: ToolCallHandling::Streamed,
+        })
+    }
+
+    fn build_token_sampling(
+        &self,
+        grammar: GrammarSampling,
+    ) -> Result<TokenSampling, TextGenerationError> {
+        let chain = self
+            .sampler_chain_factory
+            .create(rng().random::<u32>())
+            .map_err(TextGenerationError::SamplerChainCreationFailed)?;
+
+        Ok(TokenSampling { chain, grammar })
+    }
+
+    fn decode_image_bitmap(&self, image_url: &ImageUrl) -> Result<MtmdBitmap, TextGenerationError> {
+        DecodedImage::from_data_uri(image_url, self.image_resize_to_fit)
+            .map_err(TextGenerationError::ImageDecodingFailed)?
+            .to_mtmd_bitmap()
+            .map_err(TextGenerationError::ImageBitmapCreationFailed)
+    }
+
     fn generation_command<TParams>(
         &self,
         agent_name: Option<&str>,
@@ -221,25 +250,6 @@ impl GenerationRequestPreparer {
                 None
             }
         }
-    }
-
-    fn decode_image_bitmap(&self, image_url: &ImageUrl) -> Result<MtmdBitmap, TextGenerationError> {
-        DecodedImage::from_data_uri(image_url, self.image_resize_to_fit)
-            .map_err(TextGenerationError::ImageDecodingFailed)?
-            .to_mtmd_bitmap()
-            .map_err(TextGenerationError::ImageBitmapCreationFailed)
-    }
-
-    fn build_token_sampling(
-        &self,
-        grammar: GrammarSampling,
-    ) -> Result<TokenSampling, TextGenerationError> {
-        let chain = self
-            .sampler_chain_factory
-            .create(rng().random::<u32>())
-            .map_err(TextGenerationError::SamplerChainCreationFailed)?;
-
-        Ok(TokenSampling { chain, grammar })
     }
 }
 

@@ -8,6 +8,7 @@ use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embe
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
@@ -52,7 +53,7 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
     let overflow_errors: Vec<_> = collected
         .wire_errors
         .iter()
-        .filter(|wire_error| wire_error.code == 503)
+        .filter(|JsonRpcError { code, .. }| *code == 503)
         .collect();
 
     assert!(

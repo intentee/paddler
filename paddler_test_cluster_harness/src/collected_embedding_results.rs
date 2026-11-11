@@ -13,7 +13,7 @@ pub struct CollectedEmbeddingResults {
     pub documents_tokenized_to_nothing: Vec<EmbeddingDocumentTokenizedToNothingDetails>,
     pub embeddings: Vec<EmbeddingWithProducer>,
     pub failures: Vec<EmbeddingResult>,
-    pub no_embeddings_produced_count: usize,
+    pub no_embeddings_produced_by: Vec<Option<String>>,
     pub oversized_documents: Vec<OversizedEmbeddingDocumentDetails>,
     pub request_ids: BTreeSet<String>,
     pub saw_done: bool,

@@ -90,7 +90,7 @@ use crate::validates::Validates as _;
     }
 
     #[test]
-    fn a_request_that_omits_the_grammar_field_keeps_working() {
+    fn a_request_that_omits_the_grammar_field_deserializes_without_a_grammar() {
         let request_without_grammar = json!({
             "add_generation_prompt": true,
             "conversation_history": [

@@ -75,7 +75,10 @@ async fn agent_reports_a_document_exceeding_its_batch_and_embeds_the_rest() {
         "exactly one DocumentExceedsBatchSize event expected",
     );
 
-    let oversized = &collected.oversized_documents[0];
+    let oversized = collected
+        .oversized_documents
+        .first()
+        .expect("the oversized document must be reported");
 
     assert_eq!(oversized.n_batch, N_BATCH);
     assert!(

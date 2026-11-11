@@ -10,6 +10,9 @@ use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use crate::cluster_harness_error::ClusterHarnessError;
 use crate::collected_decision_results::CollectedDecisionResults;
 
+/// # Errors
+///
+/// Returns [`ClusterHarnessError::DecisionStreamFailed`] when the stream yields an error, [`ClusterHarnessError::DecisionStreamMessageUnexpected`] when it carries a message that is not a decision result, and [`ClusterHarnessError::DecisionStreamEndedWithoutTerminalResult`] when it ends before reporting its outcome.
 pub async fn collect_decision_results(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedDecisionResults> {

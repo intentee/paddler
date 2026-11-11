@@ -1,21 +1,44 @@
 use std::sync::Arc;
 
+use futures_util::Stream;
 use futures_util::StreamExt;
+use futures_util::stream::unfold;
 use serde::Serialize;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::connect_async;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 
-use crate::error::Result;
 use crate::inference_socket::inbound_message_router::InboundMessageRouter;
 use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
 use crate::inference_socket::outbound_request::OutboundRequest;
-use crate::inference_socket::spawn_read_task::spawn_read_task;
-use crate::inference_socket::spawn_write_task::spawn_write_task;
 use crate::inference_socket::url::url;
+use crate::result::Result;
+
+struct StreamState {
+    cancellation_token: CancellationToken,
+    connection: Arc<Connection>,
+    is_complete: bool,
+    request_id: String,
+    response_rx: UnboundedReceiver<Result<InferenceMessage>>,
+}
+
+impl StreamState {
+    const fn mark_complete(&mut self) {
+        self.is_complete = true;
+    }
+}
+
+impl Drop for StreamState {
+    fn drop(&mut self) {
+        if !self.is_complete {
+            self.connection.stop_responding_to(&self.request_id);
+        }
+    }
+}
 
 pub struct Connection {
     exchange: Arc<InferenceSocketExchange>,
@@ -24,6 +47,9 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// # Errors
+    ///
+    /// Returns [`Error::InferenceSocketUrlSchemeRejected`](crate::error::Error::InferenceSocketUrlSchemeRejected) when the URL scheme is not http, https, ws or wss, and [`Error::WebSocket`](crate::error::Error::WebSocket) when the WebSocket handshake fails.
     pub async fn connect(connection_url: Url) -> Result<Self> {
         let ws_url = url(connection_url)?;
         let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
@@ -31,13 +57,11 @@ impl Connection {
         let exchange = Arc::new(InferenceSocketExchange::default());
 
         Ok(Self {
-            read_task: spawn_read_task(
-                ws_read,
-                InboundMessageRouter {
-                    exchange: exchange.clone(),
-                },
-            ),
-            write_task: spawn_write_task(ws_write, exchange.clone()),
+            read_task: InboundMessageRouter {
+                exchange: exchange.clone(),
+            }
+            .spawn_read_task(ws_read),
+            write_task: exchange.clone().spawn_write_task(ws_write),
             exchange,
         })
     }
@@ -51,6 +75,42 @@ impl Connection {
         self.exchange.is_closed()
     }
 
+    pub fn response_stream(
+        self: Arc<Self>,
+        cancellation_token: CancellationToken,
+        request_id: String,
+        response_rx: UnboundedReceiver<Result<InferenceMessage>>,
+    ) -> impl Stream<Item = Result<InferenceMessage>> + Send + 'static {
+        unfold(
+            StreamState {
+                cancellation_token,
+                connection: self,
+                is_complete: false,
+                request_id,
+                response_rx,
+            },
+            |mut state| async move {
+                let received_message = state
+                    .cancellation_token
+                    .run_until_cancelled(state.response_rx.recv())
+                    .await;
+
+                match received_message {
+                    None => None,
+                    Some(None) => {
+                        state.mark_complete();
+
+                        None
+                    }
+                    Some(Some(message)) => Some((message, state)),
+                }
+            },
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`Error::Json`](crate::error::Error::Json) when the message cannot be serialized, [`Error::ConnectionDropped`](crate::error::Error::ConnectionDropped) when the connection is already closed, and [`Error::InferenceRequestIdInFlight`](crate::error::Error::InferenceRequestIdInFlight) when a request with the same id is already in flight.
     pub fn send<TMessage: Serialize>(
         &self,
         request_id: String,

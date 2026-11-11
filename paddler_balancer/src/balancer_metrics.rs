@@ -18,7 +18,10 @@ impl BalancerMetrics {
     #[must_use]
     pub fn gather(
         agent_controller_pool: &AgentControllerPool,
-        buffered_request_manager: &BufferedRequestManager,
+        BufferedRequestManager {
+            buffered_request_counter,
+            ..
+        }: &BufferedRequestManager,
     ) -> Self {
         let AgentControllerPoolTotalSlots {
             slots_processing,
@@ -26,10 +29,34 @@ impl BalancerMetrics {
         } = agent_controller_pool.total_slots();
 
         Self {
-            requests_buffered: buffered_request_manager.buffered_request_counter.get(),
+            requests_buffered: buffered_request_counter.get(),
             slots_processing,
             slots_total,
         }
+    }
+
+    /// # Errors
+    ///
+    /// Returns the [`MetricError`] of the statsd client when it cannot send a gauge or flush them.
+    pub fn report_to(&self, client: &StatsdClient) -> Result<(), MetricError> {
+        for BalancerGauge { name, value, .. } in self.gauges() {
+            client.gauge(name, value)?;
+        }
+
+        client.flush()
+    }
+
+    #[must_use]
+    pub fn to_prometheus_text(&self, prefix: &str) -> String {
+        self.gauges()
+            .map(|BalancerGauge { help, name, value }| {
+                formatdoc! {"
+                    # HELP {prefix}{name} {help}
+                    # TYPE {prefix}{name} gauge
+                    {prefix}{name} {value}
+                "}
+            })
+            .join("\n")
     }
 
     const fn gauges(&self) -> [BalancerGauge; 3] {
@@ -51,43 +78,46 @@ impl BalancerMetrics {
             },
         ]
     }
-
-    pub fn report_to(&self, client: &StatsdClient) -> Result<(), MetricError> {
-        for BalancerGauge { name, value, .. } in self.gauges() {
-            client.gauge(name, value)?;
-        }
-
-        client.flush()
-    }
-
-    #[must_use]
-    pub fn to_prometheus_text(&self, prefix: &str) -> String {
-        self.gauges()
-            .map(|BalancerGauge { help, name, value }| {
-                formatdoc! {"
-                    # HELP {prefix}{name} {help}
-                    # TYPE {prefix}{name} gauge
-                    {prefix}{name} {value}
-                "}
-            })
-            .join("\n")
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::sync::Arc;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
+    use cadence::MetricError;
     use cadence::MetricSink;
     use cadence::StatsdClient;
     use indoc::indoc;
 
     use super::BalancerMetrics;
 
+    const NO_FAILING_CALL: usize = usize::MAX;
+    const FLUSH_CALL: usize = 3;
+
+    const METRICS: BalancerMetrics = BalancerMetrics {
+        requests_buffered: 3,
+        slots_processing: 1,
+        slots_total: 4,
+    };
+
+    fn report_through_sink_failing_on_call(
+        sink_calls: &Arc<AtomicUsize>,
+        failing_call: usize,
+    ) -> Result<(), MetricError> {
+        METRICS.report_to(&StatsdClient::from_sink(
+            "paddler",
+            SinkFailingOnCall {
+                calls: sink_calls.clone(),
+                failing_call,
+            },
+        ))
+    }
+
     struct SinkFailingOnCall {
-        calls: AtomicUsize,
+        calls: Arc<AtomicUsize>,
         failing_call: usize,
     }
 
@@ -109,40 +139,28 @@ mod tests {
         }
     }
 
-    const NO_FAILING_CALL: usize = usize::MAX;
-    const FLUSH_CALL: usize = 3;
-
-    const METRICS: BalancerMetrics = BalancerMetrics {
-        requests_buffered: 3,
-        slots_processing: 1,
-        slots_total: 4,
-    };
-
-    fn report_with_sink_failing_on_call(failing_call: usize) -> bool {
-        let client = StatsdClient::from_sink(
-            "paddler",
-            SinkFailingOnCall {
-                calls: AtomicUsize::new(0),
-                failing_call,
-            },
-        );
-
-        METRICS.report_to(&client).is_err()
-    }
-
     #[test]
     fn reports_every_gauge_and_flushes() {
-        assert!(!report_with_sink_failing_on_call(NO_FAILING_CALL));
+        let sink_calls = Arc::default();
+
+        assert!(report_through_sink_failing_on_call(&sink_calls, NO_FAILING_CALL).is_ok());
+        assert_eq!(sink_calls.load(Ordering::SeqCst), FLUSH_CALL + 1);
     }
 
     #[test]
     fn stops_at_the_first_gauge_the_sink_refuses() {
-        assert!(report_with_sink_failing_on_call(0));
+        let sink_calls = Arc::default();
+
+        assert!(report_through_sink_failing_on_call(&sink_calls, 0).is_err());
+        assert_eq!(sink_calls.load(Ordering::SeqCst), 1);
     }
 
     #[test]
     fn reports_a_flush_the_sink_refuses() {
-        assert!(report_with_sink_failing_on_call(FLUSH_CALL));
+        let sink_calls = Arc::default();
+
+        assert!(report_through_sink_failing_on_call(&sink_calls, FLUSH_CALL).is_err());
+        assert_eq!(sink_calls.load(Ordering::SeqCst), FLUSH_CALL + 1);
     }
 
     #[test]

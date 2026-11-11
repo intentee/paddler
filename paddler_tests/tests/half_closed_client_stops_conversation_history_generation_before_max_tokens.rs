@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use serde_json::to_value;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -53,7 +53,7 @@ async fn half_closed_client_stops_conversation_history_generation_before_max_tok
 
     let mut client = HalfClosedClient::post_json_then_half_close(
         cluster.balancer.addresses.inference,
-        ApiPath::CONTINUE_FROM_CONVERSATION_HISTORY,
+        API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
         &to_value(&params).expect("the request parameters must serialize"),
     )
     .await

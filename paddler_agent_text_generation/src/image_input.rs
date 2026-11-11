@@ -10,6 +10,9 @@ pub enum ImageInput {
 }
 
 impl ImageInput {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::MultimodalNotSupported`] when the prompt carries images and no multimodal projection is loaded.
     pub const fn prompt_modality_for(
         &self,
         image_urls: &[ImageUrl],

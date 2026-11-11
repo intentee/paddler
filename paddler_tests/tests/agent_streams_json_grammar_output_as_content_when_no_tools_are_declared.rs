@@ -6,10 +6,10 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::constants::WEATHER_TOOL_CALL_JSON;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_tests::weather_question_conversation::weather_question_conversation;
-use paddler_tests::weather_tool_call_json::WEATHER_TOOL_CALL_JSON;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_streams_json_grammar_output_as_content_when_no_tools_are_declared() {
@@ -46,7 +46,7 @@ async fn agent_streams_json_grammar_output_as_content_when_no_tools_are_declared
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .tool_call_tokens,
+            .tool_call,
         0
     );
 

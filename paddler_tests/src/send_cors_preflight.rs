@@ -4,6 +4,9 @@ use reqwest::Response;
 use reqwest::Result as ReqwestResult;
 use reqwest::Url;
 
+/// # Errors
+///
+/// Returns the [`reqwest::Error`] of a preflight request that cannot be sent or answered.
 pub async fn send_cors_preflight(url: Url, origin: &str) -> ReqwestResult<Response> {
     Client::new()
         .request(Method::OPTIONS, url)

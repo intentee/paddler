@@ -19,12 +19,11 @@ use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_classification::TokenClassification;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::last_generated_token_result::last_generated_token_result;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 use paddler_tests::weather_chat_session::weather_chat_session;
-
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 #[test]
 fn a_generation_whose_answer_classifier_llama_cpp_cannot_start_is_refused() {
@@ -65,6 +64,7 @@ fn a_generation_whose_answer_classifier_llama_cpp_cannot_start_is_refused() {
                 sequence_context_size,
             }
             .into_generation_request_preparer()
+            .expect("the first message content chat template must be prepared")
             .prepare_raw_prompt(agent_request)
             .expect("the generation must be prepared")
         }))

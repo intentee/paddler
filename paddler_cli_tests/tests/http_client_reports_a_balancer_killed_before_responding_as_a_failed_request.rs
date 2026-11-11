@@ -2,7 +2,7 @@ use serde_json::json;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
-use paddler_balancer::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
 use paddler_client::http_client::HttpClient;
@@ -29,7 +29,7 @@ async fn http_client_reports_a_balancer_killed_before_responding_as_a_failed_req
         http_client
             .post_json(
                 CancellationToken::new(),
-                OpenAIApiPath::CHAT_COMPLETIONS,
+                OPENAI_API_PATH_CHAT_COMPLETIONS,
                 &json!({
                     "model": "test-model",
                     "messages": [{"role": "user", "content": "hi"}]
@@ -48,7 +48,7 @@ async fn http_client_reports_a_balancer_killed_before_responding_as_a_failed_req
 
     let chat_completions_url = cluster
         .balancer
-        .compat_openai_url(OpenAIApiPath::CHAT_COMPLETIONS)
+        .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
         .expect("the balancer must serve the OpenAI compatibility service");
 
     assert_eq!(

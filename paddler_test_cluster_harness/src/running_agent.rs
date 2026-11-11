@@ -21,6 +21,16 @@ impl RunningAgent {
         Self { config, process }
     }
 
+    /// # Errors
+    ///
+    /// Fails when the agent process cannot be terminated, or ends with a failure.
+    pub async fn shutdown(self) -> Result<()> {
+        self.process.shutdown().await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentExitedBeforeReady`] when the agent process exits before it is ready, [`ClusterHarnessError::AgentReportedIssues`] when the agent reports issues while its slots are awaited, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the agent is ready.
     pub async fn wait_until_ready(
         &mut self,
         agents_watcher: &mut SnapshotsWatcher<AgentControllerPoolSnapshot>,
@@ -33,9 +43,5 @@ impl RunningAgent {
                 process_end,
             }),
         }
-    }
-
-    pub async fn shutdown(self) -> Result<()> {
-        self.process.shutdown().await
     }
 }

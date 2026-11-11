@@ -1,4 +1,6 @@
+use std::cmp::max_by_key;
 use std::collections::VecDeque;
+use std::iter::once;
 
 use llama_cpp_bindings::token::LlamaToken;
 
@@ -8,29 +10,33 @@ use crate::question_lane_demand::QuestionLaneDemand;
 use crate::tokenized_decision_question::TokenizedDecisionQuestion;
 
 fn question_row(
-    delimiter_tokens: &DecisionDelimiterTokens,
+    &DecisionDelimiterTokens {
+        decide,
+        option_end,
+        option_start,
+        question,
+        ..
+    }: &DecisionDelimiterTokens,
     TokenizedDecisionQuestion {
         id,
         instructions,
         options,
     }: TokenizedDecisionQuestion,
 ) -> DecisionQuestionRow {
-    let mut tokens = Vec::with_capacity(
-        instructions.len() + options.iter().map(|option| option.len() + 2).sum::<usize>() + 2,
-    );
+    let mut tokens = Vec::new();
     let mut option_end_offsets = Vec::with_capacity(options.len());
 
-    tokens.push(delimiter_tokens.question);
+    tokens.push(question);
     tokens.extend(instructions);
 
     for option in options {
-        tokens.push(delimiter_tokens.option_start);
+        tokens.push(option_start);
         tokens.extend(option);
         option_end_offsets.push(tokens.len());
-        tokens.push(delimiter_tokens.option_end);
+        tokens.push(option_end);
     }
 
-    tokens.push(delimiter_tokens.decide);
+    tokens.push(decide);
 
     DecisionQuestionRow {
         id,
@@ -54,11 +60,7 @@ impl DecisionTokenLayout {
         leading_questions: Vec<TokenizedDecisionQuestion>,
         last_question: TokenizedDecisionQuestion,
     ) -> Self {
-        let mut state_tokens = Vec::with_capacity(state.len() + 1);
-
-        state_tokens.push(delimiter_tokens.state);
-        state_tokens.extend(state);
-
+        let state_tokens = once(delimiter_tokens.state).chain(state).collect();
         let mut remaining_questions: VecDeque<DecisionQuestionRow> = leading_questions
             .into_iter()
             .map(|question| question_row(delimiter_tokens, question))
@@ -91,23 +93,31 @@ impl DecisionTokenLayout {
 
     #[must_use]
     pub fn required_cells(&self) -> usize {
-        self.state.len()
-            + self
-                .remaining_questions
-                .iter()
-                .map(|question| question.tokens.len())
-                .fold(self.first_question.tokens.len(), usize::max)
+        let longest_question = self.remaining_questions.iter().fold(
+            &self.first_question,
+            |longest_question, question| {
+                max_by_key(
+                    longest_question,
+                    question,
+                    |DecisionQuestionRow { tokens, .. }| tokens.len(),
+                )
+            },
+        );
+
+        self.state.iter().chain(&longest_question.tokens).count()
     }
 
     #[must_use]
     pub fn total_tokens(&self) -> usize {
-        self.state.len()
-            + self.first_question.tokens.len()
-            + self
-                .remaining_questions
-                .iter()
-                .map(|question| question.tokens.len())
-                .sum::<usize>()
+        once(&self.state)
+            .chain(once(&self.first_question.tokens))
+            .chain(
+                self.remaining_questions
+                    .iter()
+                    .map(|DecisionQuestionRow { tokens, .. }| tokens),
+            )
+            .map(Vec::len)
+            .sum()
     }
 }
 

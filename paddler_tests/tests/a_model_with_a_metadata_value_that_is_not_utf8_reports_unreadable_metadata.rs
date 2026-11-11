@@ -23,6 +23,8 @@ fn a_model_with_a_metadata_value_that_is_not_utf8_reports_unreadable_metadata() 
         &model_path,
         |gguf_context| {
             gguf_context.set_val_str(c"general.name", c"\xff");
+
+            Ok(())
         },
     )
     .expect("the patched model must be writable");

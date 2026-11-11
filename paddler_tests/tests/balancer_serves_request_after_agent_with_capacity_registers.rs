@@ -4,6 +4,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
@@ -31,12 +33,11 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() {
 
     cluster
         .agents_watcher
-        .until(|snapshot| {
-            snapshot.agents.len() == 1
-                && snapshot
-                    .agents
+        .until(|AgentControllerPoolSnapshot { agents }| {
+            agents.len() == 1
+                && agents
                     .iter()
-                    .any(|agent| agent.status.runtime.slots_total() >= 4)
+                    .any(|AgentControllerSnapshot { status, .. }| status.runtime.slots_total() >= 4)
         })
         .await
         .expect("agent should register with 4 slots");

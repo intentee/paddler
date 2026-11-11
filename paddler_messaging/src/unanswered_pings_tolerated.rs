@@ -1,1 +1,0 @@
-pub const UNANSWERED_PINGS_TOLERATED: u32 = 1;

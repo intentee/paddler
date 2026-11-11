@@ -7,6 +7,9 @@ use paddler_balancer::balancer_addresses::BalancerAddresses;
 
 use crate::subprocess_cluster_error::SubprocessClusterError;
 
+/// # Errors
+///
+/// Returns [`SubprocessClusterError::AnnouncementUnreadable`] when the announcement cannot be read, and [`SubprocessClusterError::AnnouncementInvalid`] when it is not balancer addresses.
 pub async fn read_balancer_addresses<TReader>(
     reader: TReader,
 ) -> Result<Option<BalancerAddresses>, SubprocessClusterError>

@@ -8,8 +8,8 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
-
-use crate::ready_to_sample_request::ReadyToSampleRequest;
+use paddler_tests::prompt_sampling_positions::PromptSamplingPositions;
+use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
 
 #[test]
 fn a_token_the_sampler_cannot_read_ends_the_generation() {
@@ -24,12 +24,16 @@ fn a_token_the_sampler_cannot_read_ends_the_generation() {
 
     assert_eq!(
         ReadyToSampleRequest {
-            batch_position: 0,
             llama_context: &llama_context,
             prompt: "Paddler",
+            prompt_sampling_positions: PromptSamplingPositions {
+                batch_position: 0,
+                next_token_position: 1,
+            },
             runtime: &runtime,
         }
-        .advance(|prepared_request| prepared_request),
+        .advance(|prepared_request| prepared_request)
+        .expect("the request must be ready to sample"),
         ContinuousBatchTerminalOutcome::EmitToClient(GeneratedTokenResult::SamplerError(
             TextGenerationError::TokenDataUnreadable(LogitsError::TokenNotInitialized(0))
                 .to_string()

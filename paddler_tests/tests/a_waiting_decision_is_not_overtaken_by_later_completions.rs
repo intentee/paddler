@@ -10,17 +10,17 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
-
-use crate::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
+use paddler_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_waiting_decision_is_not_overtaken_by_later_completions() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams::default())
+    let mut cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("a decision cluster must start");
-    let slot_held_by_an_unending_generation =
-        SlotHeldByAnUnendingGeneration::hold(&mut cluster).await;
+    let slot_held_by_an_unending_generation = SlotHeldByAnUnendingGeneration::hold(&mut cluster)
+        .await
+        .expect("the unending generation must hold a slot");
     let decision = spawn(cluster.decide(CancellationToken::new(), &sample_decision()));
 
     cluster
@@ -41,7 +41,10 @@ async fn a_waiting_decision_is_not_overtaken_by_later_completions() {
         .wait_for_buffered_request_count(2)
         .await
         .expect("the completion must wait behind the decision although a slot is free");
-    slot_held_by_an_unending_generation.release().await;
+    slot_held_by_an_unending_generation
+        .release()
+        .await
+        .expect("the unending generation must release its slot");
 
     assert_eq!(
         discriminant(

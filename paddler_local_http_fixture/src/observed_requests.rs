@@ -4,35 +4,45 @@ use std::io::ErrorKind;
 use tokio::sync::watch;
 use tokio::sync::watch::error::RecvError;
 
-async fn wait_until_reached(
-    counter: &watch::Sender<u32>,
-    expected_count: u32,
+async fn wait_until_recorded<TRecord: Send + Sync>(
+    records: &watch::Sender<Vec<TRecord>>,
+    expected_count: usize,
 ) -> Result<(), RecvError> {
-    counter
+    records
         .subscribe()
-        .wait_for(|count| *count >= expected_count)
+        .wait_for(|recorded| recorded.len() >= expected_count)
         .await
         .map(drop)
 }
 
 pub struct ObservedRequests {
     abandoned_trickle_departures: watch::Sender<Vec<ErrorKind>>,
-    count: watch::Sender<u32>,
-    last_range_header: watch::Sender<Option<Vec<u8>>>,
+    range_headers: watch::Sender<Vec<Option<Vec<u8>>>>,
 }
 
 impl ObservedRequests {
     pub fn new() -> Self {
         Self {
             abandoned_trickle_departures: watch::Sender::new(Vec::new()),
-            count: watch::Sender::new(0),
-            last_range_header: watch::Sender::new(None),
+            range_headers: watch::Sender::new(Vec::new()),
         }
     }
 
+    pub fn abandoned_trickle_departures(&self) -> Vec<ErrorKind> {
+        self.abandoned_trickle_departures.borrow().clone()
+    }
+
+    pub fn count(&self) -> usize {
+        self.range_headers.borrow().len()
+    }
+
+    pub fn last_range_header(&self) -> Option<Vec<u8>> {
+        self.range_headers.borrow().last().cloned().flatten()
+    }
+
     pub fn record(&self, range_header: Option<Vec<u8>>) {
-        self.last_range_header.send_replace(range_header);
-        self.count.send_modify(|count| *count += 1);
+        self.range_headers
+            .send_modify(|recorded_range_headers| recorded_range_headers.push(range_header));
     }
 
     pub fn record_abandoned_trickle(&self, client_departure: &io::Error) {
@@ -40,30 +50,14 @@ impl ObservedRequests {
             .send_modify(|departures| departures.push(client_departure.kind()));
     }
 
-    pub fn abandoned_trickle_departures(&self) -> Vec<ErrorKind> {
-        self.abandoned_trickle_departures.borrow().clone()
-    }
-
-    pub fn count(&self) -> u32 {
-        *self.count.borrow()
-    }
-
-    pub fn last_range_header(&self) -> Option<Vec<u8>> {
-        self.last_range_header.borrow().clone()
-    }
-
-    pub async fn wait_for_count(&self, expected_count: u32) -> Result<(), RecvError> {
-        wait_until_reached(&self.count, expected_count).await
-    }
-
     pub async fn wait_for_abandoned_trickles(
         &self,
         expected_count: usize,
     ) -> Result<(), RecvError> {
-        self.abandoned_trickle_departures
-            .subscribe()
-            .wait_for(|departures| departures.len() >= expected_count)
-            .await
-            .map(drop)
+        wait_until_recorded(&self.abandoned_trickle_departures, expected_count).await
+    }
+
+    pub async fn wait_for_count(&self, expected_count: usize) -> Result<(), RecvError> {
+        wait_until_recorded(&self.range_headers, expected_count).await
     }
 }

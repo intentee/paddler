@@ -27,18 +27,18 @@ pub trait AgentStreamingRequest: IntoReservedAgentRequest {
         + Send
         + 'static;
 
-    fn response_senders(
-        agent_response_senders: &AgentResponseSenders,
-    ) -> &Arc<ResponseSenders<Self::Response>>;
-
-    fn slot_demand(&self) -> SlotDemand;
-
     fn dispatch_requirement(&self) -> DispatchRequirement {
         DispatchRequirement {
             inference_capability: Self::INFERENCE_CAPABILITY,
             slot_demand: self.slot_demand(),
         }
     }
+
+    fn response_senders(
+        agent_response_senders: &AgentResponseSenders,
+    ) -> &Arc<ResponseSenders<Self::Response>>;
+
+    fn slot_demand(&self) -> SlotDemand;
 }
 
 impl AgentStreamingRequest for ContinueFromConversationHistoryParams<ValidatedParametersSchema> {
@@ -47,9 +47,11 @@ impl AgentStreamingRequest for ContinueFromConversationHistoryParams<ValidatedPa
     type Response = GeneratedTokenResult;
 
     fn response_senders(
-        agent_response_senders: &AgentResponseSenders,
+        AgentResponseSenders {
+            generated_tokens, ..
+        }: &AgentResponseSenders,
     ) -> &Arc<ResponseSenders<Self::Response>> {
-        &agent_response_senders.generated_tokens
+        generated_tokens
     }
 
     fn slot_demand(&self) -> SlotDemand {
@@ -63,9 +65,11 @@ impl AgentStreamingRequest for ContinueFromRawPromptParams {
     type Response = GeneratedTokenResult;
 
     fn response_senders(
-        agent_response_senders: &AgentResponseSenders,
+        AgentResponseSenders {
+            generated_tokens, ..
+        }: &AgentResponseSenders,
     ) -> &Arc<ResponseSenders<Self::Response>> {
-        &agent_response_senders.generated_tokens
+        generated_tokens
     }
 
     fn slot_demand(&self) -> SlotDemand {
@@ -79,9 +83,9 @@ impl AgentStreamingRequest for DecideParams {
     type Response = DecisionResult;
 
     fn response_senders(
-        agent_response_senders: &AgentResponseSenders,
+        AgentResponseSenders { decision, .. }: &AgentResponseSenders,
     ) -> &Arc<ResponseSenders<Self::Response>> {
-        &agent_response_senders.decision
+        decision
     }
 
     fn slot_demand(&self) -> SlotDemand {
@@ -95,9 +99,9 @@ impl AgentStreamingRequest for GenerateEmbeddingBatchParams {
     type Response = EmbeddingResult;
 
     fn response_senders(
-        agent_response_senders: &AgentResponseSenders,
+        AgentResponseSenders { embedding, .. }: &AgentResponseSenders,
     ) -> &Arc<ResponseSenders<Self::Response>> {
-        &agent_response_senders.embedding
+        embedding
     }
 
     fn slot_demand(&self) -> SlotDemand {
@@ -110,9 +114,9 @@ mod tests {
     use std::num::NonZeroU16;
     use std::num::NonZeroU32;
 
+    use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
     use paddler_messaging::conversation_history::ConversationHistory;
     use paddler_messaging::decision_question::DecisionQuestion;
-    use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
     use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::inference_capability::InferenceCapability;

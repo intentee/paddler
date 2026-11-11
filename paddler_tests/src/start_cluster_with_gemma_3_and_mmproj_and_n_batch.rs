@@ -12,6 +12,9 @@ use paddler_test_cluster_harness::model_card::gemma_3_4b_it_mmproj::gemma_3_4b_i
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Gemma 3 with its multimodal projection cannot start.
 pub async fn start_cluster_with_gemma_3_and_mmproj_and_n_batch(
     agents: Vec<AgentConfig>,
     n_batch: BatchSize,

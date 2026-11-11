@@ -13,14 +13,13 @@ use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_status::slot_guard::SlotGuard;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 use paddler_tests::prepared_decision::PreparedDecision;
 use paddler_tests::two_option_question::two_option_question;
-
-use crate::kev_decision_model::KevDecisionModel;
 
 fn answers_of(mut decision_result_rx: UnboundedReceiver<DecisionResult>) -> Vec<DecisionAnswer> {
     let mut answers = Vec::new();
@@ -36,7 +35,8 @@ fn answers_of(mut decision_result_rx: UnboundedReceiver<DecisionResult>) -> Vec<
 
 #[test]
 fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserving_two() {
-    let kev_decision_model = KevDecisionModel::load(DECISION_SLOTS_MINIMUM.get());
+    let kev_decision_model = KevDecisionModel::load(DECISION_SLOTS_MINIMUM.get())
+        .expect("the kev decision model must load");
     let slot_aggregated_status = kev_decision_model
         .runtime
         .inference_runtime_context
@@ -59,15 +59,14 @@ fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserv
         layout_with_a_leading_question(),
     );
 
-    decision_reserving_one_slot
-        .prepared_decision_request
-        .slot_guard = SlotGuard::new(slot_aggregated_status, NonZeroU16::MIN);
+    decision_reserving_one_slot.request.slot_guard =
+        SlotGuard::new(slot_aggregated_status, NonZeroU16::MIN);
 
     let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
     for prepared_decision_request in [
-        decision_reserving_two_slots.prepared_decision_request,
-        decision_reserving_one_slot.prepared_decision_request,
+        decision_reserving_two_slots.request,
+        decision_reserving_one_slot.request,
     ] {
         scheduler_message_tx
             .send(SchedulerMessage::Command(prepared_decision_request))
@@ -76,14 +75,16 @@ fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserv
 
     drop(scheduler_message_tx);
 
-    kev_decision_model.run_scheduler(DecisionSchedulerRun {
-        active_requests: VecDeque::new(),
-        agent_shutdown: CancellationToken::new(),
-        capacity_ledger: DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
-        pending_requests: VecDeque::new(),
-        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-        sequences: DECISION_SLOTS_MINIMUM.get(),
-    });
+    kev_decision_model
+        .run_scheduler(DecisionSchedulerRun {
+            active_requests: VecDeque::new(),
+            agent_shutdown: CancellationToken::new(),
+            capacity_ledger: DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
+            pending_requests: VecDeque::new(),
+            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+            sequences: DECISION_SLOTS_MINIMUM.get(),
+        })
+        .expect("the decision context must be created");
 
     assert_eq!(
         answers_of(decision_reserving_one_slot.decision_result_rx),

@@ -1,0 +1,18 @@
+[package]
+name = "paddler_chunked_response_fixture"
+authors.workspace = true
+description = "Builds HTTP responses whose bodies arrive in given chunks, so Paddler tests can exercise streamed body decoding"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+futures-util = { workspace = true }
+http = { workspace = true }
+reqwest = { workspace = true }
+
+[lints]
+workspace = true

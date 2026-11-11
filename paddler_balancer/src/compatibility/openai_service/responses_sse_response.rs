@@ -11,7 +11,7 @@ use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
 use paddler_openai_translation::generation_outcome::GenerationOutcome;
 use paddler_openai_translation::generation_progress::GenerationProgress;
 use paddler_openai_translation::responses_stream::ResponsesStream;
-use paddler_openai_translation::responses_stream_event::ResponsesStreamEvent;
+use paddler_openai_translation::sequenced_responses_stream_event::SequencedResponsesStreamEvent;
 
 use crate::agent_relay_event::AgentRelayEvent;
 use crate::compatibility::openai_service::openai_sse_http_response::openai_sse_http_response;
@@ -19,7 +19,7 @@ use crate::compatibility::openai_service::openai_sse_http_response::openai_sse_h
 fn responses_stream_events(
     responses_stream: &mut ResponsesStream,
     agent_relay_event: AgentRelayEvent<GenerationProgress, GeneratedTokenFinalResult>,
-) -> Vec<ResponsesStreamEvent> {
+) -> Vec<SequencedResponsesStreamEvent> {
     match agent_relay_event {
         AgentRelayEvent::Failed(relay_failure) => {
             responses_stream.fail(relay_failure.description())
@@ -33,9 +33,12 @@ fn responses_stream_events(
     }
 }
 
-fn event_to_sse_data(event: &ResponsesStreamEvent) -> Result<sse::Data, SerdeJsonError> {
-    to_string(event)
-        .map(|serialized_event| sse::Data::new(serialized_event).event(event.event_name()))
+fn event_to_sse_data(
+    sequenced_event: &SequencedResponsesStreamEvent,
+) -> Result<sse::Data, SerdeJsonError> {
+    to_string(sequenced_event).map(|serialized_event| {
+        sse::Data::new(serialized_event).event(sequenced_event.event.event_name())
+    })
 }
 
 pub fn responses_sse_response<TAgentRelayEvents>(

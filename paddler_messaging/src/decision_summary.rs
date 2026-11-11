@@ -5,5 +5,5 @@ use serde::Serialize;
 #[serde(deny_unknown_fields)]
 pub struct DecisionSummary {
     pub input_tokens: usize,
-    pub processing_milliseconds: u64,
+    pub processing_milliseconds: u128,
 }

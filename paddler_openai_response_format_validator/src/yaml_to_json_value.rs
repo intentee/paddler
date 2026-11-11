@@ -36,6 +36,9 @@ fn hash_to_value(hash: &Hash) -> Result<Value, OpenAIValidatorError> {
     Ok(Value::Object(object))
 }
 
+/// # Errors
+///
+/// Returns [`OpenAIValidatorError::YamlRealUnparsable`] when a real does not parse as a floating point number, [`OpenAIValidatorError::YamlRealNotFinite`] when a real is not finite, [`OpenAIValidatorError::YamlMappingKeyNotString`] when a mapping key is not a string, [`OpenAIValidatorError::YamlAliasUnsupported`] when it meets an alias, and [`OpenAIValidatorError::YamlBadValue`] when it meets an invalid node.
 pub fn yaml_to_json_value(yaml: &Yaml) -> Result<Value, OpenAIValidatorError> {
     match yaml {
         Yaml::Null => Ok(Value::Null),
@@ -66,12 +69,12 @@ mod tests {
     use crate::openai_validator_error::OpenAIValidatorError;
 
     #[test]
-    fn converts_null() {
+    fn converts_a_yaml_null_into_a_json_null() {
         assert_eq!(yaml_to_json_value(&Yaml::Null).unwrap(), json!(null));
     }
 
     #[test]
-    fn converts_boolean() {
+    fn converts_a_yaml_boolean_into_the_same_json_boolean() {
         assert_eq!(
             yaml_to_json_value(&Yaml::Boolean(true)).unwrap(),
             json!(true)
@@ -79,12 +82,12 @@ mod tests {
     }
 
     #[test]
-    fn converts_integer() {
+    fn converts_a_yaml_integer_into_the_same_json_number() {
         assert_eq!(yaml_to_json_value(&Yaml::Integer(42)).unwrap(), json!(42));
     }
 
     #[test]
-    fn converts_string() {
+    fn converts_a_yaml_string_into_the_same_json_string() {
         assert_eq!(
             yaml_to_json_value(&Yaml::String("hello".to_owned())).unwrap(),
             json!("hello")
@@ -92,7 +95,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_real() {
+    fn converts_a_yaml_real_into_the_json_number_it_spells() {
         assert_eq!(
             yaml_to_json_value(&Yaml::Real("1.5".to_owned())).unwrap(),
             json!(1.5)
@@ -120,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_array() {
+    fn converts_a_yaml_array_into_a_json_array_of_its_converted_elements() {
         let array = Yaml::Array(vec![Yaml::Integer(1), Yaml::String("two".to_owned())]);
 
         assert_eq!(yaml_to_json_value(&array).unwrap(), json!([1, "two"]));

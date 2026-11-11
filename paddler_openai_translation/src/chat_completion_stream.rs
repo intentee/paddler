@@ -36,6 +36,9 @@ impl ChatCompletionStream {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`GenerationFailure`] of [`GenerationProgress::Failed`] when the generation progress reports a failure.
     pub fn advance(
         &mut self,
         request_id: &str,
@@ -57,6 +60,9 @@ impl ChatCompletionStream {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`GenerationFailure`] of [`GenerationOutcome::Failed`] when the generation ended with a failure.
     pub fn conclude(
         &self,
         request_id: &str,
@@ -122,14 +128,14 @@ impl ChatCompletionStream {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
+    use paddler_generation_result_fixture::finished_generation_summary::finished_generation_summary;
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
-    use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::ChatCompletionStream;
     use crate::chat_completion_chunk::ChatCompletionChunk;
@@ -149,18 +155,6 @@ mod tests {
             },
             include_usage,
             system_fingerprint: "test-fingerprint".to_owned(),
-        })
-    }
-
-    fn finished(finish: GenerationFinish) -> GenerationOutcome {
-        GenerationOutcome::Finished(GenerationSummary {
-            finish,
-            usage: TokenUsage {
-                prompt_tokens: 7,
-                content_tokens: 4,
-                reasoning_tokens: 1,
-                ..TokenUsage::default()
-            },
         })
     }
 
@@ -234,7 +228,14 @@ mod tests {
                         1,
                         "call_invalid",
                         "broken_tool",
-                        ToolCallArguments::from_string("{not valid json".to_owned()),
+                        ToolCallArguments::InvalidJson {
+                            raw: "{not valid json".to_owned(),
+                            error: InvalidArgumentsJson {
+                                message: "key must be a string at line 1 column 2".to_owned(),
+                                line: 1,
+                                column: 2,
+                            },
+                        },
                     ),
                 ])),
             )),
@@ -293,10 +294,12 @@ mod tests {
             Vec::<String>::new()
         );
         assert_eq!(
-            serialized_chunks(
-                chat_completion_stream
-                    .conclude("test-request", finished(GenerationFinish::EndOfGeneration))
-            ),
+            serialized_chunks(chat_completion_stream.conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::EndOfGeneration
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#,
             ]
@@ -318,19 +321,23 @@ mod tests {
         ));
 
         assert_eq!(
-            serialized_chunks(
-                after_tool_call
-                    .conclude("test-request", finished(GenerationFinish::EndOfGeneration))
-            ),
+            serialized_chunks(after_tool_call.conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::EndOfGeneration
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}]}"#,
             ]
         );
         assert_eq!(
-            serialized_chunks(
-                chat_completion_stream(false)
-                    .conclude("test-request", finished(GenerationFinish::MaxTokens))
-            ),
+            serialized_chunks(chat_completion_stream(false).conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::MaxTokens
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"length"}]}"#,
             ]
@@ -340,10 +347,12 @@ mod tests {
     #[test]
     fn appends_a_usage_chunk_when_the_client_asks_for_usage() {
         assert_eq!(
-            serialized_chunks(
-                chat_completion_stream(true)
-                    .conclude("test-request", finished(GenerationFinish::EndOfGeneration))
-            ),
+            serialized_chunks(chat_completion_stream(true).conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::EndOfGeneration
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#,
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":1}}}"#,

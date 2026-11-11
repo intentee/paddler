@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::jpeg_and_webp_image_fixtures::JPEG_AND_WEBP_IMAGE_FIXTURES;
+use paddler_tests::constants::JPEG_AND_WEBP_IMAGE_FIXTURES;
 use paddler_tests::single_image_question::SingleImageQuestion;
 use paddler_tests::start_cluster_with_smolvlm2_and_n_batch::start_cluster_with_smolvlm2_and_n_batch;
 
@@ -55,7 +55,7 @@ async fn agent_streams_tokens_for_a_causal_image_larger_than_n_batch() {
                 .summary()
                 .expect("the generation must report its summary")
                 .usage
-                .input_image_tokens
+                .input_image
                 > u64::from(N_BATCH_SMALLER_THAN_ONE_IMAGE)
         );
     }

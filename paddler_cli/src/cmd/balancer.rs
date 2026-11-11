@@ -1,4 +1,3 @@
-use std::io::stdout;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -8,7 +7,6 @@ use async_trait::async_trait;
 use clap::Parser;
 use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
 
 use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -18,11 +16,17 @@ use paddler_balancer::statsd_service::configuration::Configuration as StatsdServ
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
-use paddler_bootstrap::balancer_defaults::BalancerDefaults;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
-use paddler_bootstrap::run_service_manager::run_service_manager;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_INFERENCE_ITEM_TIMEOUT;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_INFERENCE_PORT;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_MANAGEMENT_PORT;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_MAX_BUFFERED_REQUESTS;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_STATSD_PREFIX;
+use paddler_bootstrap::constants::BALANCER_DEFAULT_STATSD_REPORTING_INTERVAL;
 use paddler_state_database::state_database_type::StateDatabaseType;
 
+use super::run_announced_service_manager::run_announced_service_manager;
 use super::value_parser::parse_duration::parse_duration;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
@@ -30,7 +34,7 @@ use super::value_parser::parse_socket_addr::parse_socket_addr;
 pub struct Balancer {
     #[arg(
         long,
-        default_value = BalancerDefaults::BUFFERED_REQUEST_TIMEOUT.as_millis().to_string(),
+        default_value = BALANCER_DEFAULT_BUFFERED_REQUEST_TIMEOUT.as_millis().to_string(),
         value_parser = parse_duration
     )]
     /// Specifies how long a request can stay in the buffer before it is processed.
@@ -47,7 +51,7 @@ pub struct Balancer {
 
     #[arg(
         long,
-        default_value = SocketAddr::from((Ipv4Addr::LOCALHOST, BalancerDefaults::INFERENCE_PORT)).to_string(),
+        default_value = SocketAddr::from((Ipv4Addr::LOCALHOST, BALANCER_DEFAULT_INFERENCE_PORT)).to_string(),
         value_parser = parse_socket_addr
     )]
     /// Address of the inference server
@@ -55,7 +59,7 @@ pub struct Balancer {
 
     #[arg(
         long,
-        default_value = BalancerDefaults::INFERENCE_ITEM_TIMEOUT.as_millis().to_string(),
+        default_value = BALANCER_DEFAULT_INFERENCE_ITEM_TIMEOUT.as_millis().to_string(),
         value_parser = parse_duration
     )]
     /// The timeout (in milliseconds) for generating a single token or a single embedding
@@ -70,7 +74,7 @@ pub struct Balancer {
 
     #[arg(
         long,
-        default_value = SocketAddr::from((Ipv4Addr::LOCALHOST, BalancerDefaults::MANAGEMENT_PORT)).to_string(),
+        default_value = SocketAddr::from((Ipv4Addr::LOCALHOST, BALANCER_DEFAULT_MANAGEMENT_PORT)).to_string(),
         value_parser = parse_socket_addr
     )]
     /// This is where you can manage your Paddler setup and the agents connect to
@@ -83,7 +87,7 @@ pub struct Balancer {
     /// Allowed CORS host for the management service (can be specified multiple times)
     management_cors_allowed_hosts: Vec<String>,
 
-    #[arg(long, default_value_t = BalancerDefaults::MAX_BUFFERED_REQUESTS)]
+    #[arg(long, default_value_t = BALANCER_DEFAULT_MAX_BUFFERED_REQUESTS)]
     /// The maximum number of buffered requests.
     /// If the buffer is full then new requests are rejected with the 503 error
     max_buffered_requests: u64,
@@ -96,13 +100,13 @@ pub struct Balancer {
     /// Address for the statsd server to report metrics to (enabled only if this address is specified)
     statsd_addr: Option<ResolvedSocketAddr>,
 
-    #[arg(long, default_value = BalancerDefaults::STATSD_PREFIX)]
+    #[arg(long, default_value = BALANCER_DEFAULT_STATSD_PREFIX)]
     /// Prefix for statsd metrics
     statsd_prefix: String,
 
     #[arg(
         long,
-        default_value = BalancerDefaults::STATSD_REPORTING_INTERVAL.as_millis().to_string(),
+        default_value = BALANCER_DEFAULT_STATSD_REPORTING_INTERVAL.as_millis().to_string(),
         value_parser = parse_duration
     )]
     /// Interval (in milliseconds) at which the balancer will report metrics to statsd
@@ -115,7 +119,7 @@ pub struct Balancer {
 }
 
 impl Balancer {
-    async fn run_balancer(self, shutdown: CancellationToken) -> Result<()> {
+    pub fn bootstrap_config(self) -> BalancerBootstrapConfig {
         let Self {
             buffered_request_timeout,
             compat_openai_addr,
@@ -134,7 +138,7 @@ impl Balancer {
             web_admin_panel_addr,
         } = self;
 
-        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
+        BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: inference_addr,
@@ -160,16 +164,17 @@ impl Balancer {
                 .map(|addr| CompatibilityServiceConfiguration { addr }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: web_admin_panel_addr.map(
-                |web_admin_panel_addr| WebAdminPanelServiceConfiguration {
-                    addr: web_admin_panel_addr.socket_addr,
+                |ResolvedSocketAddr { socket_addr, .. }| WebAdminPanelServiceConfiguration {
+                    addr: socket_addr,
                 },
             ),
-        })
-        .await?;
+        }
+    }
 
-        bundle.addresses.write_json_line(stdout().lock())?;
+    async fn run_balancer(self, shutdown: CancellationToken) -> Result<()> {
+        let bundle = BalancerServiceBundle::new(self.bootstrap_config()).await?;
 
-        run_service_manager(bundle, shutdown, ServiceShutdownOptions::default()).await
+        run_announced_service_manager(bundle.addresses, bundle, shutdown).await
     }
 }
 

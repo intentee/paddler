@@ -1,6 +1,5 @@
 [package]
 name = "paddler_bootstrap"
-autotests = false
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,10 +7,6 @@ description = "Starts and runs the Paddler balancer and agent services"
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
-
-[[test]]
-name = "integration"
-path = "tests/main.rs"
 
 [dependencies]
 actix-web = { workspace = true }
@@ -31,12 +26,7 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 
 [dev-dependencies]
-paddler_client = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
-reqwest = { workspace = true }
-serde_json = { workspace = true }
-tempfile = { workspace = true }
-url = { workspace = true }
 
 [lints]
 workspace = true

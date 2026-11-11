@@ -2,7 +2,7 @@ use reqwest::StatusCode;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_DECIDE;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
@@ -16,7 +16,7 @@ async fn decision_without_questions_is_rejected_with_bad_request() {
     let decide_url = cluster
         .balancer
         .inference_base_url
-        .join(ApiPath::DECIDE)
+        .join(API_PATH_DECIDE)
         .expect("the decide path must extend the inference address");
     let rejection = cluster
         .decide(

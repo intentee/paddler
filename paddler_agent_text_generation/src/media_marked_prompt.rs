@@ -3,8 +3,7 @@ use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
 use llama_cpp_bindings::mtmd::mtmd_input_text_part::MtmdInputTextPart;
 
-use paddler_messaging::media_marker::MediaMarker;
-
+use crate::media_marker::MediaMarker;
 use crate::text_generation_error::TextGenerationError;
 
 fn text_part<'bitmap>(text_segment: &str, parse_special: bool) -> MtmdInputPart<'bitmap> {
@@ -20,6 +19,9 @@ pub struct MediaMarkedPrompt<'prompt> {
 }
 
 impl MediaMarkedPrompt<'_> {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::RenderedMediaMarkersMismatchImages`] when the rendered prompt holds a different number of media markers than there are images.
     pub fn interleave_with<'bitmap>(
         &self,
         bitmaps: &'bitmap [MtmdBitmap],
@@ -39,7 +41,7 @@ impl MediaMarkedPrompt<'_> {
         }
 
         let mut remaining_bitmaps = bitmaps.iter().map(MtmdInputPart::Bitmap);
-        let mut parts = Vec::with_capacity(self.prompt_parts.len() + 2 * bitmaps.len());
+        let mut parts = Vec::new();
 
         for prompt_part in self.prompt_parts {
             let parse_special = matches!(prompt_part, ChatPromptPart::Template(_));
@@ -63,9 +65,8 @@ mod tests {
     use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
     use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
 
-    use paddler_messaging::media_marker::MediaMarker;
-
     use super::MediaMarkedPrompt;
+    use crate::media_marker::MediaMarker;
     use crate::text_generation_error::TextGenerationError;
 
     const MEDIA_MARKER: &str = "<__media_test__>";
@@ -74,17 +75,16 @@ mod tests {
         MtmdBitmap::from_image_data(2, 2, &[128; 2 * 2 * 3]).unwrap()
     }
 
-    fn part_shape(part: &MtmdInputPart<'_>) -> String {
+    fn part_placement(part: &MtmdInputPart<'_>) -> String {
         match part {
             MtmdInputPart::Bitmap(_) => "bitmap".to_owned(),
-            MtmdInputPart::Text(text_part) => {
-                format!("{:?} special={}", text_part.text, text_part.parse_special)
-            }
+            MtmdInputPart::Text(text_part) => format!("{:?}", text_part.text),
         }
     }
 
-    #[test]
-    fn places_each_image_where_its_marker_was_rendered_inside_user_input() {
+    fn inspect_interleaved_comparison_of_two_images<TInspection>(
+        inspect: impl FnOnce(&[MtmdInputPart<'_>]) -> TInspection,
+    ) -> TInspection {
         let media_marker = MediaMarker::new(MEDIA_MARKER.to_owned());
         let images = [image(), image()];
         let prompt_parts = [
@@ -93,25 +93,46 @@ mod tests {
             ChatPromptPart::Template("<|end|>".to_owned()),
         ];
 
-        assert_eq!(
-            MediaMarkedPrompt {
+        inspect(
+            &MediaMarkedPrompt {
                 media_marker: &media_marker,
                 prompt_parts: &prompt_parts,
             }
             .interleave_with(&images)
-            .unwrap()
-            .iter()
-            .map(part_shape)
-            .collect::<Vec<String>>(),
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn places_each_image_where_its_marker_was_rendered_inside_user_input() {
+        assert_eq!(
+            inspect_interleaved_comparison_of_two_images(|parts| parts
+                .iter()
+                .map(part_placement)
+                .collect::<Vec<String>>()),
             [
-                "\"<|user|>\" special=true",
-                "\"Compare \" special=false",
+                "\"<|user|>\"",
+                "\"Compare \"",
                 "bitmap",
-                "\" with \" special=false",
+                "\" with \"",
                 "bitmap",
-                "\"\" special=false",
-                "\"<|end|>\" special=true",
+                "\"\"",
+                "\"<|end|>\"",
             ]
+        );
+    }
+
+    #[test]
+    fn parses_special_tokens_only_in_template_parts() {
+        assert_eq!(
+            inspect_interleaved_comparison_of_two_images(|parts| parts
+                .iter()
+                .filter_map(|part| match part {
+                    MtmdInputPart::Bitmap(_) => None,
+                    MtmdInputPart::Text(text_part) => Some(text_part.parse_special),
+                })
+                .collect::<Vec<bool>>()),
+            [true, false, false, false, true]
         );
     }
 

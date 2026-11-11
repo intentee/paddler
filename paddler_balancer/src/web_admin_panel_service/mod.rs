@@ -1,6 +1,5 @@
 pub mod app_data;
 pub mod configuration;
-pub mod dashboard_assets_html;
 pub mod http_route;
 pub mod template_data;
 
@@ -12,8 +11,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
 use crate::http_listener::HttpListener;
-use crate::run_http_service::run_http_service;
-use crate::run_http_service_parameters::RunHttpServiceParameters;
+use crate::http_service_runner::HttpServiceRunner;
 use crate::web_admin_panel_service::app_data::AppData;
 use crate::web_admin_panel_service::http_route::favicon::favicon;
 use crate::web_admin_panel_service::http_route::home::home;
@@ -32,21 +30,19 @@ impl WebAdminPanelService {
             template_data: self.template_data,
         });
 
-        run_http_service(
-            shutdown,
-            RunHttpServiceParameters {
-                app_factory: move || {
-                    App::new()
-                        .app_data(app_data.clone())
-                        .configure(favicon)
-                        .configure(static_files)
-                        .configure(home)
-                },
-                http_listener: self.http_listener,
-                service_name,
-                worker_count: 2,
+        HttpServiceRunner {
+            app_factory: move || {
+                App::new()
+                    .app_data(app_data.clone())
+                    .configure(favicon)
+                    .configure(static_files)
+                    .configure(home)
             },
-        )
+            http_listener: self.http_listener,
+            service_name,
+            worker_count: 2,
+        }
+        .run(shutdown)
         .await
     }
 }
@@ -98,7 +94,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn run_serves_until_shutdown_is_requested() -> Result<()> {
+    async fn run_stops_cleanly_when_shutdown_is_requested() -> Result<()> {
         let service = Box::new(build_service());
         let shutdown = CancellationToken::new();
         let requested_shutdown = shutdown.clone();

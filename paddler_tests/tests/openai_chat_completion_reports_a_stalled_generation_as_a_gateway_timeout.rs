@@ -5,7 +5,7 @@ use std::time::Duration;
 use reqwest::StatusCode;
 use serde_json::Value;
 
-use paddler_balancer::compatibility::openai_service::openai_api_path::OpenAIApiPath;
+use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
@@ -28,7 +28,7 @@ async fn openai_chat_completion_reports_a_stalled_generation_as_a_gateway_timeou
     let response = minimal_openai_chat_completion(
         cluster
             .balancer
-            .compat_openai_url(OpenAIApiPath::CHAT_COMPLETIONS)
+            .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
             .expect("the balancer must serve the OpenAI compatibility service"),
     )
     .await

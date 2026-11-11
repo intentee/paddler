@@ -6,8 +6,8 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
-use crate::uncompilable_chat_template::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
-use crate::uncompilable_chat_template::UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE;
+use crate::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
+use crate::constants::UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE;
 
 #[must_use]
 pub fn uncompilable_chat_template_issue(model_path: &Path) -> AgentIssue {

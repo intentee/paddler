@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -27,7 +28,7 @@ async fn agent_generates_tokens_from_raw_prompt() {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(token_count > 0);

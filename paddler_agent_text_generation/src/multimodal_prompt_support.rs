@@ -19,6 +19,9 @@ pub struct MultimodalPromptSupport {
 }
 
 impl MultimodalPromptSupport {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::RenderedMediaMarkersMismatchImages`] when the prompt does not mark every image, [`TextGenerationError::MultimodalTokenizationFailed`] when the multimodal context cannot tokenize it, [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context, and [`TextGenerationError::MediaExceedsMicroBatch`] or [`TextGenerationError::MediaMicroBatchCheckFailed`] when its media chunks cannot be fitted into a micro batch.
     pub fn prepare_prompt(
         &self,
         bitmaps: &[MtmdBitmap],

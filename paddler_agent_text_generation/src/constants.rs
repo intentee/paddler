@@ -1,0 +1,1 @@
+pub const LAST_LOGITS_BATCH_POSITION: i32 = -1;

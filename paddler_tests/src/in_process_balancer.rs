@@ -27,13 +27,13 @@ impl InProcessBalancer {
 
 #[async_trait]
 impl ManagedProcess for InProcessBalancer {
+    async fn exited(&mut self) -> ProcessEnd {
+        self.wait_for_exit().await
+    }
+
     fn terminate(&mut self) -> Result<()> {
         self.runner.cancel();
 
         Ok(())
-    }
-
-    async fn exited(&mut self) -> ProcessEnd {
-        self.wait_for_exit().await
     }
 }

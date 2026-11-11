@@ -9,6 +9,9 @@ use crate::text_generation_error::TextGenerationError;
 
 const JSON_SCHEMA_GRAMMAR_ROOT: &str = "root";
 
+/// # Errors
+///
+/// Returns [`TextGenerationError::GrammarInvalid`] or [`TextGenerationError::GrammarSamplerInitializationFailed`] when a GBNF grammar is invalid or its sampler cannot start, [`TextGenerationError::GrammarConversionFailed`] when a JSON schema cannot be converted to a grammar, and [`TextGenerationError::GrammarSamplerInitializationFailed`] when the sampler of the converted grammar cannot start.
 pub fn resolve_grammar(
     grammar: Option<GrammarConstraint>,
     model: &LlamaModel,

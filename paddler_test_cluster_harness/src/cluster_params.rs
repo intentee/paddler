@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::agent_config::AgentConfig;
 use crate::cluster_desired_state::ClusterDesiredState;
-use crate::longer_than_any_test_run::LONGER_THAN_ANY_TEST_RUN;
+use crate::constants::LONGER_THAN_ANY_TEST_RUN;
 
 pub struct ClusterParams {
     pub agents: Vec<AgentConfig>,

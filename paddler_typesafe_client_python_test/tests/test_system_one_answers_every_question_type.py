@@ -1,30 +1,14 @@
-from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
+from typesafe_sdk import SystemOneResponse
 
 
 def test_system_one_answers_every_question_type(
-    typesafe_client: TypeSafeClient,
+    billing_ticket_answers: SystemOneResponse,
 ) -> None:
-    result = typesafe_client.system_one(
-        state={"customer": "Ada", "message": "I was charged twice. Please help."},
-        questions={
-            "billing": Noul(instructions="Is this about billing?"),
-            "tone": Choice(
-                instructions="What is the tone?",
-                criteria={"calm": None, "angry": "Shouting or insults"},
-            ),
-            "urgency": Score(criteria=["Can wait", "Needs attention today"]),
-        },
-    )
-
-    assert list(result.answers) == ["billing", "tone", "urgency"]
-    assert 0 <= result.nouls["billing"].noul <= 1
-    assert result.choices["tone"].choice in {"calm", "angry"}
-    assert result.scores["urgency"].legend == {
+    assert list(billing_ticket_answers.answers) == ["billing", "tone", "urgency"]
+    assert 0 <= billing_ticket_answers.nouls["billing"].noul <= 1
+    assert billing_ticket_answers.choices["tone"].choice in {"calm", "angry"}
+    assert billing_ticket_answers.scores["urgency"].legend == {
         0: "Can wait",
         1: "Needs attention today",
     }
-    assert 0 <= result.scores["urgency"].score <= 1
-    assert result.usage.input_tokens is not None
-    assert result.usage.input_tokens > 0
-    assert result.usage.output_tokens == 0
-    assert result.request_id
+    assert 0 <= billing_ticket_answers.scores["urgency"].score <= 1

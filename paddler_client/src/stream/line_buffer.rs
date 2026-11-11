@@ -1,6 +1,7 @@
+use bytes::Buf as _;
 use bytes::BytesMut;
 
-use crate::error::Result;
+use crate::result::Result;
 use crate::stream::decode_stream_line::decode_stream_line;
 
 pub struct LineBuffer {
@@ -20,9 +21,9 @@ impl LineBuffer {
 
     pub fn take_line(&mut self) -> Option<Result<String>> {
         let newline_position = self.bytes.iter().position(|byte| *byte == b'\n')?;
-        let mut line_bytes = self.bytes.split_to(newline_position + 1);
+        let line_bytes = self.bytes.split_to(newline_position);
 
-        line_bytes.truncate(newline_position);
+        self.bytes.advance(1);
 
         Some(decode_stream_line(line_bytes))
     }
@@ -51,14 +52,17 @@ mod tests {
     #[test]
     fn reassembles_a_multibyte_character_split_across_chunks() {
         let duck = "🦆";
-        let duck_bytes = duck.as_bytes();
+        let (duck_head, duck_tail) = duck
+            .as_bytes()
+            .split_at_checked(2)
+            .expect("the duck must span more than two bytes");
         let mut line_buffer = LineBuffer::new();
 
-        line_buffer.push_chunk(&duck_bytes[..2]);
+        line_buffer.push_chunk(duck_head);
 
         assert!(line_buffer.take_line().is_none());
 
-        line_buffer.push_chunk(&duck_bytes[2..]);
+        line_buffer.push_chunk(duck_tail);
         line_buffer.push_chunk(b"\n");
 
         assert_eq!(take_line(&mut line_buffer), duck);

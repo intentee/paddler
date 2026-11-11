@@ -11,19 +11,25 @@ pub struct SharedLlamaBackend {
 }
 
 impl SharedLlamaBackend {
+    /// # Errors
+    ///
+    /// Returns the [`LlamaCppError`] llama.cpp reports when the backend is not yet initialized and cannot be initialized.
     pub fn get_or_init(&self) -> Result<Arc<LlamaBackend>, LlamaCppError> {
         let mut llama_backend_state = self.llama_backend_state.lock();
-
-        match &*llama_backend_state {
-            LlamaBackendState::Initialized(llama_backend) => Ok(llama_backend.clone()),
+        let llama_backend = match &*llama_backend_state {
+            LlamaBackendState::Initialized(llama_backend) => llama_backend.clone(),
             LlamaBackendState::Uninitialized => {
                 let llama_backend = Arc::new(LlamaBackend::init()?);
 
                 *llama_backend_state = LlamaBackendState::Initialized(llama_backend.clone());
 
-                Ok(llama_backend)
+                llama_backend
             }
-        }
+        };
+
+        drop(llama_backend_state);
+
+        Ok(llama_backend)
     }
 }
 

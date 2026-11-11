@@ -6,6 +6,9 @@ use trzcina::ServiceShutdownOptions;
 
 use crate::registers_services::RegistersServices;
 
+/// # Errors
+///
+/// Fails when one of the registered services stops with an error, panics, or does not stop before the shutdown deadline.
 pub async fn run_service_manager<TServices: RegistersServices>(
     services: TServices,
     task_shutdown: CancellationToken,

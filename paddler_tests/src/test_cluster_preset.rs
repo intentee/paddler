@@ -19,6 +19,9 @@ pub enum TestClusterPreset {
 }
 
 impl TestClusterPreset {
+    /// # Errors
+    ///
+    /// Returns the [`ModelSourceError`] of [`DecisionClusterParams::into_cluster_params`](crate::decision_cluster_params::DecisionClusterParams::into_cluster_params) when the kev preset names a path that cannot be served.
     pub fn cluster_params(self) -> Result<ClusterParams, ModelSourceError> {
         match self {
             Self::Kev0_8b => KevCheckpoint::Kev0_8b

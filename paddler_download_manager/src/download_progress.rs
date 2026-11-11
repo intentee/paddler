@@ -1,7 +1,7 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DownloadProgress {
     ChunkWritten {
-        byte_count: u64,
+        downloaded_bytes: u64,
     },
     Finished,
     Started {

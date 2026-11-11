@@ -66,10 +66,6 @@ impl PipelineArbiter {
         }
     }
 
-    pub async fn next_finished_startup(&mut self) -> ServingStartupProgress {
-        self.serving_startup.next_progress().await
-    }
-
     pub fn conclude(&mut self, serving_startup_progress: ServingStartupProgress) {
         match serving_startup_progress {
             ServingStartupProgress::Prepared(preparation_outcome) => {
@@ -86,6 +82,10 @@ impl PipelineArbiter {
             self.inference_runtime_context.agent_name.as_deref(),
             request,
         );
+    }
+
+    pub async fn next_finished_startup(&mut self) -> ServingStartupProgress {
+        self.serving_startup.next_progress().await
     }
 
     pub async fn shut_down(self) {

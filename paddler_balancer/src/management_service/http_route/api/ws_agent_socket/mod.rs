@@ -2,6 +2,7 @@ mod agent_socket_controller_context;
 mod agent_socket_registration;
 
 use std::future::Future;
+use std::future::Ready;
 use std::future::ready;
 use std::sync::Arc;
 
@@ -27,9 +28,8 @@ use paddler_messaging::management_socket::balancer::message::Message as Manageme
 
 use self::agent_socket_controller_context::AgentSocketControllerContext;
 use self::agent_socket_registration::AgentSocketRegistration;
-use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_id_path_params::AgentIdPathParams;
-use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::constants::AGENT_ID_ROUTE_SEGMENT;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
@@ -38,25 +38,24 @@ use crate::websocket_close_cause::WebSocketCloseCause;
 use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 use crate::websocket_session_controller::WebSocketSessionController;
 
-async fn respond(
+fn respond(
     app_data: Data<AppData>,
     path_params: Path<AgentIdPathParams>,
     payload: Payload,
     req: HttpRequest,
-) -> Result<HttpResponse, Error> {
+) -> Ready<Result<HttpResponse, Error>> {
+    let shutdown = app_data.shutdown.clone();
     let agent_socket_controller = AgentSocketController {
-        agent_controller_pool: app_data.agent_controller_pool.clone(),
-        agent_id: path_params.agent_id.clone(),
-        balancer_applicable_state_holder: app_data.balancer_applicable_state_holder.clone(),
+        agent_id: path_params.into_inner().agent_id,
+        app_data,
     };
 
-    agent_socket_controller.respond(payload, req, app_data.shutdown.clone())
+    ready(agent_socket_controller.respond(payload, req, shutdown))
 }
 
 struct AgentSocketController {
-    agent_controller_pool: Arc<AgentControllerPool>,
     agent_id: String,
-    balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    app_data: Data<AppData>,
 }
 
 impl ControlsWebSocketEndpoint for AgentSocketController {
@@ -66,9 +65,12 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
 
     fn create_context(&self) -> Self::Context {
         AgentSocketControllerContext {
-            agent_controller_pool: self.agent_controller_pool.clone(),
+            agent_controller_pool: self.app_data.agent_controller_pool.clone(),
             agent_id: self.agent_id.clone(),
-            balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
+            balancer_applicable_state_holder: self
+                .app_data
+                .balancer_applicable_state_holder
+                .clone(),
             registration: RwLock::new(AgentSocketRegistration::AwaitingRegistration),
         }
     }
@@ -113,7 +115,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
 
 pub fn ws_agent_socket(cfg: &mut ServiceConfig) {
     cfg.route(
-        &ApiPath::agent_socket(AgentIdPathParams::ROUTE_SEGMENT),
+        &ApiPath::agent_socket(AGENT_ID_ROUTE_SEGMENT),
         get().to(respond),
     );
 }

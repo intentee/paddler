@@ -10,9 +10,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
-
-use crate::decode_prompt_for_sampling::decode_prompt_for_sampling;
-use crate::ready_to_sample_request::ReadyToSampleRequest;
+use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
 
 const PROMPT: &str = "Paddler balances";
 
@@ -26,13 +24,15 @@ fn a_sampler_chain_that_selects_no_candidate_ends_the_generation() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT);
+    let prompt_sampling_positions = runtime
+        .decode_prompt_for_sampling(&mut llama_context, PROMPT)
+        .expect("the prompt must decode");
 
     assert_eq!(
         ReadyToSampleRequest {
-            batch_position,
             llama_context: &llama_context,
             prompt: PROMPT,
+            prompt_sampling_positions,
             runtime: &runtime,
         }
         .advance(|prepared_request| PreparedGenerationRequest {
@@ -41,7 +41,8 @@ fn a_sampler_chain_that_selects_no_candidate_ends_the_generation() {
                 grammar: GrammarSampling::Unconstrained,
             },
             ..prepared_request
-        }),
+        })
+        .expect("the request must be ready to sample"),
         ContinuousBatchTerminalOutcome::EmitToClient(
             GeneratedTokenResult::SamplingCandidatesExhausted(
                 "all token candidates were eliminated during sampling".to_owned()

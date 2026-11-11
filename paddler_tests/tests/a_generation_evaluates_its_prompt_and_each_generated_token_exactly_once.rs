@@ -13,12 +13,11 @@ use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchSc
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::generation_done_discriminant::generation_done_discriminant;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
-
-use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 const PROMPT: &str = "Paddler balances inference across agents, and";
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(8).unwrap();
@@ -38,7 +37,8 @@ fn a_generation_evaluates_its_prompt_and_each_generated_token_exactly_once() {
         llama_runtime: &runtime,
         sequence_context_size,
     }
-    .into_generation_request_preparer();
+    .into_generation_request_preparer()
+    .expect("the first message content chat template must be prepared");
     let prompt_tokens = request_preparer
         .prompt_tokenizer
         .tokenize(PROMPT)

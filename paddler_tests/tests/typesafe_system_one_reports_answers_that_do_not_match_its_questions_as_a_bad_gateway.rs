@@ -13,9 +13,8 @@ use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnap
 use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
 
 const DECISION_SLOTS: u16 = 2;
 

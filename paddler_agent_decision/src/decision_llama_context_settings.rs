@@ -13,6 +13,9 @@ pub struct DecisionLlamaContextSettings<'parameters> {
 }
 
 impl DecisionLlamaContextSettings<'_> {
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::AgentRuntime`] when a decisions context already occupies the VRAM or llama.cpp cannot create the context.
     pub fn create_llama_context<'model>(
         self,
         loaded_llama_model: &'model LoadedLlamaModel,

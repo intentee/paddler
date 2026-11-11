@@ -46,6 +46,24 @@ pub enum DownloadError {
     #[error("server rejected request to URL '{url}' with status {status}")]
     DownloadServerRejectedRequest { url: String, status: StatusCode },
 
+    #[error(
+        "URL '{url}' declared a content length of {content_length} bytes, which overflows the total size when added to the {already_downloaded_bytes} bytes already downloaded"
+    )]
+    DeclaredContentLengthOverflowsTotalSize {
+        url: String,
+        already_downloaded_bytes: u64,
+        content_length: u64,
+    },
+
+    #[error(
+        "URL '{url}' sent a chunk of {chunk_byte_count} bytes, which overflows the largest file size after the {downloaded_bytes} bytes already downloaded"
+    )]
+    DownloadedBytesOverflowTheLargestFileSize {
+        url: String,
+        downloaded_bytes: u64,
+        chunk_byte_count: u64,
+    },
+
     #[error("download interrupted while downloading URL '{url}': {source}")]
     DownloadInterrupted {
         url: String,

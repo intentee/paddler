@@ -10,8 +10,6 @@ mod agent_exits_with_failure_when_it_cannot_set_up_its_model_downloader;
 mod agent_reconnects_to_its_balancer_after_the_balancer_is_killed;
 mod agent_reconnects_to_its_balancer_after_the_balancer_restarts;
 mod agent_shuts_down_cleanly_while_its_balancer_is_unresponsive;
-#[cfg(test)]
-mod agent_socket_of_a_vanished_balancer;
 mod an_agent_reconnects_when_the_balancer_stops_answering_pings;
 #[cfg(target_os = "linux")]
 mod an_http_service_reports_a_listener_it_cannot_make_nonblocking;
@@ -36,13 +34,6 @@ mod balancer_spreads_an_embedding_burst_across_every_agent;
 #[cfg(feature = "web_admin_panel")]
 mod balancer_web_admin_panel_shows_its_command_line_configuration;
 mod balancer_without_compatibility_flags_announces_no_compatibility_addresses;
-#[cfg(test)]
-mod cluster_with_a_missing_agent_binary;
-#[cfg(test)]
-mod ephemeral_balancer_arguments;
-#[cfg(target_os = "linux")]
-#[cfg(test)]
-mod generation_preparation_without_memory_for_the_penalty_window;
 mod http_client_reports_a_balancer_killed_before_responding_as_a_failed_request;
 #[cfg(target_os = "linux")]
 mod http_listener_reports_a_bound_address_it_cannot_read;
@@ -61,15 +52,11 @@ mod pausable_agent_cluster_reports_a_binary_that_cannot_be_spawned;
 mod pausable_agent_cluster_reports_an_agent_that_exits_before_it_is_ready;
 mod pausable_agent_reports_a_binary_that_cannot_be_spawned;
 mod raw_inference_socket_waiting_for_an_answer_reports_a_balancer_that_vanished;
-#[cfg(test)]
-mod refused_syscall;
-#[cfg(test)]
-mod refused_syscalls;
-#[cfg(test)]
-mod running_balancer_subprocess;
 mod signalling_a_subprocess_refuses_one_already_reaped;
-#[cfg(test)]
-mod slots_beyond_what_llama_cpp_can_serve;
+#[cfg(target_os = "linux")]
+mod singleton_exits_with_failure_when_it_cannot_set_up_its_model_downloader;
+mod singleton_exits_with_failure_when_its_management_address_is_taken;
+mod singleton_generates_tokens_with_its_own_agent;
 mod spawned_balancer_reports_a_subprocess_it_cannot_signal;
 mod spawned_balancer_reports_an_announcement_that_is_not_its_addresses;
 mod spawned_balancer_reports_an_exit_it_cannot_observe;
@@ -83,8 +70,6 @@ mod subprocess_cluster_reports_an_additional_agent_binary_that_cannot_be_spawned
 mod subprocess_cluster_reports_an_agent_binary_that_cannot_be_spawned;
 mod subprocess_cluster_reports_an_agent_that_exits_before_it_is_ready;
 mod subprocess_cluster_shutdown_reports_an_agent_that_exited_with_a_failure;
-#[cfg(test)]
-mod subprocess_cluster_with_a_serving_and_a_stuck_agent;
 mod subprocess_exit_reaped_elsewhere_is_reported_as_unobservable;
 mod subprocess_shutdown_reports_a_failed_exit;
 #[cfg(target_os = "linux")]

@@ -9,6 +9,9 @@ pub struct SamplerChainFactory {
 }
 
 impl SamplerChainFactory {
+    /// # Errors
+    ///
+    /// Returns the [`SamplingError`] llama.cpp reports when a sampler of the chain, or the chain itself, cannot be created.
     pub fn create(&self, seed: u32) -> Result<LlamaSampler, SamplingError> {
         let sampling_parameters = &self.sampling_parameters;
         let samplers = [

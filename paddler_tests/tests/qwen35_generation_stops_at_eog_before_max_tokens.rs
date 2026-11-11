@@ -4,12 +4,10 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::conversation_history::ConversationHistory;
-use paddler_messaging::conversation_message::ConversationMessage;
-use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generation_finish::GenerationFinish;
-use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::greeting_conversation::greeting_conversation;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -21,20 +19,7 @@ async fn qwen35_generation_stops_at_eog_before_max_tokens() {
     let collected = cluster
         .continue_from_conversation_history(
             CancellationToken::new(),
-            &ContinueFromConversationHistoryParams {
-                add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![
-                    ConversationMessage::Message {
-                        content: ConversationMessageContent::Text("hi".to_owned()),
-                        role: "user".to_owned(),
-                    },
-                ]),
-                enable_thinking: false,
-                grammar: None,
-                max_tokens: NonZeroU32::new(500).unwrap(),
-                parse_tool_calls: false,
-                tools: vec![],
-            },
+            &greeting_conversation(NonZeroU32::new(500).unwrap()),
         )
         .await
         .expect("the inference request must be accepted");
@@ -42,7 +27,7 @@ async fn qwen35_generation_stops_at_eog_before_max_tokens() {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.token_result.is_token())
+        .filter(|TokenResultWithProducer { token_result, .. }| token_result.is_token())
         .count();
 
     assert!(token_count > 0);

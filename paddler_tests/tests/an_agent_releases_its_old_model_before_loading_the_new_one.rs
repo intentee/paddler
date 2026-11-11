@@ -2,6 +2,8 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
@@ -33,17 +35,15 @@ async fn an_agent_releases_its_old_model_before_loading_the_new_one() {
         .expect("the balancer must accept the desired state");
     cluster
         .agents_watcher
-        .until_agent(&agent_id, |snapshot| {
-            snapshot
-                .agents
+        .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+            agents
                 .iter()
-                .filter(|registered_agent| registered_agent.id == agent_id)
-                .any(|registered_agent| {
-                    observed_the_old_model_released |= registered_agent.status.runtime
-                        == AgentRuntimeStatus::Idle
-                        && registered_agent.status.model_path.is_none();
+                .filter(|AgentControllerSnapshot { id, .. }| *id == agent_id)
+                .any(|AgentControllerSnapshot { status, .. }| {
+                    observed_the_old_model_released |=
+                        status.runtime == AgentRuntimeStatus::Idle && status.model_path.is_none();
 
-                    registered_agent.status.model_path.as_deref() == Some(new_model_path.as_str())
+                    status.model_path.as_deref() == Some(new_model_path.as_str())
                 })
         })
         .await

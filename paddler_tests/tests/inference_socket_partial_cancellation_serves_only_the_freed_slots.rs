@@ -5,6 +5,7 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
@@ -24,6 +25,22 @@ fn waiting_prompt() -> ContinueFromRawPromptParams {
         grammar: None,
         max_tokens: WAITING_MAX_TOKENS,
         raw_prompt: "The capital of France is".to_owned(),
+    }
+}
+
+async fn cancel_and_await_their_end(
+    slot_filling_tokens: &[CancellationToken],
+    slot_filling_streams: &mut [InferenceMessageStream],
+) {
+    for slot_filling_token in slot_filling_tokens {
+        slot_filling_token.cancel();
+    }
+
+    for slot_filling_stream in slot_filling_streams {
+        assert!(
+            slot_filling_stream.next().await.is_none(),
+            "a cancelled request must end its stream"
+        );
     }
 }
 
@@ -88,19 +105,14 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
         .await
         .expect("the balancer must reach the expected buffered request count");
 
-    for slot_filling_token in slot_filling_tokens.iter().take(CANCELLED_REQUEST_COUNT) {
-        slot_filling_token.cancel();
-    }
+    let (cancelled_tokens, remaining_tokens) = slot_filling_tokens
+        .split_at_checked(CANCELLED_REQUEST_COUNT)
+        .expect("the slot-filling requests must include the cancelled ones");
+    let (cancelled_streams, remaining_streams) = slot_filling_streams
+        .split_at_mut_checked(CANCELLED_REQUEST_COUNT)
+        .expect("the slot-filling streams must include the cancelled ones");
 
-    for slot_filling_stream in slot_filling_streams
-        .iter_mut()
-        .take(CANCELLED_REQUEST_COUNT)
-    {
-        assert!(
-            slot_filling_stream.next().await.is_none(),
-            "a cancelled request must end its stream"
-        );
-    }
+    cancel_and_await_their_end(cancelled_tokens, cancelled_streams).await;
 
     for waiting_stream in waiting_streams {
         let collected = collect_generated_tokens(waiting_stream)
@@ -131,19 +143,7 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
         .await
         .expect("the agent must reach the expected slot usage");
 
-    for slot_filling_token in slot_filling_tokens.iter().skip(CANCELLED_REQUEST_COUNT) {
-        slot_filling_token.cancel();
-    }
-
-    for slot_filling_stream in slot_filling_streams
-        .iter_mut()
-        .skip(CANCELLED_REQUEST_COUNT)
-    {
-        assert!(
-            slot_filling_stream.next().await.is_none(),
-            "a cancelled request must end its stream"
-        );
-    }
+    cancel_and_await_their_end(remaining_tokens, remaining_streams).await;
 
     cluster
         .wait_for_slots_processing(&agent_id, 0)

@@ -10,13 +10,12 @@ use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const SLOTS: u16 = 2;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_serves_decisions_with_a_batch_too_small_to_warm_up_every_slot() {
-    let cluster = start_decision_cluster(DecisionClusterParams {
+    let cluster = DecisionClusterParams {
         agents: vec![AgentConfig::single(SLOTS)],
         desired_state: DecisionDesiredState {
             n_batch: BatchSize::try_from(u32::from(SLOTS))
@@ -24,7 +23,8 @@ async fn agent_serves_decisions_with_a_batch_too_small_to_warm_up_every_slot() {
             ..DecisionDesiredState::default()
         },
         ..DecisionClusterParams::default()
-    })
+    }
+    .start_cluster()
     .await
     .expect("the cluster must start");
 

@@ -36,7 +36,10 @@ async fn agent_l2_normalized_embeddings_have_unit_norm() {
     assert_eq!(collected.embeddings.len(), 1);
     assert!(collected.saw_done);
 
-    let produced = &collected.embeddings[0];
+    let produced = collected
+        .embeddings
+        .first()
+        .expect("the batch must produce an embedding");
 
     assert_eq!(
         produced.embedding.normalization_method,
@@ -45,7 +48,7 @@ async fn agent_l2_normalized_embeddings_have_unit_norm() {
 
     let l2_norm: f32 = produced
         .embedding
-        .embedding
+        .vector
         .iter()
         .map(|value| value * value)
         .sum::<f32>()

@@ -14,11 +14,10 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
 use paddler_tests::conversation_generation::ConversationGeneration;
 use paddler_tests::first_byte_of_the_first_message_chat_template::first_byte_of_the_first_message_chat_template;
 use paddler_tests::llama_runtime::LlamaRuntime;
-
-use crate::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
 
 const MESSAGE_STARTING_WITH_A_TWO_BYTE_CHARACTER: &str = "é";
 
@@ -74,7 +73,11 @@ fn a_conversation_whose_template_renders_invalid_utf8_cannot_be_tokenized() {
             TextGenerationError::ChatPromptTokenizationFailed(
                 ChatSessionError::SessionTextNotUtf8(
                     String::from_utf8(
-                        MESSAGE_STARTING_WITH_A_TWO_BYTE_CHARACTER.as_bytes()[..1].to_vec()
+                        MESSAGE_STARTING_WITH_A_TWO_BYTE_CHARACTER
+                            .as_bytes()
+                            .first_chunk::<1>()
+                            .expect("the message must start with a byte")
+                            .to_vec()
                     )
                     .expect_err("the first byte of a two byte character is not UTF-8")
                     .utf8_error()

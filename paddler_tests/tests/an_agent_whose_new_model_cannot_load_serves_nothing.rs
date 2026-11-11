@@ -5,6 +5,8 @@ use std::io::Write as _;
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
@@ -60,12 +62,14 @@ async fn an_agent_whose_new_model_cannot_load_serves_nothing() {
         .expect("the agent must report that the new model cannot be loaded");
     cluster
         .agents_watcher
-        .until_agent(&agent_id, |snapshot| {
-            snapshot.agents.iter().any(|registered_agent| {
-                registered_agent.id == agent_id
-                    && registered_agent.status.runtime == AgentRuntimeStatus::Idle
-                    && registered_agent.status.model_path.is_none()
-            })
+        .until_agent(&agent_id, |AgentControllerPoolSnapshot { agents }| {
+            agents
+                .iter()
+                .any(|AgentControllerSnapshot { id, status, .. }| {
+                    *id == agent_id
+                        && status.runtime == AgentRuntimeStatus::Idle
+                        && status.model_path.is_none()
+                })
         })
         .await
         .expect("the agent must serve nothing once the old model was released");

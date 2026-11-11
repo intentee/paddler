@@ -67,6 +67,16 @@ mod tests {
     use crate::controls_session::ControlsSession as _;
     use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 
+    fn request_rejection() -> OutgoingMessage {
+        OutgoingMessage::Error(ErrorEnvelope {
+            request_id: "request".to_owned(),
+            error: JsonRpcError {
+                code: 400,
+                description: "rejected".to_owned(),
+            },
+        })
+    }
+
     struct MessageThatCannotSerialize;
 
     impl Serialize for MessageThatCannotSerialize {
@@ -84,16 +94,6 @@ mod tests {
     }
 
     impl RpcMessage for MessageThatCannotSerialize {}
-
-    fn request_rejection() -> OutgoingMessage {
-        OutgoingMessage::Error(ErrorEnvelope {
-            request_id: "request".to_owned(),
-            error: JsonRpcError {
-                code: 400,
-                description: "rejected".to_owned(),
-            },
-        })
-    }
 
     #[tokio::test]
     async fn a_response_for_a_writer_that_stopped_is_reported_as_undelivered() {

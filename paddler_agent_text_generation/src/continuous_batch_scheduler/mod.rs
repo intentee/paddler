@@ -1,8 +1,6 @@
 pub mod advance_generating_phase;
 pub mod advance_outcome;
-pub mod assemble_batch_phase;
 pub mod batch_pass;
-pub mod classified_token;
 pub mod commit_phase;
 pub mod completion_check_outcome;
 pub mod completion_check_phase;
@@ -10,10 +8,9 @@ pub mod contributions;
 pub mod decode_failure_phase;
 pub mod emit_token_outcome;
 pub mod emit_token_phase;
-pub mod generating_contribution;
-pub mod ingesting_contribution;
 pub mod sequence_ordered_insertion_index;
 
+use std::mem::take;
 use std::slice;
 
 use llama_cpp_bindings::batch_add_error::BatchAddError;
@@ -35,11 +32,11 @@ use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
-use self::assemble_batch_phase::AssembleBatchPhase;
 use self::batch_pass::BatchPass;
 use self::commit_phase::CommitPhase;
 use self::decode_failure_phase::DecodeFailurePhase;
 use self::sequence_ordered_insertion_index::sequence_ordered_insertion_index;
+use crate::classified_token_usage::ClassifiedTokenUsage;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
@@ -112,8 +109,8 @@ impl<'model> ContinuousBatchScheduler<'model> {
             }
         }
 
-        while !self.active_requests.is_empty() {
-            self.cleanup_completed_request(0);
+        for active_request in take(&mut self.active_requests) {
+            self.cleanup_completed_request(active_request);
         }
 
         self.scheduler_inbox
@@ -123,18 +120,6 @@ impl<'model> ContinuousBatchScheduler<'model> {
             "{:?}: continuous batch scheduler stopped",
             self.scheduler_context.agent_name
         );
-    }
-
-    fn wait_for_next_scheduler_message(&mut self) {
-        if let Some(request) = self.scheduler_inbox.wait_for_next_command() {
-            self.accept_generation_request(request);
-        }
-    }
-
-    fn accept_new_scheduler_messages(&mut self) {
-        while let Some(request) = self.scheduler_inbox.take_next_waiting_command() {
-            self.accept_generation_request(request);
-        }
     }
 
     fn accept_generation_request(&mut self, request: PreparedGenerationRequest) {
@@ -149,9 +134,11 @@ impl<'model> ContinuousBatchScheduler<'model> {
                 );
 
                 let insertion_index = sequence_ordered_insertion_index(
-                    self.active_requests
-                        .iter()
-                        .map(|request| request.sequence_id_guard.sequence_id()),
+                    self.active_requests.iter().map(
+                        |ContinuousBatchActiveRequest {
+                             sequence_id_guard, ..
+                         }| sequence_id_guard.sequence_id(),
+                    ),
                     active_request.sequence_id_guard.sequence_id(),
                 );
 
@@ -163,6 +150,12 @@ impl<'model> ContinuousBatchScheduler<'model> {
                     &generated_tokens_tx,
                 );
             }
+        }
+    }
+
+    fn accept_new_scheduler_messages(&mut self) {
+        while let Some(request) = self.scheduler_inbox.take_next_waiting_command() {
+            self.accept_generation_request(request);
         }
     }
 
@@ -195,19 +188,20 @@ impl<'model> ContinuousBatchScheduler<'model> {
             last_outcome_section: token_classifier.current_section(),
             max_tokens,
             phase: ContinuousBatchRequestPhase::IngestingText,
-            prompt_tokens: Vec::new(),
-            prompt_tokens_ingested: 0,
             sampled_tokens: 0,
+            unread_prompt_tokens: Vec::new().into_iter(),
         };
 
         match prompt {
-            PreparedPrompt::TextTokens(prompt_tokens) => state.prompt_tokens = prompt_tokens,
+            PreparedPrompt::TextTokens(prompt_tokens) => {
+                state.unread_prompt_tokens = prompt_tokens.into_iter();
+            }
             PreparedPrompt::Multimodal(ingestion) => {
                 state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(ingestion);
             }
         }
 
-        token_classifier.record_prompt_tokens(state.prompt_tokens.len() as u64);
+        token_classifier.record_prompt_tokens(state.unread_prompt_tokens.len() as u64);
 
         Ok(ContinuousBatchActiveRequest {
             state,
@@ -219,6 +213,116 @@ impl<'model> ContinuousBatchScheduler<'model> {
             slot_guard,
             tool_call_handling,
         })
+    }
+
+    fn advance_generating_requests(&mut self) {
+        AdvanceGeneratingPhase {
+            candidates: &mut self.candidates,
+            ingest_outcomes: &mut self.ingest_outcomes,
+            llama_context: &self.llama_context,
+            scheduler_context: &self.scheduler_context,
+        }
+        .run(&mut self.active_requests);
+    }
+
+    fn check_stop_signals(&mut self) {
+        for active_request in &mut self.active_requests {
+            if matches!(
+                active_request.state.phase,
+                ContinuousBatchRequestPhase::Completed(_)
+            ) {
+                continue;
+            }
+
+            if active_request.generate_tokens_stop_rx.is_stop_requested() {
+                let summary = GenerationSummary {
+                    finish: GenerationFinish::StopRequested,
+                    usage: ClassifiedTokenUsage(active_request.token_classifier.usage())
+                        .to_token_usage(),
+                };
+
+                active_request.complete_with_outcome(GeneratedTokenResult::Done(summary));
+            }
+        }
+    }
+
+    fn cleanup_completed_request(&mut self, removed_request: ContinuousBatchActiveRequest<'model>) {
+        let sequence_id = removed_request.sequence_id_guard.sequence_id();
+        let usage = *removed_request.token_classifier.usage();
+        let terminal_delivery = removed_request.into_terminal_delivery();
+
+        sequence_id.release_kv_cache_in(
+            &mut self.llama_context,
+            self.scheduler_context.agent_name.as_deref(),
+        );
+
+        debug!(
+            "{:?}: cleaned up sequence {sequence_id:?} ({} completion tokens generated)",
+            self.scheduler_context.agent_name,
+            usage.completion_tokens(),
+        );
+
+        terminal_delivery.deliver(self.scheduler_context.agent_name.as_deref());
+    }
+
+    fn execute_one_iteration(&mut self) -> Result<(), BatchAddError> {
+        self.advance_generating_requests();
+        self.ingest_next_multimodal_chunks();
+
+        let mut pass = BatchPass::new(&mut self.batch);
+
+        pass.assemble(&self.active_requests)?;
+
+        if pass.is_empty() {
+            return Ok(());
+        }
+
+        debug!(
+            "{:?}: decoding batch with {} tokens for {} active requests",
+            self.scheduler_context.agent_name,
+            pass.batch.n_tokens(),
+            self.active_requests.len()
+        );
+
+        match self.llama_context.decode(pass.batch) {
+            Ok(()) => {
+                CommitPhase {
+                    requests: &mut self.active_requests,
+                }
+                .run(pass);
+            }
+            Err(decode_error) => {
+                let description = format!(
+                    "{:?}: llama.cpp rejected the batch: {decode_error}",
+                    self.scheduler_context.agent_name
+                );
+
+                error!("{description}");
+                DecodeFailurePhase {
+                    requests: &mut self.active_requests,
+                }
+                .run(pass, &description);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn fail_unfinished_requests(&mut self, rejection: TextGenerationError) {
+        let outcome =
+            rejection.into_generated_token_result(self.scheduler_context.agent_name.as_deref());
+
+        for active_request in &mut self.active_requests {
+            active_request.complete_with_outcome(outcome.clone());
+        }
+    }
+
+    fn has_active_requests(&self) -> bool {
+        self.active_requests
+            .iter()
+            .any(|ContinuousBatchActiveRequest { state, .. }| {
+                !matches!(state.phase, ContinuousBatchRequestPhase::Completed(_))
+            })
     }
 
     fn ingest_next_multimodal_chunks(&mut self) {
@@ -265,129 +369,22 @@ impl<'model> ContinuousBatchScheduler<'model> {
         }
     }
 
-    fn check_stop_signals(&mut self) {
-        for active_request in &mut self.active_requests {
-            if matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Completed(_)
-            ) {
-                continue;
-            }
-
-            if active_request.generate_tokens_stop_rx.is_stop_requested() {
-                let summary = GenerationSummary {
-                    finish: GenerationFinish::StopRequested,
-                    usage: *active_request.token_classifier.usage(),
-                };
-
-                active_request.complete_with_outcome(GeneratedTokenResult::Done(summary));
-            }
-        }
-    }
-
-    fn has_active_requests(&self) -> bool {
-        self.active_requests.iter().any(|request| {
-            !matches!(
-                request.state.phase,
-                ContinuousBatchRequestPhase::Completed(_)
-            )
-        })
-    }
-
-    fn fail_unfinished_requests(&mut self, rejection: TextGenerationError) {
-        let outcome =
-            rejection.into_generated_token_result(self.scheduler_context.agent_name.as_deref());
-
-        for active_request in &mut self.active_requests {
-            active_request.complete_with_outcome(outcome.clone());
-        }
-    }
-
-    fn execute_one_iteration(&mut self) -> Result<(), BatchAddError> {
-        self.advance_generating_requests();
-        self.ingest_next_multimodal_chunks();
-
-        let mut pass = BatchPass::new(&mut self.batch);
-
-        AssembleBatchPhase::run(&mut pass, &mut self.active_requests)?;
-
-        if pass.is_empty() {
-            return Ok(());
-        }
-
-        debug!(
-            "{:?}: decoding batch with {} tokens for {} active requests",
-            self.scheduler_context.agent_name,
-            pass.batch.n_tokens(),
-            self.active_requests.len()
-        );
-
-        match self.llama_context.decode(pass.batch) {
-            Ok(()) => {
-                CommitPhase {
-                    requests: &mut self.active_requests,
-                }
-                .run(pass);
-            }
-            Err(decode_error) => {
-                let description = format!(
-                    "{:?}: llama.cpp rejected the batch: {decode_error}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{description}");
-                DecodeFailurePhase {
-                    requests: &mut self.active_requests,
-                }
-                .run(pass, &description);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn advance_generating_requests(&mut self) {
-        AdvanceGeneratingPhase {
-            candidates: &mut self.candidates,
-            ingest_outcomes: &mut self.ingest_outcomes,
-            llama_context: &self.llama_context,
-            scheduler_context: &self.scheduler_context,
-        }
-        .run(&mut self.active_requests);
-    }
-
     fn remove_completed_requests(&mut self) {
-        let mut removal_index = 0;
+        let completed_requests: Vec<ContinuousBatchActiveRequest<'model>> = self
+            .active_requests
+            .extract_if(.., |ContinuousBatchActiveRequest { state, .. }| {
+                matches!(state.phase, ContinuousBatchRequestPhase::Completed(_))
+            })
+            .collect();
 
-        while removal_index < self.active_requests.len() {
-            if matches!(
-                self.active_requests[removal_index].state.phase,
-                ContinuousBatchRequestPhase::Completed(_)
-            ) {
-                self.cleanup_completed_request(removal_index);
-            } else {
-                removal_index += 1;
-            }
+        for completed_request in completed_requests {
+            self.cleanup_completed_request(completed_request);
         }
     }
 
-    fn cleanup_completed_request(&mut self, index: usize) {
-        let removed_request = self.active_requests.remove(index);
-        let sequence_id = removed_request.sequence_id_guard.sequence_id();
-        let usage = *removed_request.token_classifier.usage();
-        let terminal_delivery = removed_request.into_terminal_delivery();
-
-        sequence_id.release_kv_cache_in(
-            &mut self.llama_context,
-            self.scheduler_context.agent_name.as_deref(),
-        );
-
-        debug!(
-            "{:?}: cleaned up sequence {sequence_id:?} ({} completion tokens generated)",
-            self.scheduler_context.agent_name,
-            usage.completion_tokens(),
-        );
-
-        terminal_delivery.deliver(self.scheduler_context.agent_name.as_deref());
+    fn wait_for_next_scheduler_message(&mut self) {
+        if let Some(request) = self.scheduler_inbox.wait_for_next_command() {
+            self.accept_generation_request(request);
+        }
     }
 }

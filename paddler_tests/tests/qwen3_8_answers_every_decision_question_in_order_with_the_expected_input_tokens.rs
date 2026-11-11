@@ -1,13 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_test_cluster_harness::constants::QWEN3_8_27B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_test_cluster_harness::model_card::qwen3_8_27b::qwen3_8_27b;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_8_27B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::decision_backbone::DecisionBackbone;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
-
-use crate::sample_decision_answers_check::SampleDecisionAnswersCheck;
+use paddler_tests::sample_decision_answers_check::SampleDecisionAnswersCheck;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_8_answers_every_decision_question_in_order_with_the_expected_input_tokens() {
@@ -23,6 +22,7 @@ async fn qwen3_8_answers_every_decision_question_in_order_with_the_expected_inpu
         .into_cluster_params()
         .expect("the synthetic pointer head path must be absolute"),
     }
-    .assert_for_the_sample_decision()
-    .await;
+    .ensure_for_the_sample_decision()
+    .await
+    .expect("the sample decision must be answered");
 }

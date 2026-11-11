@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use syn::parse_file;
 use syn::visit::Visit as _;
 
-use crate::test_only_attribute_counter::TestOnlyAttributeCounter;
+use paddler_tests::test_only_attribute_counter::TestOnlyAttributeCounter;
 
 #[test]
 fn production_sources_keep_test_code_in_inline_test_modules() {
@@ -46,7 +46,7 @@ fn production_sources_keep_test_code_in_inline_test_modules() {
                     .expect("a source file must parse"),
             );
 
-            test_only_attribute_counter.test_only_attributes > 0
+            !test_only_attribute_counter.test_only_attributes.is_empty()
         })
         .collect();
 

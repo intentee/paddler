@@ -12,9 +12,7 @@ use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
-
-use crate::with_nul_byte::with_nul_byte;
+use paddler_tests::with_nul_byte::with_nul_byte;
 
 struct DecisionRejectedForANulByte {
     decision: RawDecideParams,
@@ -23,24 +21,32 @@ struct DecisionRejectedForANulByte {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_input_with_a_nul_byte_is_rejected() {
-    let cluster = start_decision_cluster(DecisionClusterParams::default())
+    let cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let RawDecideParams { questions, state } = sample_decision();
     let mut nul_in_leading_instructions = questions.clone();
     let mut nul_in_last_option = questions.clone();
 
-    nul_in_leading_instructions[0].instructions =
-        with_nul_byte(&nul_in_leading_instructions[0].instructions);
+    let leading_question = nul_in_leading_instructions
+        .first_mut()
+        .expect("the sample decision has questions");
+
+    leading_question.instructions = with_nul_byte(&leading_question.instructions);
 
     let last_question = nul_in_last_option
         .last_mut()
         .expect("the sample decision has questions");
+    let last_option = last_question
+        .options
+        .first_mut()
+        .expect("the last question of the sample decision has options");
 
-    last_question.options[0] = with_nul_byte(&last_question.options[0]);
+    *last_option = with_nul_byte(last_option);
 
-    let leading_instructions_with_nul_byte = nul_in_leading_instructions[0].instructions.clone();
-    let last_option_with_nul_byte = last_question.options[0].clone();
+    let leading_instructions_with_nul_byte = leading_question.instructions.clone();
+    let last_option_with_nul_byte = last_option.clone();
 
     for DecisionRejectedForANulByte {
         decision,

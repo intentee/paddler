@@ -11,14 +11,14 @@ use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::admitted_decision::AdmittedDecision;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
-
-use crate::kev_decision_model::KevDecisionModel;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 
 const DECISION_SEQUENCES: u16 = 2;
 
 #[test]
 fn a_decision_running_when_the_agent_shuts_down_is_refused_as_unavailable() {
-    let kev_decision_model = KevDecisionModel::load(DECISION_SEQUENCES);
+    let kev_decision_model =
+        KevDecisionModel::load(DECISION_SEQUENCES).expect("the kev decision model must load");
     let capacity_ledger = DecisionCapacityLedger::new(DECISION_SEQUENCES);
     let layout = kev_decision_model.two_option_question_layout("question");
     let AdmittedDecision {
@@ -40,14 +40,16 @@ fn a_decision_running_when_the_agent_shuts_down_is_refused_as_unavailable() {
 
     agent_shutdown.cancel();
 
-    kev_decision_model.run_scheduler(DecisionSchedulerRun {
-        active_requests: VecDeque::from([active_decision_request]),
-        agent_shutdown,
-        capacity_ledger,
-        pending_requests: VecDeque::new(),
-        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-        sequences: DECISION_SEQUENCES,
-    });
+    kev_decision_model
+        .run_scheduler(DecisionSchedulerRun {
+            active_requests: VecDeque::from([active_decision_request]),
+            agent_shutdown,
+            capacity_ledger,
+            pending_requests: VecDeque::new(),
+            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+            sequences: DECISION_SEQUENCES,
+        })
+        .expect("the decision context must be created");
 
     assert_eq!(
         decision_result_rx.try_recv(),

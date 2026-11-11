@@ -10,6 +10,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_test_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
 
 const AGENT_COUNT: usize = 4;
@@ -54,8 +56,8 @@ async fn balancer_distributes_token_burst_evenly_across_agents() {
         .await
         .expect("every held generation must begin with a generated token")
         .into_iter()
-        .flat_map(|collected| collected.token_results)
-        .map(|token_result_with_producer| token_result_with_producer.generated_by)
+        .flat_map(|CollectedGeneratedTokens { token_results, .. }| token_results)
+        .map(|TokenResultWithProducer { generated_by, .. }| generated_by)
         .collect::<BTreeSet<_>>();
 
     assert_eq!(

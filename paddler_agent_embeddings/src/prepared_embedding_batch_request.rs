@@ -46,15 +46,17 @@ impl PreparedEmbeddingBatchRequest {
             }
         }
 
-        ActiveEmbeddingRequest {
-            embeddings_emitted: 0,
-            generate_embedding_stop_rx,
-            generated_embedding_tx,
-            normalization_method,
-            pending_inputs: inputs.into(),
-            slot_guard,
-        }
-        .continue_unless_every_input_is_embedded(agent_name)
+        EmbeddingRequestContinuation::unless_every_input_is_embedded(
+            ActiveEmbeddingRequest {
+                emitted_an_embedding: false,
+                generate_embedding_stop_rx,
+                generated_embedding_tx,
+                normalization_method,
+                pending_inputs: inputs.into(),
+                slot_guard,
+            },
+            agent_name,
+        )
     }
 }
 

@@ -11,9 +11,8 @@ use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 use paddler_tests::admitted_decision::AdmittedDecision;
+use paddler_tests::kev_decision_model::KevDecisionModel;
 use paddler_tests::two_option_question::two_option_question;
-
-use crate::kev_decision_model::KevDecisionModel;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u32 = 1;
 const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 2;
@@ -24,7 +23,7 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
         delimiter_tokens,
         pointer_head,
         runtime,
-    } = KevDecisionModel::load(1);
+    } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the decision context must be created");

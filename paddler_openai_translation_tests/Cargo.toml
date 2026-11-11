@@ -1,0 +1,25 @@
+[package]
+name = "paddler_openai_translation_tests"
+autotests = false
+authors.workspace = true
+description = "Integration tests for the Paddler OpenAI translation"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]
+paddler_inference_parameters = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_openai_translation = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

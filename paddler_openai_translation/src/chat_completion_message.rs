@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::constants::SYSTEM_ROLE;
+use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::system_role::SYSTEM_ROLE;
-use paddler_messaging::user_role::USER_ROLE;
 
 use crate::chat_completion_message_role::ChatCompletionMessageRole;
 use crate::chat_completion_requested_tool_call::ChatCompletionRequestedToolCall;
@@ -20,6 +20,9 @@ pub struct ChatCompletionMessage {
 }
 
 impl ChatCompletionMessage {
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ReasoningOnNonAssistantMessage`] when a message other than an assistant message carries reasoning, [`OpenAITranslationError::ToolCallsOnNonAssistantMessage`] when a message other than an assistant message requests tool calls, [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`] when the arguments of a requested tool call are not a JSON object, [`OpenAITranslationError::MessageWithoutContent`] when a message without tool calls has no content, and [`OpenAITranslationError::ToolResultWithoutToolCallId`] when a tool message does not name the tool call it answers.
     pub fn append_to(
         self,
         messages: &mut Vec<ConversationMessage>,

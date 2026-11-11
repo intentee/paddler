@@ -1,4 +1,5 @@
 use std::mem::take;
+use std::ops::RangeFrom;
 
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::generation_summary::GenerationSummary;
@@ -19,6 +20,7 @@ use crate::responses_output_item::ResponsesOutputItem;
 use crate::responses_output_item_kind::ResponsesOutputItemKind;
 use crate::responses_response_header::ResponsesResponseHeader;
 use crate::responses_stream_event::ResponsesStreamEvent;
+use crate::sequenced_responses_stream_event::SequencedResponsesStreamEvent;
 use crate::text_delta_event::TextDeltaEvent;
 use crate::text_done_event::TextDoneEvent;
 
@@ -26,8 +28,7 @@ pub struct ResponsesStream {
     finalized_output: Vec<ResponsesOutputItem>,
     header: ResponsesResponseHeader,
     open: OpenItem,
-    output_index: usize,
-    sequence_number: u64,
+    sequence_numbers: RangeFrom<u64>,
     started: bool,
 }
 
@@ -38,8 +39,7 @@ impl ResponsesStream {
             finalized_output: Vec::new(),
             header,
             open: OpenItem::Nothing,
-            output_index: 0,
-            sequence_number: 0,
+            sequence_numbers: 0..,
             started: false,
         }
     }
@@ -47,7 +47,7 @@ impl ResponsesStream {
     pub fn advance(
         &mut self,
         generation_progress: GenerationProgress,
-    ) -> Vec<ResponsesStreamEvent> {
+    ) -> Vec<SequencedResponsesStreamEvent> {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
 
         match generation_progress {
@@ -69,10 +69,13 @@ impl ResponsesStream {
             }
         }
 
-        events
+        self.assign_sequence_numbers(events)
     }
 
-    pub fn conclude(&mut self, generation_outcome: GenerationOutcome) -> Vec<ResponsesStreamEvent> {
+    pub fn conclude(
+        &mut self,
+        generation_outcome: GenerationOutcome,
+    ) -> Vec<SequencedResponsesStreamEvent> {
         match generation_outcome {
             GenerationOutcome::Failed(GenerationFailure { message, .. }) => self.fail(message),
             GenerationOutcome::Finished(generation_summary) => {
@@ -81,24 +84,78 @@ impl ResponsesStream {
                 self.ensure_preamble(&mut events);
                 self.handle_done(&mut events, &generation_summary);
 
-                events
+                self.assign_sequence_numbers(events)
             }
         }
     }
 
-    pub fn fail(&mut self, error_message: String) -> Vec<ResponsesStreamEvent> {
+    pub fn fail(&mut self, error_message: String) -> Vec<SequencedResponsesStreamEvent> {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
 
         self.ensure_preamble(&mut events);
 
-        let failed_sequence_number = self.next_sequence_number();
-
         events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
-            sequence_number: failed_sequence_number,
             response: self.header.failed(error_message),
         }));
 
+        self.assign_sequence_numbers(events)
+    }
+
+    fn add_item(&self, events: &mut Vec<ResponsesStreamEvent>, item: ResponsesOutputItem) {
+        events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
+            output_index: self.output_index(),
+            item,
+        }));
+    }
+
+    fn assign_sequence_numbers(
+        &mut self,
+        events: Vec<ResponsesStreamEvent>,
+    ) -> Vec<SequencedResponsesStreamEvent> {
         events
+            .into_iter()
+            .zip(self.sequence_numbers.by_ref())
+            .map(|(event, sequence_number)| SequencedResponsesStreamEvent {
+                event,
+                sequence_number,
+            })
+            .collect()
+    }
+
+    fn close_open_item(&mut self, events: &mut Vec<ResponsesStreamEvent>) {
+        let output_index = self.output_index();
+        let item = match take(&mut self.open) {
+            OpenItem::Nothing => return,
+            OpenItem::Reasoning { item_id, text } => {
+                events.push(ResponsesStreamEvent::ReasoningTextDone(TextDoneEvent {
+                    item_id: item_id.clone(),
+                    output_index,
+                    content_index: 0,
+                    text: text.clone(),
+                }));
+
+                ResponsesOutputItem::completed_reasoning(item_id, text)
+            }
+            OpenItem::Message { item_id, text } => {
+                events.push(ResponsesStreamEvent::OutputTextDone(TextDoneEvent {
+                    item_id: item_id.clone(),
+                    output_index,
+                    content_index: 0,
+                    text: text.clone(),
+                }));
+
+                events.push(ResponsesStreamEvent::ContentPartDone(ContentPartEvent {
+                    item_id: item_id.clone(),
+                    output_index,
+                    content_index: 0,
+                    part: ResponsesContentPart::output_text(text.clone()),
+                }));
+
+                ResponsesOutputItem::completed_message(item_id, text)
+            }
+        };
+
+        self.finish_item(events, item);
     }
 
     fn ensure_preamble(&mut self, events: &mut Vec<ResponsesStreamEvent>) {
@@ -109,18 +166,62 @@ impl ResponsesStream {
         self.started = true;
 
         let in_progress_response = self.header.in_progress();
-        let created_sequence_number = self.next_sequence_number();
 
         events.push(ResponsesStreamEvent::Created(ResponseSnapshotEvent {
-            sequence_number: created_sequence_number,
             response: in_progress_response.clone(),
         }));
-
-        let in_progress_sequence_number = self.next_sequence_number();
-
         events.push(ResponsesStreamEvent::InProgress(ResponseSnapshotEvent {
-            sequence_number: in_progress_sequence_number,
             response: in_progress_response,
+        }));
+    }
+
+    fn finish_item(&mut self, events: &mut Vec<ResponsesStreamEvent>, item: ResponsesOutputItem) {
+        events.push(ResponsesStreamEvent::OutputItemDone(OutputItemEvent {
+            output_index: self.output_index(),
+            item: item.clone(),
+        }));
+
+        self.finalized_output.push(item);
+    }
+
+    fn handle_content(&mut self, events: &mut Vec<ResponsesStreamEvent>, text: &str) {
+        let item_id = if let OpenItem::Message {
+            item_id,
+            text: message_text,
+        } = &mut self.open
+        {
+            message_text.push_str(text);
+
+            item_id.clone()
+        } else {
+            self.close_open_item(events);
+
+            let item_id = ResponsesOutputItemKind::Message.item_id();
+
+            self.add_item(
+                events,
+                ResponsesOutputItem::message_in_progress(item_id.clone()),
+            );
+
+            events.push(ResponsesStreamEvent::ContentPartAdded(ContentPartEvent {
+                item_id: item_id.clone(),
+                output_index: self.output_index(),
+                content_index: 0,
+                part: ResponsesContentPart::output_text(String::new()),
+            }));
+            self.open = OpenItem::Message {
+                item_id: item_id.clone(),
+                text: text.to_owned(),
+            };
+
+            item_id
+        };
+
+        events.push(ResponsesStreamEvent::OutputTextDelta(TextDeltaEvent {
+            item_id,
+            output_index: self.output_index(),
+            content_index: 0,
+            delta: text.to_owned(),
         }));
     }
 
@@ -133,7 +234,6 @@ impl ResponsesStream {
 
         let output = take(&mut self.finalized_output);
         let snapshot = ResponseSnapshotEvent {
-            sequence_number: self.next_sequence_number(),
             response: self.header.finished(output, usage, *finish),
         };
 
@@ -142,55 +242,6 @@ impl ResponsesStream {
         } else {
             ResponsesStreamEvent::Completed(snapshot)
         });
-    }
-
-    const fn next_sequence_number(&mut self) -> u64 {
-        let sequence_number = self.sequence_number;
-        self.sequence_number += 1;
-
-        sequence_number
-    }
-
-    fn close_open_item(&mut self, events: &mut Vec<ResponsesStreamEvent>) {
-        let output_index = self.output_index;
-        let item = match take(&mut self.open) {
-            OpenItem::Nothing => return,
-            OpenItem::Reasoning { item_id, text } => {
-                let text_done_sequence_number = self.next_sequence_number();
-                events.push(ResponsesStreamEvent::ReasoningTextDone(TextDoneEvent {
-                    sequence_number: text_done_sequence_number,
-                    item_id: item_id.clone(),
-                    output_index,
-                    content_index: 0,
-                    text: text.clone(),
-                }));
-
-                ResponsesOutputItem::completed_reasoning(item_id, text)
-            }
-            OpenItem::Message { item_id, text } => {
-                let text_done_sequence_number = self.next_sequence_number();
-                events.push(ResponsesStreamEvent::OutputTextDone(TextDoneEvent {
-                    sequence_number: text_done_sequence_number,
-                    item_id: item_id.clone(),
-                    output_index,
-                    content_index: 0,
-                    text: text.clone(),
-                }));
-
-                let part_done_sequence_number = self.next_sequence_number();
-                events.push(ResponsesStreamEvent::ContentPartDone(ContentPartEvent {
-                    sequence_number: part_done_sequence_number,
-                    item_id: item_id.clone(),
-                    output_index,
-                    content_index: 0,
-                    part: ResponsesContentPart::output_text(text.clone()),
-                }));
-
-                ResponsesOutputItem::completed_message(item_id, text)
-            }
-        };
-
-        self.finish_item(events, item);
     }
 
     fn handle_reasoning(&mut self, events: &mut Vec<ResponsesStreamEvent>, text: &str) {
@@ -219,56 +270,9 @@ impl ResponsesStream {
             item_id
         };
 
-        let delta_sequence_number = self.next_sequence_number();
         events.push(ResponsesStreamEvent::ReasoningTextDelta(TextDeltaEvent {
-            sequence_number: delta_sequence_number,
             item_id,
-            output_index: self.output_index,
-            content_index: 0,
-            delta: text.to_owned(),
-        }));
-    }
-
-    fn handle_content(&mut self, events: &mut Vec<ResponsesStreamEvent>, text: &str) {
-        let item_id = if let OpenItem::Message {
-            item_id,
-            text: message_text,
-        } = &mut self.open
-        {
-            message_text.push_str(text);
-
-            item_id.clone()
-        } else {
-            self.close_open_item(events);
-
-            let item_id = ResponsesOutputItemKind::Message.item_id();
-
-            self.add_item(
-                events,
-                ResponsesOutputItem::message_in_progress(item_id.clone()),
-            );
-
-            let part_added_sequence_number = self.next_sequence_number();
-            events.push(ResponsesStreamEvent::ContentPartAdded(ContentPartEvent {
-                sequence_number: part_added_sequence_number,
-                item_id: item_id.clone(),
-                output_index: self.output_index,
-                content_index: 0,
-                part: ResponsesContentPart::output_text(String::new()),
-            }));
-            self.open = OpenItem::Message {
-                item_id: item_id.clone(),
-                text: text.to_owned(),
-            };
-
-            item_id
-        };
-
-        let delta_sequence_number = self.next_sequence_number();
-        events.push(ResponsesStreamEvent::OutputTextDelta(TextDeltaEvent {
-            sequence_number: delta_sequence_number,
-            item_id,
-            output_index: self.output_index,
+            output_index: self.output_index(),
             content_index: 0,
             delta: text.to_owned(),
         }));
@@ -282,7 +286,7 @@ impl ResponsesStream {
         self.close_open_item(events);
 
         for call in parsed_calls {
-            let output_index = self.output_index;
+            let output_index = self.output_index();
             let item_id = ResponsesOutputItemKind::FunctionCall.item_id();
             let arguments = arguments_to_tool_call_string(&call.arguments);
 
@@ -291,20 +295,16 @@ impl ResponsesStream {
                 ResponsesOutputItem::function_call_in_progress(item_id.clone(), call),
             );
 
-            let delta_sequence_number = self.next_sequence_number();
             events.push(ResponsesStreamEvent::FunctionCallArgumentsDelta(
                 FunctionCallArgumentsDeltaEvent {
-                    sequence_number: delta_sequence_number,
                     item_id: item_id.clone(),
                     output_index,
                     delta: arguments.clone(),
                 },
             ));
 
-            let done_sequence_number = self.next_sequence_number();
             events.push(ResponsesStreamEvent::FunctionCallArgumentsDone(
                 FunctionCallArgumentsDoneEvent {
-                    sequence_number: done_sequence_number,
                     item_id: item_id.clone(),
                     output_index,
                     name: call.name.clone(),
@@ -319,41 +319,20 @@ impl ResponsesStream {
         }
     }
 
-    fn add_item(&mut self, events: &mut Vec<ResponsesStreamEvent>, item: ResponsesOutputItem) {
-        let added_sequence_number = self.next_sequence_number();
-
-        events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
-            sequence_number: added_sequence_number,
-            output_index: self.output_index,
-            item,
-        }));
-    }
-
-    fn finish_item(&mut self, events: &mut Vec<ResponsesStreamEvent>, item: ResponsesOutputItem) {
-        let item_done_sequence_number = self.next_sequence_number();
-
-        events.push(ResponsesStreamEvent::OutputItemDone(OutputItemEvent {
-            sequence_number: item_done_sequence_number,
-            output_index: self.output_index,
-            item: item.clone(),
-        }));
-
-        self.finalized_output.push(item);
-        self.output_index += 1;
+    const fn output_index(&self) -> usize {
+        self.finalized_output.len()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::Value;
     use serde_json::json;
     use serde_json::to_value;
 
-    use paddler_messaging::generated_tool_call::GeneratedToolCall;
+    use paddler_generation_result_fixture::finished_generation_summary::finished_generation_summary;
+    use paddler_generation_result_fixture::weather_call::weather_call;
     use paddler_messaging::generation_finish::GenerationFinish;
-    use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 
     use super::ResponsesStream;
@@ -363,7 +342,7 @@ mod tests {
     use crate::generation_outcome::GenerationOutcome;
     use crate::generation_progress::GenerationProgress;
     use crate::responses_response_header::ResponsesResponseHeader;
-    use crate::responses_stream_event::ResponsesStreamEvent;
+    use crate::sequenced_responses_stream_event::SequencedResponsesStreamEvent;
 
     fn responses_stream() -> ResponsesStream {
         ResponsesStream::new(ResponsesResponseHeader {
@@ -380,35 +359,22 @@ mod tests {
         GenerationProgress::Produced(GeneratedOutputPart::Content(text.to_owned()))
     }
 
-    fn finished(finish: GenerationFinish) -> GenerationOutcome {
-        GenerationOutcome::Finished(GenerationSummary {
-            finish,
-            usage: TokenUsage {
-                prompt_tokens: 7,
-                content_tokens: 4,
-                reasoning_tokens: 1,
-                ..TokenUsage::default()
-            },
-        })
+    fn serialized(sequenced_event: &SequencedResponsesStreamEvent) -> Value {
+        to_value(sequenced_event).unwrap()
     }
 
-    fn weather_call() -> GeneratedToolCall {
-        GeneratedToolCall {
-            arguments: ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
-            id: "call_x".to_owned(),
-            index: 0,
-            name: "get_weather".to_owned(),
-        }
+    fn serialized_at(events: &[SequencedResponsesStreamEvent], index: usize) -> Value {
+        serialized(
+            events
+                .get(index)
+                .expect("the stream emitted an event at this index"),
+        )
     }
 
-    fn serialized(event: &ResponsesStreamEvent) -> Value {
-        to_value(event).unwrap()
-    }
-
-    fn names(events: &[ResponsesStreamEvent]) -> Vec<&'static str> {
+    fn names(events: &[SequencedResponsesStreamEvent]) -> Vec<&'static str> {
         events
             .iter()
-            .map(ResponsesStreamEvent::event_name)
+            .map(|SequencedResponsesStreamEvent { event, .. }| event.event_name())
             .collect()
     }
 
@@ -426,8 +392,14 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        assert_eq!(serialized(&events[0])["response"]["status"], "in_progress");
-        assert_eq!(serialized(&events[4])["delta"], "hi");
+        assert_eq!(
+            serialized_at(&events, 0).pointer("/response/status"),
+            Some(&json!("in_progress"))
+        );
+        assert_eq!(
+            serialized_at(&events, 4).pointer("/delta"),
+            Some(&json!("hi"))
+        );
     }
 
     #[test]
@@ -436,23 +408,26 @@ mod tests {
         let mut events = responses_stream.advance(content("hel"));
 
         events.extend(responses_stream.advance(content("lo")));
-        events.extend(responses_stream.conclude(finished(GenerationFinish::EndOfGeneration)));
+        events.extend(responses_stream.conclude(GenerationOutcome::Finished(
+            finished_generation_summary(GenerationFinish::EndOfGeneration),
+        )));
 
         let item_ids = events
             .iter()
             .map(serialized)
-            .filter_map(|event| match event["type"].as_str() {
+            .filter_map(|event| match event.get("type").and_then(Value::as_str) {
                 Some("response.output_item.added" | "response.output_item.done") => {
-                    Some(event["item"]["id"].clone())
+                    event.pointer("/item/id").cloned()
                 }
-                Some("response.completed") => Some(event["response"]["output"][0]["id"].clone()),
+                Some("response.completed") => event.pointer("/response/output/0/id").cloned(),
                 Some("response.created" | "response.in_progress") => None,
-                Some(_) | None => Some(event["item_id"].clone()),
+                Some(_) | None => event.get("item_id").cloned(),
             })
             .collect::<Vec<_>>();
+        let first_item_id = item_ids.first().expect("the stream names an item");
 
         assert_eq!(item_ids.len(), 8);
-        assert!(item_ids.iter().all(|item_id| *item_id == item_ids[0]));
+        assert!(item_ids.iter().all(|item_id| item_id == first_item_id));
     }
 
     #[test]
@@ -477,12 +452,31 @@ mod tests {
     }
 
     #[test]
+    fn sequence_numbers_run_from_zero_without_gaps_across_calls() {
+        let mut responses_stream = responses_stream();
+        let mut events = responses_stream.advance(content("a"));
+
+        events.extend(responses_stream.advance(GenerationProgress::ToolCallTokenProduced));
+        events.extend(responses_stream.advance(content("b")));
+
+        assert_eq!(
+            events
+                .iter()
+                .map(|sequenced_event| sequenced_event.sequence_number)
+                .collect::<Vec<u64>>(),
+            vec![0, 1, 2, 3, 4, 5]
+        );
+    }
+
+    #[test]
     fn finishing_closes_the_message_and_completes_with_usage() {
         let mut responses_stream = responses_stream();
 
         responses_stream.advance(content("hello"));
 
-        let events = responses_stream.conclude(finished(GenerationFinish::EndOfGeneration));
+        let events = responses_stream.conclude(GenerationOutcome::Finished(
+            finished_generation_summary(GenerationFinish::EndOfGeneration),
+        ));
 
         assert_eq!(
             names(&events),
@@ -494,24 +488,35 @@ mod tests {
             ]
         );
 
-        let completed = serialized(&events[3]);
+        let completed = serialized_at(&events, 3);
 
-        assert_eq!(completed["response"]["status"], "completed");
-        assert_eq!(completed["response"]["usage"]["input_tokens"], 7);
-        assert_eq!(completed["response"]["usage"]["total_tokens"], 12);
         assert_eq!(
-            completed["response"]["output"][0]["content"][0]["text"],
-            "hello"
+            completed.pointer("/response/status"),
+            Some(&json!("completed"))
         );
         assert_eq!(
-            completed["response"]["output"][0]["content"][0]["logprobs"],
-            json!([])
+            completed.pointer("/response/usage/input_tokens"),
+            Some(&json!(7))
+        );
+        assert_eq!(
+            completed.pointer("/response/usage/total_tokens"),
+            Some(&json!(12))
+        );
+        assert_eq!(
+            completed.pointer("/response/output/0/content/0/text"),
+            Some(&json!("hello"))
+        );
+        assert_eq!(
+            completed.pointer("/response/output/0/content/0/logprobs"),
+            Some(&json!([]))
         );
     }
 
     #[test]
     fn finishing_at_a_length_limit_reports_an_incomplete_response() {
-        let events = responses_stream().conclude(finished(GenerationFinish::MaxTokens));
+        let events = responses_stream().conclude(GenerationOutcome::Finished(
+            finished_generation_summary(GenerationFinish::MaxTokens),
+        ));
 
         assert_eq!(
             names(&events),
@@ -522,8 +527,8 @@ mod tests {
             ]
         );
         assert_eq!(
-            serialized(&events[2])["response"]["incomplete_details"]["reason"],
-            "max_output_tokens"
+            serialized_at(&events, 2).pointer("/response/incomplete_details/reason"),
+            Some(&json!("max_output_tokens"))
         );
     }
 
@@ -547,9 +552,18 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        assert_eq!(serialized(&events[1])["output_index"], 0);
-        assert_eq!(serialized(&events[2])["output_index"], 1);
-        assert_eq!(serialized(&events[1])["item"]["type"], "reasoning");
+        assert_eq!(
+            serialized_at(&events, 1).pointer("/output_index"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            serialized_at(&events, 2).pointer("/output_index"),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            serialized_at(&events, 1).pointer("/item/type"),
+            Some(&json!("reasoning"))
+        );
     }
 
     #[test]
@@ -570,12 +584,21 @@ mod tests {
             ]
         );
 
-        let delta_event = serialized(&events[3]);
+        let delta_event = serialized_at(&events, 3);
 
-        assert_eq!(delta_event["delta"], "{\"location\":\"Paris\"}");
+        assert_eq!(
+            delta_event.pointer("/delta"),
+            Some(&json!("{\"location\":\"Paris\"}"))
+        );
         assert!(delta_event.get("content_index").is_none());
-        assert_eq!(serialized(&events[4])["name"], "get_weather");
-        assert_eq!(serialized(&events[5])["item"]["call_id"], "call_x");
+        assert_eq!(
+            serialized_at(&events, 4).pointer("/name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            serialized_at(&events, 5).pointer("/item/call_id"),
+            Some(&json!("call_x"))
+        );
     }
 
     #[test]
@@ -598,11 +621,17 @@ mod tests {
                 ]
             );
 
-            let failed = serialized(&events[2]);
+            let failed = serialized_at(&events, 2);
 
-            assert_eq!(failed["response"]["status"], "failed");
-            assert_eq!(failed["response"]["error"]["code"], "server_error");
-            assert_eq!(failed["response"]["error"]["message"], "boom");
+            assert_eq!(failed.pointer("/response/status"), Some(&json!("failed")));
+            assert_eq!(
+                failed.pointer("/response/error/code"),
+                Some(&json!("server_error"))
+            );
+            assert_eq!(
+                failed.pointer("/response/error/message"),
+                Some(&json!("boom"))
+            );
         }
     }
 
@@ -610,7 +639,7 @@ mod tests {
     fn every_emitted_event_conforms_to_the_schema() {
         let validator = OpenAIValidator::new().unwrap();
         let mut completed_stream = responses_stream();
-        let mut emitted: Vec<ResponsesStreamEvent> = Vec::new();
+        let mut emitted: Vec<SequencedResponsesStreamEvent> = Vec::new();
 
         for generation_progress in [
             GenerationProgress::Produced(GeneratedOutputPart::Reasoning("ponder".to_owned())),
@@ -620,7 +649,9 @@ mod tests {
             emitted.extend(completed_stream.advance(generation_progress));
         }
 
-        emitted.extend(completed_stream.conclude(finished(GenerationFinish::EndOfGeneration)));
+        emitted.extend(completed_stream.conclude(GenerationOutcome::Finished(
+            finished_generation_summary(GenerationFinish::EndOfGeneration),
+        )));
 
         emitted.extend(responses_stream().fail("boom".to_owned()));
 

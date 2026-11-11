@@ -24,10 +24,10 @@ async fn spawned_balancer_reports_an_exit_it_cannot_observe() {
 
     let mut balancer_spawn = pin!(spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
-        [format!(
-            "--state-database=file://{}",
-            state_fifo_path.display()
-        )],
+        [
+            "balancer".to_owned(),
+            format!("--state-database=file://{}", state_fifo_path.display()),
+        ],
         SignalledSubprocess::new,
     ));
 

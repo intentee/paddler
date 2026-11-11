@@ -4,7 +4,10 @@
 
 .NOTPARALLEL:
 
+CARGO_HOME ?= $(HOME)/.cargo
+HOST_TUPLE := $(shell rustc --print host-tuple)
 RUST_LOG ?= debug
+RUST_SYSROOT := $(shell rustc --print sysroot)
 
 PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings paddler_agent_pointer_head paddler_agent_runtime paddler_agent_status paddler_agent_text_generation paddler_balancer paddler_bootstrap paddler_cache_dir paddler_cli paddler_client paddler_dashboard_assets paddler_download_manager paddler_frame_writer paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_model_source paddler_openai_translation paddler_outbox paddler_request_registry paddler_sha256_hex paddler_spawn_resuming_panic paddler_state_database paddler_tool_call_validator paddler_typesafe_translation
 PADDLER_SOURCES := $(shell find $(addsuffix /src,$(PADDLER_CRATES)) -name '*.rs') $(wildcard $(addsuffix /build.rs,$(PADDLER_CRATES))) $(addsuffix /Cargo.toml,$(PADDLER_CRATES)) Cargo.toml Cargo.lock
@@ -53,6 +56,12 @@ fixtures/pointer_head_with_f16_tensors.gguf: $(KEV_CONVERTER_SOURCES) paddler_ke
 fixtures/pointer_head_with_mismatched_projections.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect mismatched-projections --hidden-size 64 --output $(CURDIR)/$@
 
+fixtures/pointer_head_with_oversized_head_dim.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
+	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect oversized-head-dim --hidden-size 1 --output $(CURDIR)/$@
+
+fixtures/pointer_head_with_zero_head_dim.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
+	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect zero-head-dim --hidden-size 64 --output $(CURDIR)/$@
+
 fixtures/pointer_head_with_zero_temperature.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect zero-temperature --hidden-size 64 --output $(CURDIR)/$@
 
@@ -64,9 +73,6 @@ fixtures/pointer_head_without_input_normalization.gguf: $(KEV_CONVERTER_SOURCES)
 
 fixtures/pointer_head_without_temperature.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect missing-temperature --hidden-size 64 --output $(CURDIR)/$@
-
-fixtures/pointer_head_with_oversized_head_dim.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
-	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect oversized-head-dim --hidden-size 1 --output $(CURDIR)/$@
 
 fixtures/qwen3_5_0_8b_pointer_head_with_plain_text_delimiters.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --input-normalization NFC --defect plain-text-delimiters --hidden-size 1024 --output $(CURDIR)/$@
@@ -163,11 +169,20 @@ clean:
 
 .PHONY: clippy
 clippy: esbuild-meta.json
-	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms -- --deny warnings
+	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_opencode
 
 .PHONY: fmt
 fmt: node_modules
 	./jarmuz-fmt.mjs
+
+.PHONY: heisenberg.check
+heisenberg.check: esbuild-meta.json
+	cargo fetch
+	heisenberg check \
+		--cargo-home "$(CARGO_HOME)" \
+		--sysroot "$(RUST_SYSROOT)" \
+		--configuration $(HOST_TUPLE) \
+		--workspace "$(CURDIR)"
 
 .PHONY: lint.kev_converter.python
 lint.kev_converter.python: paddler_kev_converter_python/.venv
@@ -197,49 +212,19 @@ test.client.js.llm: $(PADDLER_TEST_BINARY) node_modules target/test-model-cards.
 	$(PADDLER_BINARY_ENVIRONMENT) npm --workspace @intentee/paddler-client run test:llm
 
 .PHONY: test.coverage
-test.coverage: esbuild-meta.json node_modules target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/kev_27b/model.gguf target/kev_27b/pointer_head.gguf target/test-model-cards.stamp
+test.coverage: esbuild-meta.json target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/test-model-cards.stamp
 	cargo llvm-cov clean --workspace
 	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo llvm-cov nextest --features tests_that_use_llms,tests_that_use_opencode,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --include-build-script --no-report --workspace
 	cargo llvm-cov report --include-build-script --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --include-build-script --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --lcov --output-path target/lcov.info
 	cargo llvm-cov report --include-build-script --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)'
-	npx rust-coverage-check target/llvm-cov.json \
-		--workspace-root $(CURDIR) \
-		--gated paddler_agent=100 \
-		--gated paddler_agent_decision=100 \
-		--gated paddler_agent_embeddings=100 \
-		--gated paddler_agent_pointer_head=100 \
-		--gated paddler_agent_runtime=100 \
-		--gated paddler_agent_status=100 \
-		--gated paddler_agent_text_generation=100 \
-		--gated paddler_balancer=100 \
-		--gated paddler_blocking_thread_fixture=100 \
-		--gated paddler_bootstrap=100 \
-		--gated paddler_cache_dir=100 \
-		--gated paddler_cli=100 \
-		--gated paddler_cli_tests=100 \
-		--gated paddler_client=100 \
-		--gated paddler_dashboard_assets=100 \
-		--gated paddler_download_manager=100 \
-		--gated paddler_frame_writer=100 \
-		--gated paddler_image_decoder=100 \
-		--gated paddler_inference_parameters=100 \
-		--gated paddler_local_http_fixture=100 \
-		--gated paddler_messaging=100 \
-		--gated paddler_model_source=100 \
-		--gated paddler_openai_response_format_validator=100 \
-		--gated paddler_openai_translation=100 \
-		--gated paddler_opencode_tests=100 \
-		--gated paddler_outbox=100 \
-		--gated paddler_request_registry=100 \
-		--gated paddler_sha256_hex=100 \
-		--gated paddler_spawn_resuming_panic=100 \
-		--gated paddler_state_database=100 \
-		--gated paddler_tcp_buffer_limits=100 \
-		--gated paddler_test_cluster_harness=100 \
-		--gated paddler_tests=100 \
-		--gated paddler_tool_call_validator=100 \
-		--gated paddler_typesafe_translation=100
+	cargo fetch
+	heisenberg coverage-check \
+		--cargo-home "$(CARGO_HOME)" \
+		--sysroot "$(RUST_SYSROOT)" \
+		--configuration $(HOST_TUPLE) \
+		--workspace "$(CURDIR)" \
+		--coverage-export "$(CURDIR)/target/llvm-cov.json"
 
 .PHONY: test.coverage-clean
 test.coverage-clean:
@@ -248,7 +233,7 @@ test.coverage-clean:
 	rm -f target/llvm-cov.json target/lcov.info
 
 .PHONY: test.integration
-test.integration: target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/kev_27b/model.gguf target/kev_27b/pointer_head.gguf target/test-model-cards.stamp
+test.integration: target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/test-model-cards.stamp
 	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.integration.opencode

@@ -24,6 +24,9 @@ impl<TParams> AwaitingAgentRelay<TParams>
 where
     TParams: AgentStreamingRequest,
 {
+    /// # Errors
+    ///
+    /// Returns [`RelayFailure::BalancerShuttingDown`] when the balancer shuts down before an agent is found, [`RelayFailure::BufferOverflow`] when the request buffer is full, and [`RelayFailure::BufferedRequestTimedOut`] when no agent becomes available before the buffered request timeout.
     pub async fn dispatch(
         self,
         settlement_guard: DropGuard,

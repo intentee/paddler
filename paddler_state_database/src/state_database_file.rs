@@ -108,27 +108,9 @@ impl StateDatabaseFile {
         }
     }
 
-    fn parse_schema(&self, content: &str) -> Result<Schema, StateDatabaseError> {
-        let SchemaVersionHeader { version } =
-            from_str(content).map_err(|source| StateDatabaseError::FileContentsInvalid {
-                path: self.path.clone(),
-                source,
-            })?;
-
-        from_value::<StateDatabaseSchemaVersion>(version.clone()).map_err(|source| {
-            StateDatabaseError::SchemaVersionUnsupported {
-                found: version.to_string(),
-                path: self.path.clone(),
-                source,
-            }
-        })?;
-
-        from_str(content).map_err(|source| StateDatabaseError::FileContentsInvalid {
-            path: self.path.clone(),
-            source,
-        })
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`StateDatabaseError::FileReadFailed`] when the state database file exists but cannot be read, [`StateDatabaseError::FileContentsInvalid`] when its contents are not a valid state database, and [`StateDatabaseError::SchemaVersionUnsupported`] when it uses a schema version this Paddler does not read.
     pub async fn read_balancer_desired_state(
         &self,
     ) -> Result<StoredBalancerDesiredState, StateDatabaseError> {
@@ -146,6 +128,9 @@ impl StateDatabaseFile {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`StateDatabaseError::FileHasNoParentDirectory`] when the state database file has no parent directory, [`StateDatabaseError::FilePermissionsUnreadable`] when the access mode of the existing file cannot be read, [`StateDatabaseError::FileReplacementCreationFailed`] when the replacement file cannot be created, [`StateDatabaseError::FileWriteFailed`] when the state cannot be written into it, [`StateDatabaseError::FileSyncFailed`] when it cannot be synced, and [`StateDatabaseError::FileReplaceFailed`] when it cannot replace the state database file.
     pub async fn store_balancer_desired_state(
         &self,
         balancer_desired_state: &BalancerDesiredState,
@@ -165,6 +150,27 @@ impl StateDatabaseFile {
             replacement_outcome
         })
         .await
+    }
+
+    fn parse_schema(&self, content: &str) -> Result<Schema, StateDatabaseError> {
+        let SchemaVersionHeader { version } =
+            from_str(content).map_err(|source| StateDatabaseError::FileContentsInvalid {
+                path: self.path.clone(),
+                source,
+            })?;
+
+        from_value::<StateDatabaseSchemaVersion>(version.clone()).map_err(|source| {
+            StateDatabaseError::SchemaVersionUnsupported {
+                found: version.to_string(),
+                path: self.path.clone(),
+                source,
+            }
+        })?;
+
+        from_str(content).map_err(|source| StateDatabaseError::FileContentsInvalid {
+            path: self.path.clone(),
+            source,
+        })
     }
 }
 
@@ -188,7 +194,7 @@ mod tests {
     use tokio::fs::set_permissions;
     use tokio::fs::write;
 
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_balancer_desired_state_fixture::desired_state_with_model::desired_state_with_model;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     use super::StateDatabaseFile;
@@ -199,11 +205,16 @@ mod tests {
     use crate::state_database_schema_version::StateDatabaseSchemaVersion;
     use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
 
-    fn state_with_model(model_uri: &str) -> BalancerDesiredState {
-        BalancerDesiredState {
-            model: AgentDesiredModel::Uri(model_uri.to_owned()),
-            ..BalancerDesiredState::default()
-        }
+    #[cfg(target_os = "linux")]
+    fn write_replacement_to_device(device_path: &Path) -> Result<(), StateDatabaseError> {
+        write_replacement(
+            &OpenOptions::new().write(true).open(device_path).unwrap(),
+            device_path,
+            &Schema {
+                balancer_desired_state: BalancerDesiredState::default(),
+                version: StateDatabaseSchemaVersion::default(),
+            },
+        )
     }
 
     #[tokio::test]
@@ -211,7 +222,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("state.json");
         let database = StateDatabaseFile::new(path.clone());
-        let desired_state = state_with_model("stored_model_uri");
+        let desired_state = desired_state_with_model("stored_model_uri");
 
         database
             .store_balancer_desired_state(&desired_state)
@@ -336,7 +347,7 @@ mod tests {
     async fn a_store_that_fails_leaves_the_previous_state_readable() {
         let temp_dir = TempDir::new().unwrap();
         let database = StateDatabaseFile::new(temp_dir.path().join("state.json"));
-        let previous_state = state_with_model("previous_model_uri");
+        let previous_state = desired_state_with_model("previous_model_uri");
 
         database
             .store_balancer_desired_state(&previous_state)
@@ -347,7 +358,7 @@ mod tests {
             .unwrap();
 
         let failed_store = database
-            .store_balancer_desired_state(&state_with_model("next_model_uri"))
+            .store_balancer_desired_state(&desired_state_with_model("next_model_uri"))
             .await;
         let state_after_the_failed_store = database.read_balancer_desired_state().await.unwrap();
 
@@ -364,18 +375,6 @@ mod tests {
             state_after_the_failed_store,
             StoredBalancerDesiredState::Stored(Box::new(previous_state))
         );
-    }
-
-    #[cfg(target_os = "linux")]
-    fn write_replacement_to_device(device_path: &Path) -> Result<(), StateDatabaseError> {
-        write_replacement(
-            &OpenOptions::new().write(true).open(device_path).unwrap(),
-            device_path,
-            &Schema {
-                balancer_desired_state: BalancerDesiredState::default(),
-                version: StateDatabaseSchemaVersion::default(),
-            },
-        )
     }
 
     #[cfg(target_os = "linux")]
@@ -409,7 +408,7 @@ mod tests {
         symlink(&unrelated_file, temp_dir.path().join("state.json.next")).unwrap();
 
         StateDatabaseFile::new(temp_dir.path().join("state.json"))
-            .store_balancer_desired_state(&state_with_model("stored_model_uri"))
+            .store_balancer_desired_state(&desired_state_with_model("stored_model_uri"))
             .await
             .unwrap();
 
@@ -426,14 +425,14 @@ mod tests {
         let database = StateDatabaseFile::new(path.clone());
 
         database
-            .store_balancer_desired_state(&state_with_model("previous_model_uri"))
+            .store_balancer_desired_state(&desired_state_with_model("previous_model_uri"))
             .await
             .unwrap();
         set_permissions(&path, Permissions::from_mode(0o640))
             .await
             .unwrap();
         database
-            .store_balancer_desired_state(&state_with_model("next_model_uri"))
+            .store_balancer_desired_state(&desired_state_with_model("next_model_uri"))
             .await
             .unwrap();
 
@@ -449,7 +448,7 @@ mod tests {
         let path = temp_dir.path().join("state.json");
 
         StateDatabaseFile::new(path.clone())
-            .store_balancer_desired_state(&state_with_model("stored_model_uri"))
+            .store_balancer_desired_state(&desired_state_with_model("stored_model_uri"))
             .await
             .unwrap();
 

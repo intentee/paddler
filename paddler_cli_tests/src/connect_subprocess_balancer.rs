@@ -11,6 +11,9 @@ use crate::spawned_balancer_subprocess::SpawnedBalancerSubprocess;
 use crate::subprocess_agents_cluster_connection::SubprocessAgentsClusterConnection;
 use crate::subprocess_cluster::SubprocessCluster;
 
+/// # Errors
+///
+/// Fails when the balancer subprocess cannot be spawned, signalled or addressed, when it does not announce its addresses, and when the cluster cannot connect to it.
 pub async fn connect_subprocess_balancer<TArguments, TArgument>(
     binary_path: &str,
     balancer_arguments: TArguments,

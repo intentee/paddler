@@ -20,6 +20,9 @@ pub struct ResourceSnapshot {
 }
 
 impl ResourceSnapshot {
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::OpenFileDescriptorsUnreadable`] when the open file descriptors of the current process cannot be listed.
     pub fn try_from_self() -> Result<Self, ClusterHarnessError> {
         read_dir(open_descriptors_directory_path())
             .and_then(Iterator::collect::<Result<Vec<DirEntry>, io::Error>>)
@@ -30,11 +33,16 @@ impl ResourceSnapshot {
     }
 
     #[must_use]
-    pub const fn diff(&self, earlier: &Self) -> ResourceSnapshotDiff {
+    pub const fn diff(
+        &self,
+        &Self {
+            open_file_descriptor_count: earlier_open_file_descriptor_count,
+        }: &Self,
+    ) -> ResourceSnapshotDiff {
         ResourceSnapshotDiff {
             open_file_descriptors_grew_by: self
                 .open_file_descriptor_count
-                .saturating_sub(earlier.open_file_descriptor_count),
+                .saturating_sub(earlier_open_file_descriptor_count),
         }
     }
 }

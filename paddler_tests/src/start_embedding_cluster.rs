@@ -5,6 +5,9 @@ use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterPara
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving the embedding model cannot start.
 pub async fn start_embedding_cluster(
     embedding_cluster_params: EmbeddingClusterParams,
 ) -> Result<Cluster> {

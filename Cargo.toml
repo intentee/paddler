@@ -5,18 +5,25 @@ members = [
     "paddler_agent_embeddings",
     "paddler_agent_pointer_head",
     "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
     "paddler_agent_status",
+    "paddler_agent_tests",
     "paddler_agent_text_generation",
     "paddler_balancer",
+    "paddler_balancer_desired_state_fixture",
     "paddler_blocking_thread_fixture",
     "paddler_bootstrap",
+    "paddler_bootstrap_tests",
     "paddler_cache_dir",
+    "paddler_chunked_response_fixture",
     "paddler_cli",
     "paddler_cli_tests",
     "paddler_client",
     "paddler_dashboard_assets",
     "paddler_download_manager",
+    "paddler_download_manager_tests",
     "paddler_frame_writer",
+    "paddler_generation_result_fixture",
     "paddler_image_decoder",
     "paddler_inference_parameters",
     "paddler_local_http_fixture",
@@ -24,6 +31,7 @@ members = [
     "paddler_model_source",
     "paddler_openai_response_format_validator",
     "paddler_openai_translation",
+    "paddler_openai_translation_tests",
     "paddler_opencode_tests",
     "paddler_outbox",
     "paddler_request_registry",
@@ -35,6 +43,7 @@ members = [
     "paddler_tests",
     "paddler_tool_call_validator",
     "paddler_typesafe_translation",
+    "paddler_typesafe_translation_tests",
 ]
 resolver = "2"
 
@@ -46,6 +55,192 @@ homepage = "https://paddler.intentee.com/"
 license = "Apache-2.0"
 repository = "https://github.com/intentee/paddler"
 version = "5.0.0"
+
+[workspace.metadata.heisenberg]
+test_crates = [
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_balancer_desired_state_fixture",
+    "paddler_blocking_thread_fixture",
+    "paddler_bootstrap_tests",
+    "paddler_chunked_response_fixture",
+    "paddler_cli_tests",
+    "paddler_download_manager_tests",
+    "paddler_generation_result_fixture",
+    "paddler_local_http_fixture",
+    "paddler_openai_response_format_validator",
+    "paddler_openai_translation_tests",
+    "paddler_opencode_tests",
+    "paddler_tcp_buffer_limits",
+    "paddler_test_cluster_harness",
+    "paddler_tests",
+    "paddler_typesafe_translation_tests",
+]
+
+[[workspace.metadata.heisenberg.configurations]]
+name = "aarch64-apple-darwin"
+target = "aarch64-apple-darwin"
+default_features = true
+features = ["metal", "tests_that_use_llms", "tests_that_use_opencode", "web_admin_panel"]
+
+[[workspace.metadata.heisenberg.configurations]]
+name = "x86_64-unknown-linux-gnu"
+target = "x86_64-unknown-linux-gnu"
+default_features = true
+features = ["cuda", "tests_that_use_llms", "tests_that_use_opencode", "web_admin_panel"]
+
+[workspace.metadata.heisenberg.confined_packages]
+llama-cpp-bindings = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-bindings-build = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-bindings-sys = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-bindings-types = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-error-recorder = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-fault-injection = [
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-ffi-status = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-gbnf = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-log-decoder = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
+llama-cpp-wrapper-sources = [
+    "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
+    "paddler_agent_runtime_tests",
+    "paddler_agent_tests",
+    "paddler_agent_text_generation",
+    "paddler_bootstrap",
+    "paddler_bootstrap_tests",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_opencode_tests",
+    "paddler_tests",
+]
 
 [workspace.dependencies]
 actix-cors = "0.7"
@@ -78,16 +273,17 @@ image = "0.25"
 indoc = "2.0"
 jsonschema = { version = "0.60", default-features = false }
 libc = "0.2"
-llama-cpp-bindings = "0.28"
-llama-cpp-bindings-sys = "0.28"
-llama-cpp-bindings-types = "0.28"
-llama-cpp-fault-injection = "0.28"
-llama-cpp-ffi-status = "0.28"
-llama-cpp-gbnf = "0.28"
+llama-cpp-bindings = "0.29"
+llama-cpp-bindings-sys = "0.29"
+llama-cpp-bindings-types = "0.29"
+llama-cpp-fault-injection = "0.29"
+llama-cpp-ffi-status = "0.29"
+llama-cpp-gbnf = "0.29"
 log = "0.4"
 mime_guess = "2.0"
 nanoid = "0.5"
 nix = { version = "0.31", features = ["fs", "net", "process", "resource", "signal", "socket", "user"] }
+num-traits = "0.2"
 parking_lot = "0.13"
 percent-encoding = "2.3"
 quick-xml = "0.42"
@@ -120,14 +316,17 @@ paddler_agent_runtime = { version = "5.0", path = "paddler_agent_runtime" }
 paddler_agent_status = { version = "5.0", path = "paddler_agent_status" }
 paddler_agent_text_generation = { version = "5.0", path = "paddler_agent_text_generation" }
 paddler_balancer = { version = "5.0", path = "paddler_balancer" }
+paddler_balancer_desired_state_fixture = { version = "5.0", path = "paddler_balancer_desired_state_fixture" }
 paddler_blocking_thread_fixture = { version = "5.0", path = "paddler_blocking_thread_fixture" }
 paddler_bootstrap = { version = "5.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "5.0", path = "paddler_cache_dir" }
+paddler_chunked_response_fixture = { version = "5.0", path = "paddler_chunked_response_fixture" }
 paddler_cli = { version = "5.0", path = "paddler_cli" }
 paddler_client = { version = "5.0", path = "paddler_client" }
 paddler_dashboard_assets = { version = "5.0", path = "paddler_dashboard_assets" }
 paddler_download_manager = { version = "5.0", path = "paddler_download_manager" }
 paddler_frame_writer = { version = "5.0", path = "paddler_frame_writer" }
+paddler_generation_result_fixture = { version = "5.0", path = "paddler_generation_result_fixture" }
 paddler_image_decoder = { version = "5.0", path = "paddler_image_decoder" }
 paddler_inference_parameters = { version = "5.0", path = "paddler_inference_parameters" }
 paddler_local_http_fixture = { version = "5.0", path = "paddler_local_http_fixture" }
@@ -152,42 +351,31 @@ codegen-units = 1
 
 [workspace.lints.rust]
 unsafe_code = "deny"
+warnings = "deny"
 
 [workspace.lints.clippy]
-# Lint groups (priority = -1 so individual overrides take precedence)
 all = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 
-# Specific linter settings
 absolute_paths = "deny"
 allow_attributes = "deny"
-cast_possible_truncation = "allow"
-cast_sign_loss = "allow"
+arithmetic_side_effects = "deny"
 dbg_macro = "deny"
-error_impl_error = "allow"
 expect_used = "deny"
-future_not_send = "allow"
+indexing_slicing = "deny"
 infinite_loop = "deny"
-literal_string_with_formatting_args = "allow"
-missing_docs_in_private_items = "allow"
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-module_name_repetitions = "allow"
-needless_pass_by_value = "allow"
 panic = "deny"
+panic_in_result_fn = "deny"
 print_stderr = "deny"
 print_stdout = "deny"
 rc_mutex = "deny"
 rest_pat_in_fully_bound_structs = "deny"
 self_named_module_files = "deny"
-significant_drop_tightening = "allow"
 str_to_string = "deny"
-# integration tests live in tests/*.rs which is already compiled test-only by Cargo;
-# wrapping every file in `#[cfg(test)] mod tests { }` would be redundant.
-tests_outside_test_module = "allow"
+string_slice = "deny"
 todo = "deny"
-too_many_lines = "allow"
 unimplemented = "deny"
+unreachable = "deny"
 unwrap_used = "deny"
 

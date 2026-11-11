@@ -1,7 +1,6 @@
 use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_pointer_head::pointer_head_error::PointerHeadError;
-
-use crate::fixture_path::fixture_path;
+use paddler_test_cluster_harness::fixture_path::fixture_path;
 
 const OVERSIZED_HEAD_DIM: i64 = 1 << 16;
 

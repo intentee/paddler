@@ -2,9 +2,9 @@ use jsonschema::Validator;
 use jsonschema::validator_for;
 use serde_json::Value;
 
-use crate::openai_spec::OPENAPI_YAML;
-use crate::openai_spec::parse_components;
+use crate::constants::OPENAPI_YAML;
 use crate::openai_validator_error::OpenAIValidatorError;
+use crate::parse_components::parse_components;
 use crate::strict_chat_completion_schema::strict_chat_completion_schema;
 
 const REQUEST_ROOT: &str = "CreateChatCompletionRequest";
@@ -113,12 +113,11 @@ pub struct OpenAIValidator {
 }
 
 impl OpenAIValidator {
+    /// # Errors
+    ///
+    /// Returns the error of [`parse_components`] when the vendored specification cannot be parsed, the error of [`strict_chat_completion_schema`] when a validated schema cannot be assembled from its components, and [`OpenAIValidatorError::StrictSchemaDoesNotCompile`] when an assembled schema does not compile.
     pub fn new() -> Result<Self, OpenAIValidatorError> {
         Self::from_openapi_yaml(OPENAPI_YAML)
-    }
-
-    fn from_openapi_yaml(openapi_yaml: &str) -> Result<Self, OpenAIValidatorError> {
-        Self::from_components(&parse_components(openapi_yaml)?)
     }
 
     fn from_components(components: &Value) -> Result<Self, OpenAIValidatorError> {
@@ -149,6 +148,13 @@ impl OpenAIValidator {
         })
     }
 
+    fn from_openapi_yaml(openapi_yaml: &str) -> Result<Self, OpenAIValidatorError> {
+        Self::from_components(&parse_components(openapi_yaml)?)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::RequestDoesNotConform`] with every violation when the instance is not a chat completion request conforming to the strict schema of the vendored specification.
     pub fn validate_chat_completion_request(
         &self,
         instance: &Value,
@@ -158,6 +164,9 @@ impl OpenAIValidator {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponseDoesNotConform`] with every violation when the instance is not a chat completion response conforming to the strict schema of the vendored specification.
     pub fn validate_chat_completion_response(
         &self,
         instance: &Value,
@@ -167,6 +176,9 @@ impl OpenAIValidator {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::StreamChunkDoesNotConform`] with every violation when the instance is not a chat completion stream chunk conforming to the strict schema of the vendored specification.
     pub fn validate_chat_completion_stream_chunk(
         &self,
         instance: &Value,
@@ -176,12 +188,27 @@ impl OpenAIValidator {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ErrorResponseDoesNotConform`] with every violation when the instance is not an error response conforming to the strict schema of the vendored specification.
+    pub fn validate_error_response(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.error_response, instance, |violations| {
+            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponsesRequestDoesNotConform`] with every violation when the instance is not a responses request conforming to the strict schema of the vendored specification.
     pub fn validate_responses_request(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
         ensure_conformance(&self.responses_request, instance, |violations| {
             OpenAIValidatorError::ResponsesRequestDoesNotConform { violations }
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponsesResponseDoesNotConform`] with every violation when the instance is not a responses response conforming to the strict schema of the vendored specification.
     pub fn validate_responses_response(
         &self,
         instance: &Value,
@@ -191,18 +218,15 @@ impl OpenAIValidator {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponsesStreamEventDoesNotConform`] with every violation when the instance is not a responses stream event conforming to the strict schema of the vendored specification.
     pub fn validate_responses_stream_event(
         &self,
         instance: &Value,
     ) -> Result<(), OpenAIValidatorError> {
         ensure_conformance(&self.responses_stream_event, instance, |violations| {
             OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations }
-        })
-    }
-
-    pub fn validate_error_response(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
-        ensure_conformance(&self.error_response, instance, |violations| {
-            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
         })
     }
 }
@@ -215,9 +239,9 @@ mod tests {
 
     use super::OpenAIValidator;
     use super::compile_strict_schema;
-    use crate::openai_spec::OPENAPI_YAML;
-    use crate::openai_spec::parse_components;
+    use crate::constants::OPENAPI_YAML;
     use crate::openai_validator_error::OpenAIValidatorError;
+    use crate::parse_components::parse_components;
 
     fn validator() -> OpenAIValidator {
         OpenAIValidator::new().unwrap()
@@ -266,6 +290,85 @@ mod tests {
         })
     }
 
+    fn conformant_responses_request() -> Value {
+        json!({ "model": "test", "input": "Say hello" })
+    }
+
+    fn conformant_responses_response() -> Value {
+        json!({
+            "id": "resp_test",
+            "object": "response",
+            "created_at": 0,
+            "error": null,
+            "incomplete_details": null,
+            "instructions": null,
+            "model": "test",
+            "tools": [],
+            "output": [{
+                "id": "msg_0",
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{
+                    "type": "output_text",
+                    "text": "hello",
+                    "annotations": [],
+                    "logprobs": []
+                }]
+            }],
+            "parallel_tool_calls": true,
+            "metadata": {},
+            "tool_choice": "auto",
+            "temperature": 1,
+            "top_p": 1,
+            "usage": {
+                "input_tokens": 1,
+                "input_tokens_details": { "cached_tokens": 0 },
+                "output_tokens": 1,
+                "output_tokens_details": { "reasoning_tokens": 0 },
+                "total_tokens": 2
+            }
+        })
+    }
+
+    fn conformant_responses_stream_event() -> Value {
+        json!({
+            "type": "response.output_text.delta",
+            "item_id": "msg_0",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "hello",
+            "sequence_number": 1,
+            "logprobs": []
+        })
+    }
+
+    fn conformant_error_response() -> Value {
+        json!({
+            "error": {
+                "message": "boom",
+                "type": "server_error",
+                "param": null,
+                "code": null
+            }
+        })
+    }
+
+    fn with_member(
+        mut document: Value,
+        object_pointer: &str,
+        member_name: &str,
+        member_value: Value,
+    ) -> Value {
+        document
+            .pointer_mut(object_pointer)
+            .and_then(Value::as_object_mut)
+            .expect("the document must hold an object at the pointer")
+            .insert(member_name.to_owned(), member_value);
+
+        document
+    }
+
     #[test]
     fn accepts_a_conformant_request() {
         validator()
@@ -275,8 +378,12 @@ mod tests {
 
     #[test]
     fn rejects_request_with_chat_template_kwargs() {
-        let mut request = conformant_request();
-        request["chat_template_kwargs"] = json!({ "enable_thinking": false });
+        let request = with_member(
+            conformant_request(),
+            "",
+            "chat_template_kwargs",
+            json!({ "enable_thinking": false }),
+        );
 
         let error = validator()
             .validate_chat_completion_request(&request)
@@ -300,8 +407,12 @@ mod tests {
 
     #[test]
     fn rejects_response_with_reasoning_content() {
-        let mut response = conformant_response();
-        response["choices"][0]["message"]["reasoning_content"] = json!("thinking");
+        let response = with_member(
+            conformant_response(),
+            "/choices/0/message",
+            "reasoning_content",
+            json!("thinking"),
+        );
 
         let error = validator()
             .validate_chat_completion_response(&response)
@@ -318,8 +429,12 @@ mod tests {
 
     #[test]
     fn rejects_response_with_image_tokens() {
-        let mut response = conformant_response();
-        response["usage"]["prompt_tokens_details"]["image_tokens"] = json!(3);
+        let response = with_member(
+            conformant_response(),
+            "/usage/prompt_tokens_details",
+            "image_tokens",
+            json!(3),
+        );
 
         let error = validator()
             .validate_chat_completion_response(&response)
@@ -343,8 +458,12 @@ mod tests {
 
     #[test]
     fn rejects_stream_chunk_with_reasoning_content() {
-        let mut chunk = conformant_stream_chunk();
-        chunk["choices"][0]["delta"]["reasoning_content"] = json!("thinking");
+        let chunk = with_member(
+            conformant_stream_chunk(),
+            "/choices/0/delta",
+            "reasoning_content",
+            json!("thinking"),
+        );
 
         let error = validator()
             .validate_chat_completion_stream_chunk(&chunk)
@@ -430,59 +549,6 @@ mod tests {
         );
     }
 
-    fn conformant_responses_request() -> Value {
-        json!({ "model": "test", "input": "Say hello" })
-    }
-
-    fn conformant_responses_response() -> Value {
-        json!({
-            "id": "resp_test",
-            "object": "response",
-            "created_at": 0,
-            "error": null,
-            "incomplete_details": null,
-            "instructions": null,
-            "model": "test",
-            "tools": [],
-            "output": [{
-                "id": "msg_0",
-                "type": "message",
-                "role": "assistant",
-                "status": "completed",
-                "content": [{
-                    "type": "output_text",
-                    "text": "hello",
-                    "annotations": [],
-                    "logprobs": []
-                }]
-            }],
-            "parallel_tool_calls": true,
-            "metadata": {},
-            "tool_choice": "auto",
-            "temperature": 1,
-            "top_p": 1,
-            "usage": {
-                "input_tokens": 1,
-                "input_tokens_details": { "cached_tokens": 0 },
-                "output_tokens": 1,
-                "output_tokens_details": { "reasoning_tokens": 0 },
-                "total_tokens": 2
-            }
-        })
-    }
-
-    fn conformant_responses_stream_event() -> Value {
-        json!({
-            "type": "response.output_text.delta",
-            "item_id": "msg_0",
-            "output_index": 0,
-            "content_index": 0,
-            "delta": "hello",
-            "sequence_number": 1,
-            "logprobs": []
-        })
-    }
-
     #[test]
     fn accepts_a_conformant_responses_request() {
         validator()
@@ -492,8 +558,7 @@ mod tests {
 
     #[test]
     fn rejects_responses_request_with_a_non_string_model() {
-        let mut request = conformant_responses_request();
-        request["model"] = json!(42);
+        let request = with_member(conformant_responses_request(), "", "model", json!(42));
 
         let error = validator()
             .validate_responses_request(&request)
@@ -517,8 +582,12 @@ mod tests {
 
     #[test]
     fn rejects_responses_response_with_an_extra_top_level_key() {
-        let mut response = conformant_responses_response();
-        response["paddler_extension"] = json!("nope");
+        let response = with_member(
+            conformant_responses_response(),
+            "",
+            "paddler_extension",
+            json!("nope"),
+        );
 
         let error = validator()
             .validate_responses_response(&response)
@@ -535,8 +604,12 @@ mod tests {
 
     #[test]
     fn rejects_responses_response_with_an_extra_output_text_field() {
-        let mut response = conformant_responses_response();
-        response["output"][0]["content"][0]["reasoning_content"] = json!("nope");
+        let response = with_member(
+            conformant_responses_response(),
+            "/output/0/content/0",
+            "reasoning_content",
+            json!("nope"),
+        );
 
         let error = validator()
             .validate_responses_response(&response)
@@ -561,8 +634,12 @@ mod tests {
 
     #[test]
     fn rejects_responses_stream_event_with_an_extra_key() {
-        let mut event = conformant_responses_stream_event();
-        event["paddler_extension"] = json!("nope");
+        let event = with_member(
+            conformant_responses_stream_event(),
+            "",
+            "paddler_extension",
+            json!("nope"),
+        );
 
         let error = validator()
             .validate_responses_stream_event(&event)
@@ -616,17 +693,6 @@ mod tests {
         );
     }
 
-    fn conformant_error_response() -> Value {
-        json!({
-            "error": {
-                "message": "boom",
-                "type": "server_error",
-                "param": null,
-                "code": null
-            }
-        })
-    }
-
     #[test]
     fn accepts_a_conformant_error_response() {
         validator()
@@ -636,8 +702,12 @@ mod tests {
 
     #[test]
     fn rejects_error_response_with_an_extra_key() {
-        let mut response = conformant_error_response();
-        response["error"]["paddler_extension"] = json!("nope");
+        let response = with_member(
+            conformant_error_response(),
+            "/error",
+            "paddler_extension",
+            json!("nope"),
+        );
 
         let error = validator()
             .validate_error_response(&response)

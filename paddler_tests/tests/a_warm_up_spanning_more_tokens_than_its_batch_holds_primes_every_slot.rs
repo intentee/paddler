@@ -2,6 +2,8 @@
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
@@ -33,5 +35,33 @@ fn a_warm_up_spanning_more_tokens_than_its_batch_holds_primes_every_slot() {
             .as_ref()
             .map_err(ToString::to_string),
         Ok(&())
+    );
+
+    batch.clear();
+
+    for sequence_id in 0..i32::from(SLOTS) {
+        batch
+            .add(
+                &SampledToken::Content(LlamaToken::new(0)),
+                0,
+                &[sequence_id],
+                true,
+            )
+            .expect("a token for every slot must fit the batch");
+    }
+
+    llama_context
+        .decode(&batch)
+        .expect("every warmed up slot must decode");
+
+    assert_eq!(
+        (0..i32::from(SLOTS))
+            .map(|sequence_id| {
+                llama_context
+                    .memory_seq_pos_max(sequence_id)
+                    .expect("the sequence position must be readable")
+            })
+            .collect::<Vec<i32>>(),
+        vec![0; usize::from(SLOTS)]
     );
 }

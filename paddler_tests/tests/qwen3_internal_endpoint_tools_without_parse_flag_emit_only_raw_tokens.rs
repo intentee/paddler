@@ -10,9 +10,9 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::constants::WEATHER_TOOL_QUESTION;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens() {

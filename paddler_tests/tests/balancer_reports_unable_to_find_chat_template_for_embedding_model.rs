@@ -29,7 +29,12 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() {
         .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
         .await
         .expect("the agent must report UnableToFindChatTemplate for an embedding-only model");
-    let issues = &snapshot.agents[0].status.issues;
+    let issues = &snapshot
+        .agents
+        .first()
+        .expect("the snapshot must hold the agent")
+        .status
+        .issues;
 
     assert!(issues.contains(&expected_issue), "{issues:?}");
 

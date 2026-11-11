@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 
@@ -17,6 +17,9 @@ pub enum ResponsesInputItem {
 }
 
 impl ResponsesInputItem {
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`] when the arguments of a function call item are not a JSON object, and [`OpenAITranslationError::ReasoningItemWithoutContent`] when a reasoning item carries no reasoning text.
     pub fn append_to(
         self,
         messages: &mut Vec<ConversationMessage>,

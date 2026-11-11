@@ -55,12 +55,19 @@ async fn agent_reports_independent_usage_for_concurrent_requests() {
     assert_eq!(summaries.len(), 2);
 
     for summary in &summaries {
-        assert!(summary.usage.prompt_tokens > 0);
+        assert!(summary.usage.prompt > 0);
         assert!(summary.usage.completion_tokens() > 0);
     }
 
     assert_ne!(
-        summaries[0].usage, summaries[1].usage,
+        summaries
+            .first()
+            .expect("the first request must be summarized")
+            .usage,
+        summaries
+            .get(1)
+            .expect("the second request must be summarized")
+            .usage,
         "concurrent requests reported identical usage; counters likely shared"
     );
 

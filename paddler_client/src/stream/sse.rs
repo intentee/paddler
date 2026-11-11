@@ -8,7 +8,7 @@ use futures_util::StreamExt as _;
 use reqwest::Response;
 use tokio_util::sync::CancellationToken;
 
-use crate::error::Result;
+use crate::result::Result;
 use crate::stream::stream_line::StreamLine;
 use crate::stream::stream_lines::stream_lines;
 
@@ -52,7 +52,6 @@ mod tests {
     use std::io::Result as IoResult;
 
     use futures_util::StreamExt as _;
-    use futures_util::stream::iter;
     use http::Response as HttpResponse;
     use reqwest::Body;
     use reqwest::Response;
@@ -61,15 +60,11 @@ mod tests {
     use tokio_stream::wrappers::UnboundedReceiverStream;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_chunked_response_fixture::response_from_chunks::response_from_chunks;
+
     use super::Sse;
     use crate::error::Error;
-    use crate::error::Result;
-
-    fn response_from_chunks(chunks: Vec<IoResult<&'static [u8]>>) -> Response {
-        let stream = iter(chunks.into_iter().map(|chunk| chunk.map(<[u8]>::to_vec)));
-
-        Response::from(HttpResponse::new(Body::wrap_stream(stream)))
-    }
+    use crate::result::Result;
 
     async fn collect_lines(chunks: Vec<IoResult<&'static [u8]>>) -> Vec<Result<String>> {
         Sse::from_response(CancellationToken::new(), response_from_chunks(chunks))
@@ -77,72 +72,71 @@ mod tests {
             .await
     }
 
+    async fn collect_payloads(chunks: Vec<IoResult<&'static [u8]>>) -> Vec<String> {
+        collect_lines(chunks)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<String>>>()
+            .expect("every line must decode")
+    }
+
     #[tokio::test]
     async fn yields_data_payloads() {
-        let lines = collect_lines(vec![Ok(b"data: hello\ndata: world\n")]).await;
+        let payloads = collect_payloads(vec![Ok(b"data: hello\ndata: world\n")]).await;
 
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0].as_ref().unwrap(), "hello");
-        assert_eq!(lines[1].as_ref().unwrap(), "world");
+        assert_eq!(payloads, ["hello", "world"]);
     }
 
     #[tokio::test]
     async fn reassembles_a_multibyte_character_split_across_chunks() {
-        let lines = collect_lines(vec![Ok(b"data: \xf0\x9f"), Ok(b"\xa6\x86\n")]).await;
+        let payloads = collect_payloads(vec![Ok(b"data: \xf0\x9f"), Ok(b"\xa6\x86\n")]).await;
 
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].as_ref().unwrap(), "🦆");
+        assert_eq!(payloads, ["🦆"]);
     }
 
     #[tokio::test]
     async fn a_line_that_is_not_valid_utf8_yields_an_error() {
         let lines = collect_lines(vec![Ok(b"data: \xf0\x9f\n")]).await;
 
-        assert_eq!(lines.len(), 1);
         assert!(matches!(
-            &lines[0],
-            Err(Error::NonUtf8StreamLine { source }) if source.as_bytes() == b"data: \xf0\x9f"
+            lines.as_slice(),
+            [Err(Error::NonUtf8StreamLine { source })] if source.as_bytes() == b"data: \xf0\x9f"
         ));
     }
 
     #[tokio::test]
     async fn strips_trailing_carriage_return() {
-        let lines = collect_lines(vec![Ok(b"data: hello\r\n")]).await;
+        let payloads = collect_payloads(vec![Ok(b"data: hello\r\n")]).await;
 
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].as_ref().unwrap(), "hello");
+        assert_eq!(payloads, ["hello"]);
     }
 
     #[tokio::test]
     async fn skips_non_data_lines() {
-        let lines = collect_lines(vec![Ok(b"event: ping\ndata: kept\n")]).await;
+        let payloads = collect_payloads(vec![Ok(b"event: ping\ndata: kept\n")]).await;
 
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].as_ref().unwrap(), "kept");
+        assert_eq!(payloads, ["kept"]);
     }
 
     #[tokio::test]
     async fn reassembles_a_payload_split_across_chunks() {
-        let lines = collect_lines(vec![Ok(b"data: hel"), Ok(b"lo\n")]).await;
+        let payloads = collect_payloads(vec![Ok(b"data: hel"), Ok(b"lo\n")]).await;
 
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].as_ref().unwrap(), "hello");
+        assert_eq!(payloads, ["hello"]);
     }
 
     #[tokio::test]
     async fn discards_an_event_that_is_not_terminated_by_a_newline() {
-        let lines = collect_lines(vec![Ok(b"data: kept\ndata: truncated")]).await;
+        let payloads = collect_payloads(vec![Ok(b"data: kept\ndata: truncated")]).await;
 
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].as_ref().unwrap(), "kept");
+        assert_eq!(payloads, ["kept"]);
     }
 
     #[tokio::test]
     async fn discards_an_unterminated_event_that_is_not_valid_utf8() {
-        let lines = collect_lines(vec![Ok(b"data: kept\ndata: \xf0\x9f")]).await;
+        let payloads = collect_payloads(vec![Ok(b"data: kept\ndata: \xf0\x9f")]).await;
 
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].as_ref().unwrap(), "kept");
+        assert_eq!(payloads, ["kept"]);
     }
 
     #[tokio::test]
@@ -160,8 +154,10 @@ mod tests {
         ])
         .await;
 
-        assert_eq!(lines.len(), 1);
-        assert!(matches!(&lines[0], Err(Error::Http(source)) if source.is_decode()));
+        assert!(matches!(
+            lines.as_slice(),
+            [Err(Error::Http(source))] if source.is_decode()
+        ));
     }
 
     #[tokio::test]

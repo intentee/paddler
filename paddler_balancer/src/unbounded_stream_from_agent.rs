@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::time::Duration;
+
 use actix_web::rt;
 use futures_util::Stream;
 use nanoid::nanoid;
@@ -8,50 +11,63 @@ use tokio_util::sync::CancellationToken;
 use crate::agent_relay::AgentRelay;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::awaiting_agent_relay::AwaitingAgentRelay;
+use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::dispatchable_request::DispatchableRequest;
-use crate::forward_agent_relay::forward_agent_relay;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
-use crate::unbounded_stream_from_agent_params::UnboundedStreamFromAgentParams;
 
-pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
-    UnboundedStreamFromAgentParams {
-        buffered_request_manager,
-        inference_service_configuration,
-        request_params,
-        shutdown,
-        transformer,
-    }: UnboundedStreamFromAgentParams<TParams, TTransformsOutgoingMessage>,
-) -> impl Stream<Item = TTransformsOutgoingMessage::Output>
+pub struct UnboundedStreamFromAgent<TParams, TTransformsOutgoingMessage> {
+    pub buffered_request_manager: Arc<BufferedRequestManager>,
+    pub inference_item_timeout: Duration,
+    pub request_params: TParams,
+    pub shutdown: CancellationToken,
+    pub transformer: TTransformsOutgoingMessage,
+}
+
+impl<TParams, TTransformsOutgoingMessage>
+    UnboundedStreamFromAgent<TParams, TTransformsOutgoingMessage>
 where
     TParams: AgentStreamingRequest + 'static,
     TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync + 'static,
 {
-    let connection_close = CancellationToken::new();
-    let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
-
-    rt::spawn(forward_agent_relay(
-        AgentRelay::awaiting(AwaitingAgentRelay {
+    pub fn into_stream(self) -> impl Stream<Item = TTransformsOutgoingMessage::Output> {
+        let Self {
             buffered_request_manager,
-            dispatchable_request: DispatchableRequest::from(request_params),
-            inference_item_timeout: inference_service_configuration.inference_item_timeout,
+            inference_item_timeout,
+            request_params,
             shutdown,
-        }),
-        connection_close.clone(),
-        OutgoingMessageRelayReceiver {
-            request_id: nanoid!(),
-            session_controller: ChunkForwardingSessionController::new(chunk_tx, transformer),
-        },
-    ));
+            transformer,
+        } = self;
+        let connection_close = CancellationToken::new();
+        let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
-    CancellationTokenStreamGuard::new(connection_close, UnboundedReceiverStream::new(chunk_rx))
+        rt::spawn(
+            AgentRelay::awaiting(AwaitingAgentRelay {
+                buffered_request_manager,
+                dispatchable_request: DispatchableRequest::from(request_params),
+                inference_item_timeout,
+                shutdown,
+            })
+            .forward(
+                connection_close.clone(),
+                OutgoingMessageRelayReceiver {
+                    request_id: nanoid!(),
+                    session_controller: ChunkForwardingSessionController::new(
+                        chunk_tx,
+                        transformer,
+                    ),
+                },
+            ),
+        );
+
+        CancellationTokenStreamGuard::new(connection_close, UnboundedReceiverStream::new(chunk_rx))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::num::NonZeroU32;
     use std::sync::Arc;
     use std::time::Duration;
@@ -65,27 +81,16 @@ mod tests {
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
-    use super::unbounded_stream_from_agent;
+    use super::UnboundedStreamFromAgent;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
     use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
-    use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-    use crate::resolved_socket_addr::ResolvedSocketAddr;
-    use crate::unbounded_stream_from_agent_params::UnboundedStreamFromAgentParams;
 
-    fn inference_service_configuration() -> InferenceServiceConfiguration {
-        const TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
-
-        InferenceServiceConfiguration {
-            addr: ResolvedSocketAddr::from(SocketAddr::from(([127, 0, 0, 1], 0))),
-            cors_allowed_hosts: Vec::new(),
-            inference_item_timeout: TIMEOUT_LONGER_THAN_ANY_TEST_RUN,
-        }
-    }
+    const TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
 
     #[actix_web::test]
-    async fn spawned_task_runs_request_from_agent_and_closes_stream_on_shutdown() {
+    async fn a_stream_requested_during_shutdown_yields_a_shutting_down_error_and_ends() {
         let pool = Arc::new(AgentControllerPool::default());
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
             pool,
@@ -97,10 +102,10 @@ mod tests {
 
         shutdown.cancel();
 
-        let mut stream = Box::pin(unbounded_stream_from_agent(
-            UnboundedStreamFromAgentParams {
+        let mut stream = Box::pin(
+            UnboundedStreamFromAgent {
                 buffered_request_manager,
-                inference_service_configuration: inference_service_configuration(),
+                inference_item_timeout: TIMEOUT_LONGER_THAN_ANY_TEST_RUN,
                 request_params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: NonZeroU32::new(1).unwrap(),
@@ -108,12 +113,15 @@ mod tests {
                 },
                 shutdown,
                 transformer: IdentityTransformer::new(),
-            },
-        ));
+            }
+            .into_stream(),
+        );
 
-        let Some(TransformResult::Chunk(shutdown_chunk)) = stream.next().await else {
-            panic!("the stream must forward the shutdown as a chunk");
-        };
+        let shutdown_chunk = match stream.next().await {
+            Some(TransformResult::Chunk(chunk)) => Some(chunk),
+            Some(TransformResult::Discard | TransformResult::Error(_)) | None => None,
+        }
+        .expect("the stream must forward the shutdown as a chunk");
 
         assert!(matches!(
             from_str::<OutgoingMessage>(&shutdown_chunk).unwrap(),

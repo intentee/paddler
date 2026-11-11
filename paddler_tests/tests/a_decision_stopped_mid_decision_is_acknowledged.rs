@@ -7,19 +7,22 @@ use tokio::sync::mpsc;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::many_question_decision::many_question_decision;
 use paddler_tests::question_answered_discriminant::question_answered_discriminant;
-
-use crate::serving_decision_agent::ServingDecisionAgent;
+use paddler_tests::serving_decision_agent::ServingDecisionAgent;
 
 const QUESTIONS_OUTLASTING_A_STOP: usize = 96;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_stopped_mid_decision_is_acknowledged() {
-    let serving_decision_agent = ServingDecisionAgent::start().await;
+    let serving_decision_agent = ServingDecisionAgent::start()
+        .await
+        .expect("the decision agent must start serving");
     let (decision_stop_tx, decision_stop_rx) = mpsc::unbounded_channel();
-    let mut decision_result_rx = serving_decision_agent.forward_decision(
-        many_question_decision(QUESTIONS_OUTLASTING_A_STOP),
-        decision_stop_rx,
-    );
+    let mut decision_result_rx = serving_decision_agent
+        .forward_decision(
+            many_question_decision(QUESTIONS_OUTLASTING_A_STOP),
+            decision_stop_rx,
+        )
+        .expect("the decision parameters must be valid");
 
     assert_eq!(
         decision_result_rx.recv().await.as_ref().map(discriminant),

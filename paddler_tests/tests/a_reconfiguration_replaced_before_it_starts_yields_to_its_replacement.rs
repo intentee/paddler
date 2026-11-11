@@ -13,33 +13,39 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
+use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::first_message_content_chat_template::first_message_content_chat_template;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
-
-use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
-use crate::swappable_model_file::SwappableModelFile;
-use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
+use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_tests::swappable_model_file::SwappableModelFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_reconfiguration_replaced_before_it_starts_yields_to_its_replacement() {
     let swappable_model_file =
-        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"));
+        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"))
+            .expect("the model must be linked into a swappable model file");
     let served_desired_state = BalancerDesiredState {
         decision: DecisionSettings::default(),
-        model: swappable_model_file.agent_desired_model(),
+        model: swappable_model_file
+            .agent_desired_model()
+            .expect("the swappable model file must be at an absolute path"),
         ..KevCheckpoint::Kev0_8b
             .decision_desired_state()
             .into_balancer_desired_state()
             .expect("the kev desired state must name absolute paths")
     };
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
 
     serving_pipeline_arbiter
         .serve(served_desired_state.clone())
-        .await;
+        .await
+        .expect("the desired state must be served");
 
-    swappable_model_file.replace_with_an_unloadable_file();
+    swappable_model_file
+        .replace_with_an_unloadable_file()
+        .expect("the unloadable file must replace the model");
 
     assert_eq!(
         discriminant(

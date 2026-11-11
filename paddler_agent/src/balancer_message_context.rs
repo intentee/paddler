@@ -122,22 +122,22 @@ impl BalancerMessageContext {
                         continue_from_conversation_history_params,
                     ),
             }) => self.stream_responses::<_, GeneratedTokenResult>(
-                id,
+                &id,
                 continue_from_conversation_history_params,
             ),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::ContinueFromRawPrompt(continue_from_raw_prompt_params),
             }) => self
-                .stream_responses::<_, GeneratedTokenResult>(id, continue_from_raw_prompt_params),
+                .stream_responses::<_, GeneratedTokenResult>(&id, continue_from_raw_prompt_params),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::Decide(decide_params),
-            }) => self.stream_responses::<_, DecisionResult>(id, decide_params),
+            }) => self.stream_responses::<_, DecisionResult>(&id, decide_params),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GenerateEmbeddingBatch(generate_embedding_batch_params),
-            }) => self.stream_responses::<_, EmbeddingResult>(id, generate_embedding_batch_params),
+            }) => self.stream_responses::<_, EmbeddingResult>(&id, generate_embedding_batch_params),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GetChatTemplateOverride,
@@ -161,7 +161,7 @@ impl BalancerMessageContext {
 
     fn stream_responses<TParams, TResponse>(
         &self,
-        request_id: String,
+        request_id: &str,
         ReservedRequest {
             params,
             reserved_slots,
@@ -175,7 +175,7 @@ impl BalancerMessageContext {
         let (stop_tx, stop_rx) = mpsc::unbounded_channel::<()>();
 
         let Some(stopper_guard) =
-            RequestRegistryGuard::register(&self.request_stoppers, request_id.clone(), stop_tx)
+            RequestRegistryGuard::register(&self.request_stoppers, request_id.to_owned(), stop_tx)
         else {
             error!(
                 "The balancer reused the id of request {request_id:?}, which is still in flight"

@@ -6,6 +6,8 @@ use paddler_balancer::management_service::configuration::Configuration as Manage
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+#[cfg(feature = "web_admin_panel")]
+use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_state_database::state_database_type::StateDatabaseType;
 
 pub struct BalancerBootstrapConfig {
@@ -20,4 +22,27 @@ pub struct BalancerBootstrapConfig {
     pub typesafe_service_configuration: Option<CompatibilityServiceConfiguration>,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
+}
+
+impl BalancerBootstrapConfig {
+    #[cfg(feature = "web_admin_panel")]
+    #[must_use]
+    pub fn web_admin_panel_template_data(&self) -> TemplateData {
+        TemplateData {
+            buffered_request_timeout: self.buffered_request_timeout,
+            compat_openai_addr: self
+                .openai_service_configuration
+                .as_ref()
+                .map(|CompatibilityServiceConfiguration { addr }| addr.clone()),
+            compat_typesafe_addr: self
+                .typesafe_service_configuration
+                .as_ref()
+                .map(|CompatibilityServiceConfiguration { addr }| addr.clone()),
+            inference_addr: self.inference_service_configuration.addr.clone(),
+            management_addr: self.management_service_configuration.addr.clone(),
+            max_buffered_requests: self.max_buffered_requests,
+            statsd_prefix: self.statsd_prefix.clone(),
+            statsd_service_configuration: self.statsd_service_configuration.clone(),
+        }
+    }
 }

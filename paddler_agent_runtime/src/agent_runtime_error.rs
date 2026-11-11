@@ -27,6 +27,13 @@ pub enum AgentRuntimeError {
         inference_capability: InferenceCapability,
     },
 
+    #[error("unable to read the model file {model_path}: {source}")]
+    ModelFilePrefetchFailed {
+        model_path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
     #[error("unable to load the model from {model_path}: {source}")]
     ModelLoadFailed {
         model_path: PathBuf,

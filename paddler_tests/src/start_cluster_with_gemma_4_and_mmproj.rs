@@ -9,6 +9,9 @@ use paddler_test_cluster_harness::model_card::gemma_4_e2b_it_mmproj::gemma_4_e2b
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving Gemma 4 with its multimodal projection cannot start.
 pub async fn start_cluster_with_gemma_4_and_mmproj(agents: Vec<AgentConfig>) -> Result<Cluster> {
     start_cluster(ClusterParams {
         agents,

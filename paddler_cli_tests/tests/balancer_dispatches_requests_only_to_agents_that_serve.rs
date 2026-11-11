@@ -4,14 +4,17 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cli_tests::constants::SERVING_AGENT_NAME;
+use paddler_cli_tests::subprocess_cluster_with_a_serving_and_a_stuck_agent::subprocess_cluster_with_a_serving_and_a_stuck_agent;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-
-use crate::subprocess_cluster_with_a_serving_and_a_stuck_agent::SERVING_AGENT_NAME;
-use crate::subprocess_cluster_with_a_serving_and_a_stuck_agent::subprocess_cluster_with_a_serving_and_a_stuck_agent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_dispatches_requests_only_to_agents_that_serve() {
-    let cluster = subprocess_cluster_with_a_serving_and_a_stuck_agent().await;
+    let cluster = subprocess_cluster_with_a_serving_and_a_stuck_agent(env!(
+        "CARGO_BIN_EXE_paddler_cluster_node"
+    ))
+    .await
+    .expect("the cluster must start with a serving and a stuck agent");
 
     let collected = cluster
         .continue_from_raw_prompt(

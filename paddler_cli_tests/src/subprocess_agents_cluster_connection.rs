@@ -15,6 +15,9 @@ pub struct SubprocessAgentsClusterConnection<'connection> {
 }
 
 impl SubprocessAgentsClusterConnection<'_> {
+    /// # Errors
+    ///
+    /// Fails when the balancer does not become healthy, when it refuses the desired state, and when its snapshot streams cannot be opened or end before their first snapshot.
     pub async fn connect(self) -> Result<Cluster> {
         let management_addr = self.running_balancer.addresses.management;
 

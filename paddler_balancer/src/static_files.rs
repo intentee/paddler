@@ -8,16 +8,12 @@ pub struct StaticFiles;
 mod tests {
     use super::StaticFiles;
 
-    fn any_embedded_file_name() -> String {
-        StaticFiles::iter()
-            .next()
-            .map(|file_name| file_name.as_ref().to_owned())
-            .unwrap()
-    }
-
     #[test]
     fn returns_embedded_file_for_existing_path() {
-        let embedded_file = StaticFiles::get(&any_embedded_file_name()).unwrap();
+        let embedded_file = StaticFiles::iter()
+            .next()
+            .and_then(|file_name| StaticFiles::get(&file_name))
+            .unwrap();
 
         assert!(!embedded_file.data.is_empty());
     }

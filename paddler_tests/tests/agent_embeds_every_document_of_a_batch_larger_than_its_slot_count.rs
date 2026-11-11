@@ -4,11 +4,13 @@ use std::collections::BTreeSet;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_tests::numbered_embedding_documents::numbered_embedding_documents;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
@@ -25,7 +27,7 @@ async fn agent_embeds_every_document_of_a_batch_larger_than_its_slot_count() {
     let input_batch = numbered_embedding_documents(12);
     let expected_ids: BTreeSet<String> = input_batch
         .iter()
-        .map(|document| document.id.clone())
+        .map(|EmbeddingInputDocument { id, .. }| id.clone())
         .collect();
 
     let collected = cluster
@@ -46,14 +48,20 @@ async fn agent_embeds_every_document_of_a_batch_larger_than_its_slot_count() {
     let returned_ids: BTreeSet<String> = collected
         .embeddings
         .iter()
-        .map(|produced| produced.embedding.source_document_id.clone())
+        .map(|EmbeddingWithProducer { embedding, .. }| embedding.source_document_id.clone())
         .collect();
     assert_eq!(returned_ids, expected_ids);
 
-    let first_dimension = collected.embeddings[0].embedding.embedding.len();
+    let first_dimension = collected
+        .embeddings
+        .first()
+        .expect("the batch must produce an embedding")
+        .embedding
+        .vector
+        .len();
 
     for produced in &collected.embeddings {
-        assert_eq!(produced.embedding.embedding.len(), first_dimension);
+        assert_eq!(produced.embedding.vector.len(), first_dimension);
     }
 
     cluster

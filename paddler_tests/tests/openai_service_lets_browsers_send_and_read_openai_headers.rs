@@ -3,9 +3,9 @@ use reqwest::Method;
 use reqwest::StatusCode;
 use reqwest::header::HeaderValue;
 
-use paddler_balancer::compatibility::openai_service::openai_api_path::OpenAIApiPath;
-use paddler_balancer::compatibility::openai_service::openai_header::OpenAIHeader;
-use paddler_messaging::api_path::ApiPath;
+use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer::constants::OPENAI_HEADER_REQUEST_ID;
+use paddler_messaging::constants::API_PATH_HEALTH;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -25,14 +25,14 @@ async fn openai_service_lets_browsers_send_and_read_openai_headers() {
             Method::OPTIONS,
             cluster
                 .balancer
-                .compat_openai_url(OpenAIApiPath::CHAT_COMPLETIONS)
+                .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
                 .expect("the cluster serves OpenAI"),
         )
         .header("Origin", ALLOWED_ORIGIN)
         .header("Access-Control-Request-Method", "POST")
         .header(
             "Access-Control-Request-Headers",
-            ["authorization", "content-type", OpenAIHeader::REQUEST_ID].join(", "),
+            ["authorization", "content-type", OPENAI_HEADER_REQUEST_ID].join(", "),
         )
         .send()
         .await
@@ -44,21 +44,21 @@ async fn openai_service_lets_browsers_send_and_read_openai_headers() {
         .get(
             cluster
                 .balancer
-                .compat_openai_url(ApiPath::HEALTH)
+                .compat_openai_url(API_PATH_HEALTH)
                 .expect("the cluster serves OpenAI"),
         )
         .header("Origin", ALLOWED_ORIGIN)
-        .header(OpenAIHeader::REQUEST_ID, "browser-request")
+        .header(OPENAI_HEADER_REQUEST_ID, "browser-request")
         .send()
         .await
         .expect("the health request must be answered");
 
     assert_eq!(
         health.headers().get("access-control-expose-headers"),
-        Some(&HeaderValue::from_static(OpenAIHeader::REQUEST_ID))
+        Some(&HeaderValue::from_static(OPENAI_HEADER_REQUEST_ID))
     );
     assert_eq!(
-        health.headers().get(OpenAIHeader::REQUEST_ID),
+        health.headers().get(OPENAI_HEADER_REQUEST_ID),
         Some(&HeaderValue::from_static("browser-request"))
     );
 

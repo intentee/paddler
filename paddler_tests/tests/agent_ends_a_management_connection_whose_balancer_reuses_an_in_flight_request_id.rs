@@ -13,21 +13,18 @@ use paddler_messaging::management_socket::agent::notification_params::set_state_
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::reserved_request::ReservedRequest;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
-use paddler_test_cluster_harness::untrusted_balancer_socket_server::UntrustedBalancerSocketServer;
+use paddler_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-
-use crate::agent_runner_connected_to::agent_runner_connected_to;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_request_id() {
-    let untrusted_balancer = UntrustedBalancerSocketServer::bind()
+    let AgentConnectedToAnUntrustedBalancer {
+        agent_runner: _agent_runner,
+        connection: mut first_connection,
+        untrusted_balancer,
+    } = AgentConnectedToAnUntrustedBalancer::connect()
         .await
-        .expect("the untrusted balancer must bind");
-    let _agent_runner = agent_runner_connected_to(untrusted_balancer.management_addr, 1);
-    let mut first_connection = untrusted_balancer
-        .accept_agent()
-        .await
-        .expect("the agent must connect");
+        .expect("the agent must connect to the untrusted balancer");
     let unending_generation_request = Message::text(
         to_string(&AgentJsonRpcMessage::Request(RequestEnvelope {
             id: "in-flight".to_owned(),

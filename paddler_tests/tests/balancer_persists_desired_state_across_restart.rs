@@ -48,7 +48,7 @@ async fn balancer_persists_desired_state_across_restart() {
         .await
         .expect("failed to read restored desired state");
 
-    assert_eq!(restored_state.model, desired_state.model);
+    assert_eq!(restored_state, desired_state);
 
     second_cluster
         .shutdown()

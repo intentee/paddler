@@ -2,6 +2,9 @@ use anyhow::Result;
 
 use crate::load_fixture_data_uri::load_fixture_data_uri;
 
+/// # Errors
+///
+/// Fails with the [`std::io::Error`] of a test image fixture that cannot be read.
 pub fn load_test_image_data_uri() -> Result<String> {
     load_fixture_data_uri("llamas.jpg", "image/jpeg")
 }
@@ -10,11 +13,10 @@ pub fn load_test_image_data_uri() -> Result<String> {
 mod tests {
     use std::fs::read;
 
-    use crate::fixture_path::fixture_path;
-
     use data_url::DataUrl;
 
     use super::load_test_image_data_uri;
+    use crate::fixture_path::fixture_path;
 
     #[test]
     fn encodes_the_fixture_as_a_jpeg_data_uri() {

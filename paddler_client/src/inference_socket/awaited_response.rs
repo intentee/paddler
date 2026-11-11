@@ -2,7 +2,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 
-use crate::error::Result;
+use crate::result::Result;
 
 pub struct AwaitedResponse {
     pub response_tx: UnboundedSender<Result<InferenceMessage>>,

@@ -15,6 +15,9 @@ use crate::signalled_subprocess::SignalledSubprocess;
 use crate::spawned_balancer_subprocess::SpawnedBalancerSubprocess;
 use crate::subprocess_cluster_error::SubprocessClusterError;
 
+/// # Errors
+///
+/// Fails when the balancer subprocess cannot be spawned, returns [`SubprocessClusterError::StdoutNotPiped`] when its stdout is not piped, the errors of reading its announcement, [`SubprocessClusterError::BalancerExitedBeforeAnnouncing`] when it exits before announcing its addresses, [`SubprocessClusterError::ProcessExitUnobservable`] when that exit cannot be observed, the error of signalling it, and fails when it cannot be addressed.
 pub async fn spawn_balancer_subprocess<TArguments, TArgument, TSignalSubprocess>(
     binary_path: &str,
     arguments: TArguments,
@@ -26,7 +29,6 @@ where
     TSignalSubprocess: FnOnce(Child) -> Result<SignalledSubprocess, SubprocessClusterError>,
 {
     let mut balancer_subprocess = paddler_command(binary_path)
-        .arg("balancer")
         .args(arguments)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())

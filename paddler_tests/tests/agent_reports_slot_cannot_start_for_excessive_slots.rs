@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
+use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
@@ -51,7 +51,12 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots() {
         .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
         .await
         .expect("the agent must report SlotCannotStart with the underlying error");
-    let issues = &snapshot.agents[0].status.issues;
+    let issues = &snapshot
+        .agents
+        .first()
+        .expect("the snapshot must hold the agent")
+        .status
+        .issues;
 
     assert!(issues.contains(&expected_issue), "{issues:?}");
 

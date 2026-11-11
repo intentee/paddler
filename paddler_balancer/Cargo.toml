@@ -23,7 +23,6 @@ dashmap = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 indoc = { workspace = true }
-llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true, optional = true }
 nanoid = { workspace = true }
@@ -42,6 +41,7 @@ rust-embed = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 socket2 = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
@@ -52,14 +52,14 @@ default = []
 web_admin_panel = [
     "dep:askama",
     "dep:mime_guess",
-    "dep:paddler_dashboard_assets",
     "dep:rust-embed",
 ]
 
 [build-dependencies]
-paddler_dashboard_assets = { workspace = true, optional = true }
+paddler_dashboard_assets = { workspace = true }
 
 [dev-dependencies]
+paddler_balancer_desired_state_fixture = { workspace = true }
 paddler_blocking_thread_fixture = { workspace = true }
 paddler_openai_response_format_validator = { workspace = true }
 tempfile = { workspace = true }

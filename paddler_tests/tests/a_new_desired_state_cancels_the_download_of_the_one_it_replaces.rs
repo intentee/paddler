@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_download_manager::read_timeout::READ_TIMEOUT;
+use paddler_download_manager::constants::READ_TIMEOUT;
 use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;

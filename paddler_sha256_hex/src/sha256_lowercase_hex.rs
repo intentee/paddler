@@ -1,20 +1,16 @@
 use sha2::Digest;
 use sha2::Sha256;
-
-const LOWERCASE_HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
+use sha2::digest::consts::U16;
 
 #[must_use]
 pub fn sha256_lowercase_hex(input: &[u8]) -> String {
-    Sha256::digest(input)
-        .iter()
-        .flat_map(|digest_byte| {
-            [
-                LOWERCASE_HEX_DIGITS[usize::from(digest_byte >> 4)],
-                LOWERCASE_HEX_DIGITS[usize::from(digest_byte & 0x0f)],
-            ]
-        })
-        .map(char::from)
-        .collect()
+    let (leading_digest_half, trailing_digest_half) = Sha256::digest(input).split::<U16>();
+
+    format!(
+        "{:032x}{:032x}",
+        u128::from_be_bytes(leading_digest_half.into()),
+        u128::from_be_bytes(trailing_digest_half.into())
+    )
 }
 
 #[cfg(test)]

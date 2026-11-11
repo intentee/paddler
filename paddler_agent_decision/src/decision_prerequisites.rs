@@ -1,3 +1,4 @@
+use std::num::NonZeroU16;
 use std::path::PathBuf;
 
 use paddler_agent_pointer_head::pointer_head::PointerHead;
@@ -6,10 +7,11 @@ use paddler_agent_status::agent_issue_fix::AgentIssueFix;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 
 use crate::decision_error::DecisionError;
 use crate::loaded_pointer_head::LoadedPointerHead;
+use crate::met_decision_prerequisites::MetDecisionPrerequisites;
 
 pub struct DecisionPrerequisites {
     pub inference_runtime_context: InferenceRuntimeContext,
@@ -17,8 +19,11 @@ pub struct DecisionPrerequisites {
 }
 
 impl DecisionPrerequisites {
-    pub fn load_pointer_head(self) -> Result<LoadedPointerHead, DecisionError> {
-        self.require_enough_slots()?;
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::SlotsInsufficient`] when the agent runs fewer slots than decisions need, and [`DecisionError::PointerHeadCannotBeLoaded`] when the pointer head file cannot be loaded.
+    pub fn meet(self) -> Result<MetDecisionPrerequisites, DecisionError> {
+        let decision_slots = self.require_enough_slots()?;
 
         match PointerHead::load(&self.pointer_head_path) {
             Ok(pointer_head) => {
@@ -28,9 +33,12 @@ impl DecisionPrerequisites {
                         self.pointer_head_path.as_path(),
                     )));
 
-                Ok(LoadedPointerHead {
-                    pointer_head,
-                    pointer_head_path: self.pointer_head_path,
+                Ok(MetDecisionPrerequisites {
+                    decision_slots,
+                    loaded_pointer_head: LoadedPointerHead {
+                        pointer_head,
+                        pointer_head_path: self.pointer_head_path,
+                    },
                 })
             }
             Err(source) => {
@@ -45,14 +53,16 @@ impl DecisionPrerequisites {
         }
     }
 
-    fn require_enough_slots(&self) -> Result<(), DecisionError> {
+    fn require_enough_slots(&self) -> Result<NonZeroU16, DecisionError> {
         let desired_slots = self
             .inference_runtime_context
             .slot_aggregated_status
             .desired_slots_total;
 
-        if desired_slots >= DECISION_SLOTS_MINIMUM.get() {
-            return Ok(());
+        if let Some(decision_slots) = NonZeroU16::new(desired_slots)
+            .filter(|decision_slots| *decision_slots >= DECISION_SLOTS_MINIMUM)
+        {
+            return Ok(decision_slots);
         }
 
         self.inference_runtime_context

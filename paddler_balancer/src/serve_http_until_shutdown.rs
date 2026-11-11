@@ -6,6 +6,9 @@ use tokio::join;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 
+/// # Errors
+///
+/// Fails when the server stops with an error.
 pub async fn serve_http_until_shutdown(
     shutdown: CancellationToken,
     server: Server,

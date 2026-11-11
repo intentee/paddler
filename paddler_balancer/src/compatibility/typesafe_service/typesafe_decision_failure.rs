@@ -3,6 +3,7 @@ use actix_web::http::StatusCode;
 
 use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
+use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
 use crate::compatibility::typesafe_service::typesafe_error_body::TypeSafeErrorBody;
 use crate::compatibility::upstream_failure::UpstreamFailure;
 use crate::relay_failure::RelayFailure;
@@ -20,6 +21,15 @@ impl TypeSafeDecisionFailure {
             detail: self.detail,
         }
         .into_http_response(self.status_code)
+    }
+}
+
+impl From<ClusterServesNoDecisions> for TypeSafeDecisionFailure {
+    fn from(cluster_serves_no_decisions: ClusterServesNoDecisions) -> Self {
+        Self {
+            detail: cluster_serves_no_decisions.to_string(),
+            status_code: UpstreamFailure::Unavailable.status_code(),
+        }
     }
 }
 

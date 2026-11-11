@@ -1,7 +1,7 @@
 use reqwest::StatusCode;
 use reqwest::get;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -13,8 +13,7 @@ async fn inference_socket_rejects_a_request_without_a_websocket_upgrade() {
 
     let response = get(format!(
         "http://{}{}",
-        cluster.balancer.addresses.inference,
-        ApiPath::INFERENCE_SOCKET
+        cluster.balancer.addresses.inference, API_PATH_INFERENCE_SOCKET
     ))
     .await
     .expect("the balancer must answer a plain HTTP request");

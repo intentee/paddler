@@ -6,13 +6,13 @@ use tokio_util::sync::CancellationToken;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::many_question_decision::many_question_decision;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 const QUESTIONS_OUTLASTING_A_SHUTDOWN: usize = 96;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_agent_shuts_down_cleanly_with_decisions_in_flight() {
-    let mut cluster = start_decision_cluster(DecisionClusterParams::default())
+    let mut cluster = DecisionClusterParams::default()
+        .start_cluster()
         .await
         .expect("the cluster must start");
     let agent_id = cluster

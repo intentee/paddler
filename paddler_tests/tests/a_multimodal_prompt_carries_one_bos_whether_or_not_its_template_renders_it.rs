@@ -68,7 +68,7 @@ async fn a_multimodal_prompt_carries_one_bos_whether_or_not_its_template_renders
                     .summary()
                     .expect("the conversation must end with a summary")
                     .usage
-                    .prompt_tokens,
+                    .prompt,
             );
         }
 

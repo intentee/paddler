@@ -8,7 +8,7 @@ use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
-use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 const AWAITED_REQUEST_ID: &str = "request-after-the-ping";

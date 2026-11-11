@@ -1,11 +1,14 @@
 use anyhow::Result;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 use crate::connect_subprocess_balancer::connect_subprocess_balancer;
 use crate::subprocess_cluster::SubprocessCluster;
 
+/// # Errors
+///
+/// Fails when the balancer subprocess cannot be spawned, signalled or addressed, when it does not announce its addresses, when the cluster cannot connect to it, and when an agent does not register.
 pub async fn start_signalled_subprocess_cluster(
     binary_path: &str,
     ClusterParams {
@@ -22,6 +25,7 @@ pub async fn start_signalled_subprocess_cluster(
 ) -> Result<SubprocessCluster> {
     let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
     let mut balancer_arguments = vec![
+        "balancer".to_owned(),
         "--compat-openai-addr".to_owned(),
         ephemeral_loopback_addr.clone(),
         "--compat-typesafe-addr".to_owned(),

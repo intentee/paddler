@@ -25,6 +25,9 @@ impl TcpBufferLimitsFile {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TcpBufferLimitsError::LimitsUnreadable`] when the limits file cannot be read, [`TcpBufferLimitsError::LimitsAreNotThreeByteCounts`] when it does not hold exactly three whitespace-separated limits, and [`TcpBufferLimitsError::LargestLimitIsNotAByteCount`] when the last limit is not a byte count.
     pub fn largest_buffer(&self) -> Result<usize, TcpBufferLimitsError> {
         let limits = read_to_string(&self.path).map_err(|source| {
             TcpBufferLimitsError::LimitsUnreadable {

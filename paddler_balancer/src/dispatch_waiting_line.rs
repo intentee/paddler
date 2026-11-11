@@ -6,11 +6,12 @@ use std::sync::atomic::Ordering;
 use parking_lot::Mutex;
 
 use crate::agent_controller_pool_updates::AgentControllerPoolUpdates;
+use crate::buffered_request_count_guard::BufferedRequestCountGuard;
 use crate::buffered_request_counter::BufferedRequestCounter;
 use crate::dispatch_position::DispatchPosition;
 use crate::dispatch_requirement::DispatchRequirement;
 use crate::requirements_waiting_ahead::RequirementsWaitingAhead;
-use crate::waiting_line_place::WaitingLinePlace;
+use crate::waiting_line_admission::WaitingLineAdmission;
 
 pub struct DispatchWaitingLine {
     next_ticket: AtomicU64,
@@ -28,20 +29,21 @@ impl DispatchWaitingLine {
         }
     }
 
-    pub fn join_when_admitted(
+    pub fn admit(
         &self,
         dispatch_requirement: DispatchRequirement,
         buffered_request_counter: &Arc<BufferedRequestCounter>,
-    ) -> Option<WaitingLinePlace<'_>> {
+    ) -> Option<WaitingLineAdmission> {
         let mut waiting_requirements = self.waiting_requirements.lock();
-        let buffered_request_count_guard = buffered_request_counter.try_admit()?;
+        let buffered_request_count_guard =
+            BufferedRequestCountGuard::try_admit(buffered_request_counter)?;
         let ticket = self.next_ticket.fetch_add(1, Ordering::Relaxed);
 
         waiting_requirements.insert(ticket, dispatch_requirement);
+        drop(waiting_requirements);
 
-        Some(WaitingLinePlace {
+        Some(WaitingLineAdmission {
             buffered_request_count_guard,
-            dispatch_waiting_line: self,
             ticket,
         })
     }

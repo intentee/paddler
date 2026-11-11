@@ -10,6 +10,7 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -42,12 +43,16 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+        })
         .count();
     let content_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ContentToken(_)))
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ContentToken(_))
+        })
         .count();
 
     assert_eq!(
@@ -60,9 +65,9 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.prompt_tokens > 0);
-    assert_eq!(summary.usage.reasoning_tokens, 0);
-    assert!(summary.usage.content_tokens > 0);
+    assert!(summary.usage.prompt > 0);
+    assert_eq!(summary.usage.reasoning, 0);
+    assert!(summary.usage.content > 0);
 
     cluster
         .shutdown()

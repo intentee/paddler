@@ -31,6 +31,9 @@ pub struct AgentDesiredStateConverter {
 }
 
 impl AgentDesiredStateConverter {
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::LocalFileMissing`] when the local file of the model, its multimodal projection or its pointer head does not exist, and any other [`ModelSourceError`] of [`DesiredModelResolver::resolve_uri`] when one of their URIs cannot be resolved to a file.
     pub async fn convert(
         &self,
         AgentDesiredState {
@@ -191,8 +194,8 @@ mod tests {
     use paddler_messaging::multimodal_settings::MultimodalSettings;
     use paddler_messaging::served_decision_settings::ServedDecisionSettings;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_model_source::model_source::ModelSource;
     use paddler_model_source::model_source_error::ModelSourceError;
@@ -204,17 +207,8 @@ mod tests {
     use crate::inference_capabilities::InferenceCapabilities;
     use crate::model_serving_settings::ModelServingSettings;
 
-    struct MissingLocalModel {
-        _dir_guard: TempDir,
-        path: PathBuf,
-    }
-
     fn process_env_desired_model_resolver() -> DesiredModelResolver {
         DesiredModelResolver::from_process_env(HUGGINGFACE_DEFAULT_ENDPOINT.to_owned()).unwrap()
-    }
-
-    fn fresh_status() -> Arc<SlotAggregatedStatus> {
-        Arc::new(SlotAggregatedStatus::new(1))
     }
 
     fn nonexistent_path_in_temp_dir(label: &str) -> MissingLocalModel {
@@ -287,14 +281,6 @@ mod tests {
         local_source_at(path).into_agent_desired_model()
     }
 
-    fn cancelled_token() -> CancellationToken {
-        let cancellation_token = CancellationToken::new();
-
-        cancellation_token.cancel();
-
-        cancellation_token
-    }
-
     fn uncached_hugging_face_source() -> ModelSource {
         ModelSource::HuggingFace(HuggingFaceModelReference {
             filename: "uncached.gguf".to_owned(),
@@ -315,7 +301,7 @@ mod tests {
         AgentDesiredStateConverter {
             desired_model_resolver: process_env_desired_model_resolver(),
             cancellation_token,
-            slot_aggregated_status: fresh_status(),
+            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
         }
         .convert(desired)
         .await
@@ -326,9 +312,22 @@ mod tests {
         conversion(CancellationToken::new(), desired).await
     }
 
+    async fn cancelled_conversion(desired: &AgentDesiredState) -> AgentDesiredStateConversion {
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        conversion(cancellation_token, desired).await
+    }
+
+    struct MissingLocalModel {
+        _dir_guard: TempDir,
+        path: PathBuf,
+    }
+
     #[tokio::test]
     async fn local_missing_model_registers_model_file_does_not_exist_and_errs() {
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let MissingLocalModel {
             _dir_guard,
             path: missing_path,
@@ -362,7 +361,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_model_file_that_appears_on_a_retry_clears_its_missing_file_issue() {
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let MissingLocalModel {
             _dir_guard,
             path: appearing_path,
@@ -388,7 +387,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_pointer_head_that_appears_on_a_retry_clears_its_missing_file_issue() {
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let model_file = NamedTempFile::new().unwrap();
         let MissingLocalModel {
             _dir_guard,
@@ -419,7 +418,7 @@ mod tests {
     #[tokio::test]
     async fn local_missing_multimodal_projection_registers_multimodal_projection_cannot_be_loaded_and_errs()
      {
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let model_file = NamedTempFile::new().unwrap();
         let MissingLocalModel {
             _dir_guard,
@@ -457,7 +456,7 @@ mod tests {
 
     #[tokio::test]
     async fn local_missing_pointer_head_registers_pointer_head_cannot_be_loaded_and_errs() {
-        let status = fresh_status();
+        let status = Arc::new(SlotAggregatedStatus::new(1));
         let model_file = NamedTempFile::new().unwrap();
         let MissingLocalModel {
             _dir_guard,
@@ -498,13 +497,10 @@ mod tests {
         let model_file = NamedTempFile::new().unwrap();
 
         assert_eq!(
-            conversion(
-                cancelled_token(),
-                &desired_state(
-                    local_model_at(model_file.path()),
-                    uncached_hugging_face_model()
-                ),
-            )
+            cancelled_conversion(&desired_state(
+                local_model_at(model_file.path()),
+                uncached_hugging_face_model()
+            ))
             .await,
             AgentDesiredStateConversion::Cancelled
         );
@@ -515,13 +511,10 @@ mod tests {
         let model_file = NamedTempFile::new().unwrap();
 
         assert_eq!(
-            conversion(
-                cancelled_token(),
-                &desired_state_serving_decisions(
-                    local_model_at(model_file.path()),
-                    &uncached_hugging_face_source(),
-                ),
-            )
+            cancelled_conversion(&desired_state_serving_decisions(
+                local_model_at(model_file.path()),
+                &uncached_hugging_face_source(),
+            ))
             .await,
             AgentDesiredStateConversion::Cancelled
         );

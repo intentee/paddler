@@ -33,7 +33,7 @@ async fn agent_leaves_the_assistant_header_out_of_a_conversation_without_a_gener
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .prompt_tokens
+            .prompt
     };
     let assistant_header_tokens = cluster
         .continue_from_raw_prompt(
@@ -49,7 +49,7 @@ async fn agent_leaves_the_assistant_header_out_of_a_conversation_without_a_gener
         .summary()
         .expect("the generation must finish with a summary")
         .usage
-        .prompt_tokens;
+        .prompt;
 
     assert_eq!(
         prompt_tokens_of_the_weather_question(true).await

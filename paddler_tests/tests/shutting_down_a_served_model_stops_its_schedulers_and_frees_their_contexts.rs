@@ -3,8 +3,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
-
-use crate::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn shutting_down_a_served_model_stops_its_schedulers_and_frees_their_contexts() {
@@ -12,7 +11,10 @@ async fn shutting_down_a_served_model_stops_its_schedulers_and_frees_their_conte
         llama_runtime,
         served_model,
         ..
-    } = KevModelServingWithoutDecisions::start(&CancellationToken::new()).await;
+    } = KevModelServingWithoutDecisions::start(&CancellationToken::new())
+        .await
+        .expect("the model must load")
+        .expect("text generation and embeddings must start");
     let vram_residencies = llama_runtime
         .inference_runtime_context
         .vram_residencies

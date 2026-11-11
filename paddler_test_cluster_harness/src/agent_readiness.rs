@@ -17,23 +17,25 @@ impl AgentReadiness {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentReportedIssues`] when the agent awaits its slots while it reports issues.
     pub fn is_met_by(
         &self,
         agent_name: &str,
-        registered_agent: &AgentControllerSnapshot,
+        AgentControllerSnapshot { status, .. }: &AgentControllerSnapshot,
     ) -> Result<bool, ClusterHarnessError> {
         match self {
             Self::Registered => Ok(true),
             Self::SlotsReady(expected_slot_count)
-                if registered_agent.status.runtime.slots_total()
-                    == u64::from(*expected_slot_count) =>
+                if status.runtime.slots_total() == u64::from(*expected_slot_count) =>
             {
                 Ok(true)
             }
-            Self::SlotsReady(_) if !registered_agent.status.issues.is_empty() => {
+            Self::SlotsReady(_) if !status.issues.is_empty() => {
                 Err(ClusterHarnessError::AgentReportedIssues {
                     agent_name: agent_name.to_owned(),
-                    issues: registered_agent.status.issues.clone(),
+                    issues: status.issues.clone(),
                 })
             }
             Self::SlotsReady(_) => Ok(false),

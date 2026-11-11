@@ -18,6 +18,19 @@ impl<TCommand: SchedulerCommand> SchedulerInbox<TCommand> {
         }
     }
 
+    pub fn reject_waiting_commands(&mut self, agent_name: Option<&str>) {
+        self.scheduler_message_rx.close();
+
+        while let Ok(scheduler_message) = self.scheduler_message_rx.try_recv() {
+            match scheduler_message {
+                SchedulerMessage::Command(command) => {
+                    command.reject_because_the_scheduler_stopped(agent_name);
+                }
+                SchedulerMessage::Shutdown => {}
+            }
+        }
+    }
+
     pub fn take_next_waiting_command(&mut self) -> Option<TCommand> {
         match self.scheduler_message_rx.try_recv() {
             Ok(SchedulerMessage::Command(command)) => Some(command),
@@ -37,19 +50,6 @@ impl<TCommand: SchedulerCommand> SchedulerInbox<TCommand> {
                 self.shutdown_requested = true;
 
                 None
-            }
-        }
-    }
-
-    pub fn reject_waiting_commands(&mut self, agent_name: Option<&str>) {
-        self.scheduler_message_rx.close();
-
-        while let Ok(scheduler_message) = self.scheduler_message_rx.try_recv() {
-            match scheduler_message {
-                SchedulerMessage::Command(command) => {
-                    command.reject_because_the_scheduler_stopped(agent_name);
-                }
-                SchedulerMessage::Shutdown => {}
             }
         }
     }

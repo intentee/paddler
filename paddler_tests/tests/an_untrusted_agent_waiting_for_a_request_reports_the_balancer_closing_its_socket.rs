@@ -5,8 +5,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_untrusted_agent_waiting_for_a_request_reports_the_balancer_closing_its_socket() {

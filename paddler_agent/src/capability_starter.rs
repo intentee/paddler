@@ -4,6 +4,7 @@ use paddler_agent_decision::decision_pipeline::DecisionPipeline;
 use paddler_agent_decision::decision_prerequisites::DecisionPrerequisites;
 use paddler_agent_embeddings::embedding_pipeline::EmbeddingPipeline;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
+use paddler_agent_runtime::llama_model_loader::LlamaModelLoader;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
@@ -40,8 +41,8 @@ where
         match self {
             Ok(StartupOutcome::Ready(started)) => Ok(started),
             Ok(StartupOutcome::Cancelled) => Err(CapabilityStartupInterruption::Cancelled),
-            Err(startup_error) => Err(CapabilityStartupInterruption::Failed(AgentError::from(
-                startup_error,
+            Err(startup_error) => Err(CapabilityStartupInterruption::Failed(Box::new(
+                AgentError::from(startup_error),
             ))),
         }
     }
@@ -53,6 +54,25 @@ pub struct CapabilityStarter<'startup> {
 }
 
 impl CapabilityStarter<'_> {
+    /// # Errors
+    ///
+    /// Returns [`CapabilityStartupInterruption::Cancelled`] when the agent shuts down before or while the model loads, and [`CapabilityStartupInterruption::Failed`] when the model cannot be loaded.
+    pub async fn load_model(
+        &self,
+        llama_model_settings: LlamaModelSettings,
+    ) -> Result<LoadedLlamaModel, CapabilityStartupInterruption> {
+        LlamaModelLoader {
+            inference_runtime_context: self.inference_runtime_context.clone(),
+            llama_model_settings,
+        }
+        .load_unless_shutting_down(self.cancellation_token)
+        .await
+        .into_established_capability()
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`CapabilityStartupInterruption::Cancelled`] when the agent shuts down while the pointer head loads, and [`CapabilityStartupInterruption::Failed`] when the agent runs too few slots for decisions or the pointer head cannot be loaded.
     pub async fn prepare_decisions(
         &self,
         applicable_decisions: &ApplicableDecisions,
@@ -68,37 +88,27 @@ impl CapabilityStarter<'_> {
 
                 spawn_blocking_resuming_panic(move || {
                     decision_prerequisites
-                        .load_pointer_head()
-                        .map(|loaded_pointer_head| {
+                        .meet()
+                        .map(|met_decision_prerequisites| {
                             if cancellation_token.is_cancelled() {
                                 StartupOutcome::Cancelled
                             } else {
-                                StartupOutcome::Ready(loaded_pointer_head)
+                                StartupOutcome::Ready(met_decision_prerequisites)
                             }
                         })
                 })
                 .await
                 .into_established_capability()
-                .map(|loaded_pointer_head| {
-                    PreparedDecisions::Enabled(Box::new(loaded_pointer_head))
+                .map(|met_decision_prerequisites| {
+                    PreparedDecisions::Enabled(Box::new(met_decision_prerequisites))
                 })
             }
         }
     }
 
-    pub async fn load_model(
-        &self,
-        llama_model_settings: LlamaModelSettings,
-    ) -> Result<LoadedLlamaModel, CapabilityStartupInterruption> {
-        LoadedLlamaModel::load_unless_shutting_down(
-            self.cancellation_token,
-            self.inference_runtime_context.clone(),
-            llama_model_settings,
-        )
-        .await
-        .into_established_capability()
-    }
-
+    /// # Errors
+    ///
+    /// Returns a [`ServingInterruption`] holding the loaded model, after shutting down the capabilities already started, when the agent shuts down or a decisions, embeddings or text generation pipeline fails to start.
     pub async fn serve(
         &self,
         LoadedModelServingPlan {
@@ -193,11 +203,11 @@ impl CapabilityStarter<'_> {
         match (decisions_plan, prepared_decisions) {
             (CapabilityPlan::Keep(served_decisions), _) => Ok(served_decisions),
             (CapabilityPlan::Start, PreparedDecisions::Disabled) => Ok(ServedDecisions::Disabled),
-            (CapabilityPlan::Start, PreparedDecisions::Enabled(loaded_pointer_head)) => {
+            (CapabilityPlan::Start, PreparedDecisions::Enabled(met_decision_prerequisites)) => {
                 DecisionPipeline {
                     inference_runtime_context: self.inference_runtime_context.clone(),
                     loaded_llama_model: loaded_llama_model.clone(),
-                    loaded_pointer_head: *loaded_pointer_head,
+                    met_decision_prerequisites: *met_decision_prerequisites,
                     model_runtime_parameters: model_runtime_parameters.clone(),
                 }
                 .spawn(self.cancellation_token)
@@ -211,16 +221,20 @@ impl CapabilityStarter<'_> {
     async fn establish_embeddings(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
-        model_serving_settings: &ModelServingSettings,
+        ModelServingSettings {
+            capabilities: InferenceCapabilities { embeddings, .. },
+            model_runtime_parameters,
+            ..
+        }: &ModelServingSettings,
         embeddings_plan: CapabilityPlan<ServedEmbeddings>,
     ) -> Result<ServedEmbeddings, CapabilityStartupInterruption> {
         match embeddings_plan {
-            CapabilityPlan::Keep(embeddings) => Ok(embeddings),
+            CapabilityPlan::Keep(served_embeddings) => Ok(served_embeddings),
             CapabilityPlan::Start => EmbeddingPipeline {
                 inference_runtime_context: self.inference_runtime_context.clone(),
                 loaded_llama_model: loaded_llama_model.clone(),
-                model_runtime_parameters: model_serving_settings.model_runtime_parameters.clone(),
-                pooling_type: model_serving_settings.capabilities.embeddings.clone(),
+                model_runtime_parameters: model_runtime_parameters.clone(),
+                pooling_type: embeddings.clone(),
             }
             .spawn(self.cancellation_token)
             .await
@@ -231,19 +245,22 @@ impl CapabilityStarter<'_> {
     async fn establish_text_generation(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
-        model_serving_settings: &ModelServingSettings,
+        ModelServingSettings {
+            capabilities: InferenceCapabilities {
+                text_generation, ..
+            },
+            model_runtime_parameters,
+            ..
+        }: &ModelServingSettings,
         text_generation_plan: CapabilityPlan<ServedTextGeneration>,
     ) -> Result<ServedTextGeneration, CapabilityStartupInterruption> {
         match text_generation_plan {
-            CapabilityPlan::Keep(text_generation) => Ok(text_generation),
+            CapabilityPlan::Keep(served_text_generation) => Ok(served_text_generation),
             CapabilityPlan::Start => TextGenerationPipeline {
                 inference_runtime_context: self.inference_runtime_context.clone(),
                 loaded_llama_model: loaded_llama_model.clone(),
-                model_runtime_parameters: model_serving_settings.model_runtime_parameters.clone(),
-                text_generation_settings: model_serving_settings
-                    .capabilities
-                    .text_generation
-                    .clone(),
+                model_runtime_parameters: model_runtime_parameters.clone(),
+                text_generation_settings: text_generation.clone(),
             }
             .spawn(self.cancellation_token)
             .await

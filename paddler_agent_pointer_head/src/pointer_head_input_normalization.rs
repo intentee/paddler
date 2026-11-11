@@ -18,6 +18,9 @@ pub enum PointerHeadInputNormalization {
 }
 
 impl PointerHeadInputNormalization {
+    /// # Errors
+    ///
+    /// Returns [`PointerHeadError::KeyUnreadable`] when the input normalization key is missing from the file or does not hold a string, and [`PointerHeadError::InputNormalizationUnknown`] when it names a form other than NFC, NFD, NFKC, NFKD or None.
     pub fn load(gguf_context: &GgufContext) -> Result<Self, PointerHeadError> {
         gguf_context
             .find_key(INPUT_NORMALIZATION_KEY)
@@ -30,7 +33,7 @@ impl PointerHeadInputNormalization {
     }
 
     #[must_use]
-    pub fn normalize<'text>(&self, text: &'text str) -> Cow<'text, str> {
+    pub fn normalize(self, text: &str) -> Cow<'_, str> {
         match self {
             Self::Nfc => ComposingNormalizerBorrowed::new_nfc().normalize(text),
             Self::Nfd => DecomposingNormalizerBorrowed::new_nfd().normalize(text),

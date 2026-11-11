@@ -143,6 +143,9 @@ fn transitive_closure<'spec>(
     Ok(reachable)
 }
 
+/// # Errors
+///
+/// Returns [`OpenAIValidatorError::UnknownComponent`] when the root or a component it references transitively is missing from the components, [`OpenAIValidatorError::StrictTargetNotAnObject`] when a strict pointer resolves to something other than an object, and [`OpenAIValidatorError::StrictTargetNotFound`] when a strict pointer resolves to nothing in the assembled schema.
 pub fn strict_chat_completion_schema(
     components: &Value,
     root_name: &str,
@@ -186,6 +189,8 @@ pub fn strict_chat_completion_schema(
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Map;
+    use serde_json::Value;
     use serde_json::json;
 
     use super::strict_chat_completion_schema;
@@ -309,14 +314,14 @@ mod tests {
             strict_chat_completion_schema(&components, "Root", &["/$defs/Root", "/$defs/Child"])
                 .unwrap();
 
-        assert_eq!(schema["$ref"], json!("#/$defs/Root"));
+        assert_eq!(schema.pointer("/$ref"), Some(&json!("#/$defs/Root")));
         assert_eq!(
-            schema["$defs"]["Root"]["unevaluatedProperties"],
-            json!(false)
+            schema.pointer("/$defs/Root/unevaluatedProperties"),
+            Some(&json!(false))
         );
         assert_eq!(
-            schema["$defs"]["Child"]["unevaluatedProperties"],
-            json!(false)
+            schema.pointer("/$defs/Child/unevaluatedProperties"),
+            Some(&json!(false))
         );
     }
 
@@ -337,8 +342,18 @@ mod tests {
 
         let schema = strict_chat_completion_schema(&components, "Root", &[]).unwrap();
 
-        assert!(schema["$defs"]["Shared"].is_object());
-        assert_eq!(schema["$defs"].as_object().unwrap().len(), 4);
+        assert!(
+            schema
+                .pointer("/$defs/Shared")
+                .is_some_and(Value::is_object)
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs")
+                .and_then(Value::as_object)
+                .map(Map::len),
+            Some(4)
+        );
     }
 
     #[test]

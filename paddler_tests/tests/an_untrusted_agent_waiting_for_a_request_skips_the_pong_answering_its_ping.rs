@@ -11,8 +11,7 @@ use paddler_messaging::management_socket::balancer::notification_params::registe
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-
-use crate::untrusted_management_agent::UntrustedManagementAgent;
+use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const PINGING_AGENT_ID: &str = "pinging";
 

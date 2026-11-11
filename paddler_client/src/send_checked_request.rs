@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
-use crate::error::Result;
+use crate::result::Result;
 
 async fn rejection(response: Response, url: String) -> Result<Error> {
     let status = response.status();

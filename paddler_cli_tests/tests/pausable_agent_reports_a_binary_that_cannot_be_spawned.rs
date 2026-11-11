@@ -1,7 +1,7 @@
 use std::io;
 use std::io::ErrorKind;
 
-use paddler_cli_tests::missing_binary_path::MISSING_BINARY_PATH;
+use paddler_cli_tests::constants::MISSING_BINARY_PATH;
 use paddler_cli_tests::pausable_agent::PausableAgent;
 use paddler_cli_tests::pausable_agent_params::PausableAgentParams;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;

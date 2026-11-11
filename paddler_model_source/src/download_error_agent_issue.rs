@@ -18,7 +18,9 @@ pub const fn download_error_agent_issue(
         DownloadError::DownloadServerIsUnreachable { .. } => {
             AgentIssue::DownloadServerIsUnreachable(model_path)
         }
-        DownloadError::DownloadServerErrored { .. } => {
+        DownloadError::DownloadServerErrored { .. }
+        | DownloadError::DeclaredContentLengthOverflowsTotalSize { .. }
+        | DownloadError::DownloadedBytesOverflowTheLargestFileSize { .. } => {
             AgentIssue::DownloadServerErrored(model_path)
         }
         DownloadError::DownloadServerRejectedRequest { .. } => {
@@ -134,7 +136,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn download_server_is_unreachable_maps_to_agent_issue() {
+    async fn download_server_is_unreachable_maps_to_the_issue_of_the_same_name() {
         let error = DownloadError::DownloadServerIsUnreachable {
             url: TEST_URL.to_owned(),
             source: refused_connection_error().await,
@@ -147,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn download_server_errored_maps_to_agent_issue() {
+    fn download_server_errored_maps_to_the_issue_of_the_same_name() {
         let error = DownloadError::DownloadServerErrored {
             url: TEST_URL.to_owned(),
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -160,7 +162,35 @@ mod tests {
     }
 
     #[test]
-    fn download_server_rejected_request_maps_to_agent_issue() {
+    fn declared_content_length_overflowing_the_total_size_maps_to_download_server_errored() {
+        let error = DownloadError::DeclaredContentLengthOverflowsTotalSize {
+            url: TEST_URL.to_owned(),
+            already_downloaded_bytes: 11,
+            content_length: 18_446_744_073_709_551_613,
+        };
+
+        assert_eq!(
+            download_error_agent_issue(&error, test_model_path()),
+            AgentIssue::DownloadServerErrored(test_model_path())
+        );
+    }
+
+    #[test]
+    fn downloaded_bytes_overflowing_the_largest_file_size_map_to_download_server_errored() {
+        let error = DownloadError::DownloadedBytesOverflowTheLargestFileSize {
+            url: TEST_URL.to_owned(),
+            downloaded_bytes: u64::MAX,
+            chunk_byte_count: 1,
+        };
+
+        assert_eq!(
+            download_error_agent_issue(&error, test_model_path()),
+            AgentIssue::DownloadServerErrored(test_model_path())
+        );
+    }
+
+    #[test]
+    fn download_server_rejected_request_maps_to_the_issue_of_the_same_name() {
         let error = DownloadError::DownloadServerRejectedRequest {
             url: TEST_URL.to_owned(),
             status: StatusCode::BAD_REQUEST,
@@ -173,7 +203,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn download_interrupted_maps_to_agent_issue() {
+    async fn download_interrupted_maps_to_the_issue_of_the_same_name() {
         let error = DownloadError::DownloadInterrupted {
             url: TEST_URL.to_owned(),
             source: refused_connection_error().await,

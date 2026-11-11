@@ -8,6 +8,9 @@ use paddler_test_cluster_harness::model_card::deepseek_r1_distill_llama_8b::deep
 
 use crate::start_cluster::start_cluster;
 
+/// # Errors
+///
+/// Returns the error of [`start_cluster`] when the cluster serving `DeepSeek` R1 Distill Llama 8B cannot start.
 pub async fn start_cluster_with_deepseek_r1_distill_llama_8b(
     agents: Vec<AgentConfig>,
 ) -> Result<Cluster> {

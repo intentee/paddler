@@ -6,7 +6,7 @@ use futures_util::StreamExt as _;
 
 use paddler_client::agents_stream::AgentsStream;
 use paddler_client::buffered_requests_stream::BufferedRequestsStream;
-use paddler_client::error::Result as ClientResult;
+use paddler_client::result::Result as ClientResult;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
@@ -14,8 +14,6 @@ use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManager
 use crate::agent_readiness::AgentReadiness;
 use crate::cluster_harness_error::ClusterHarnessError;
 use crate::snapshots_stream::SnapshotsStream;
-
-type SnapshotItems<TSnapshot> = Pin<Box<dyn Stream<Item = ClientResult<TSnapshot>> + Send>>;
 
 async fn next_newest_snapshot<TSnapshot>(
     snapshots_stream: SnapshotsStream,
@@ -35,6 +33,8 @@ async fn next_newest_snapshot<TSnapshot>(
         source,
     })
 }
+
+type SnapshotItems<TSnapshot> = Pin<Box<dyn Stream<Item = ClientResult<TSnapshot>> + Send>>;
 
 pub struct SnapshotsWatcher<TSnapshot> {
     newest_snapshot: TSnapshot,
@@ -56,6 +56,9 @@ impl<TSnapshot: Clone> SnapshotsWatcher<TSnapshot> {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the stream ends or fails before a snapshot satisfies the predicate.
     pub async fn until<TPredicate>(
         &mut self,
         mut predicate: TPredicate,
@@ -64,17 +67,6 @@ impl<TSnapshot: Clone> SnapshotsWatcher<TSnapshot> {
         TPredicate: FnMut(&TSnapshot) -> bool,
     {
         self.until_verdict(|snapshot| Ok(predicate(snapshot))).await
-    }
-
-    async fn until_verdict<TVerdict>(
-        &mut self,
-        mut verdict: TVerdict,
-    ) -> Result<TSnapshot, ClusterHarnessError>
-    where
-        TVerdict: FnMut(&TSnapshot) -> Result<bool, ClusterHarnessError>,
-    {
-        self.until_found(|snapshot| Ok(verdict(snapshot)?.then(|| snapshot.clone())))
-            .await
     }
 
     async fn until_found<TFound, TFinder>(
@@ -93,13 +85,30 @@ impl<TSnapshot: Clone> SnapshotsWatcher<TSnapshot> {
                 next_newest_snapshot(self.snapshots_stream, &mut self.stream).await?;
         }
     }
+
+    async fn until_verdict<TVerdict>(
+        &mut self,
+        mut verdict: TVerdict,
+    ) -> Result<TSnapshot, ClusterHarnessError>
+    where
+        TVerdict: FnMut(&TSnapshot) -> Result<bool, ClusterHarnessError>,
+    {
+        self.until_found(|snapshot| Ok(verdict(snapshot)?.then(|| snapshot.clone())))
+            .await
+    }
 }
 
 impl SnapshotsWatcher<AgentControllerPoolSnapshot> {
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the stream ends or fails before its first snapshot.
     pub async fn of_agents(stream: AgentsStream) -> Result<Self, ClusterHarnessError> {
         Self::connect(SnapshotsStream::Agents, stream).await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentLeftThePool`] when the agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the stream ends or fails before a snapshot satisfies the predicate.
     pub async fn until_agent<TPredicate>(
         &mut self,
         agent_id: &str,
@@ -112,7 +121,7 @@ impl SnapshotsWatcher<AgentControllerPoolSnapshot> {
             if snapshot
                 .agents
                 .iter()
-                .any(|registered_agent| registered_agent.id == agent_id)
+                .any(|AgentControllerSnapshot { id, .. }| id == agent_id)
             {
                 Ok(predicate(snapshot))
             } else {
@@ -124,16 +133,18 @@ impl SnapshotsWatcher<AgentControllerPoolSnapshot> {
         .await
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::AgentReportedIssues`] when the agent reports issues while its slots are awaited, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the stream ends or fails before the agent is ready.
     pub async fn wait_for_agent(
         &mut self,
         agent_name: &str,
         readiness: &AgentReadiness,
     ) -> Result<AgentControllerSnapshot, ClusterHarnessError> {
-        self.until_found(|snapshot| {
-            match snapshot
-                .agents
+        self.until_found(|AgentControllerPoolSnapshot { agents }| {
+            match agents
                 .iter()
-                .find(|registered_agent| registered_agent.name.as_deref() == Some(agent_name))
+                .find(|AgentControllerSnapshot { name, .. }| name.as_deref() == Some(agent_name))
             {
                 Some(registered_agent) => Ok(readiness
                     .is_met_by(agent_name, registered_agent)?
@@ -146,6 +157,9 @@ impl SnapshotsWatcher<AgentControllerPoolSnapshot> {
 }
 
 impl SnapshotsWatcher<BufferedRequestManagerSnapshot> {
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the stream ends or fails before its first snapshot.
     pub async fn of_buffered_requests(
         stream: BufferedRequestsStream,
     ) -> Result<Self, ClusterHarnessError> {
@@ -182,12 +196,20 @@ mod tests {
         .expect("the stream delivers its first snapshots");
 
         watcher
-            .until(|received| received.buffered_requests_current >= 1)
+            .until(
+                |BufferedRequestManagerSnapshot {
+                     buffered_requests_current,
+                 }| *buffered_requests_current >= 1,
+            )
             .await
             .expect("the first snapshot satisfies the first wait");
 
         let satisfied_by = watcher
-            .until(|received| received.buffered_requests_current == 2)
+            .until(
+                |BufferedRequestManagerSnapshot {
+                     buffered_requests_current,
+                 }| *buffered_requests_current == 2,
+            )
             .await
             .expect("the newest snapshot already received satisfies the second wait");
 

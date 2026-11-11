@@ -60,13 +60,12 @@ impl AgentResponseForwardingMode {
 mod tests {
     use std::time::Duration;
 
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-
     use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
     use paddler_messaging::generated_token_partial_result::GeneratedTokenPartialResult;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::result_step::ResultStep;
+    use paddler_messaging::token_usage::TokenUsage;
 
     use super::AgentResponseForwardingMode;
     use crate::agent_relay_event::AgentRelayEvent;
@@ -75,12 +74,6 @@ mod tests {
     use crate::relay_failure::RelayFailure;
 
     const INFERENCE_ITEM_TIMEOUT: Duration = Duration::from_millis(250);
-
-    type GeneratedTokenForwardingEvent =
-        ForwardingEvent<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
-
-    type GeneratedTokenForwardingPlan =
-        ForwardingPlan<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
 
     fn forwarding(event: GeneratedTokenForwardingEvent) -> GeneratedTokenForwardingPlan {
         AgentResponseForwardingMode::ForwardingToRelay.plan_for(event, INFERENCE_ITEM_TIMEOUT)
@@ -98,9 +91,15 @@ mod tests {
     fn generation_done() -> GeneratedTokenFinalResult {
         GeneratedTokenFinalResult::Done(GenerationSummary {
             finish: GenerationFinish::EndOfGeneration,
-            usage: TokenUsage::new(),
+            usage: TokenUsage::default(),
         })
     }
+
+    type GeneratedTokenForwardingEvent =
+        ForwardingEvent<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
+
+    type GeneratedTokenForwardingPlan =
+        ForwardingPlan<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
 
     #[test]
     fn tells_the_relay_about_a_shutdown_and_stops_the_agent() {

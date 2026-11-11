@@ -2,22 +2,22 @@
 
 use std::collections::BTreeSet;
 
-use crate::replaceable_pointer_head::ReplaceablePointerHead;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
 use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
+use paddler_test_cluster_harness::constants::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
+use paddler_tests::replaceable_pointer_head::ReplaceablePointerHead;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_clears_a_pointer_head_incompatibility_once_the_replaced_file_fits_the_model() {
     let pointer_head = ReplaceablePointerHead::holding_fixture(
         "qwen3_5_0_8b_synthetic_pointer_head_with_wrong_hidden_size.gguf",
-    );
+    )
+    .expect("the pointer head fixture must be put in place");
     let hidden_size_mismatch =
         AgentIssue::PointerHeadIncompatibleWithModel(PointerHeadIncompatibleWithModelParams {
             incompatibility: PointerHeadIncompatibility::HiddenSizeMismatch {
@@ -26,14 +26,15 @@ async fn agent_clears_a_pointer_head_incompatibility_once_the_replaced_file_fits
             },
             pointer_head_path: ModelPath::from(pointer_head.path.as_path()),
         });
-    let mut cluster = start_decision_cluster(DecisionClusterParams {
+    let mut cluster = DecisionClusterParams {
         desired_state: DecisionDesiredState {
             pointer_head: pointer_head.path.clone(),
             ..DecisionDesiredState::default()
         },
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
-    })
+    }
+    .start_cluster()
     .await
     .expect("the cluster must start");
 
@@ -42,7 +43,9 @@ async fn agent_clears_a_pointer_head_incompatibility_once_the_replaced_file_fits
         .await
         .expect("the agent must report the incompatible pointer head");
 
-    pointer_head.replace_with_fixture(QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE);
+    pointer_head
+        .replace_with_fixture(QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE)
+        .expect("the pointer head fixture must replace the pointer head");
 
     let serving_snapshot = cluster
         .wait_for_first_agent_to_serve(AgentDecisionsServing::Served)

@@ -6,8 +6,8 @@ use serde_json::Value;
 use serde_json::from_value;
 
 use paddler_messaging::decision_question::DecisionQuestion;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_messaging::validates::Validates as _;
+use paddler_messaging::request_params::decide_params::DecideParams;
+use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
 
 use crate::render_json_content::render_json_content;
 use crate::system_one_answer_layout::SystemOneAnswerLayout;
@@ -116,6 +116,9 @@ pub struct SystemOneRequest {
 }
 
 impl SystemOneRequest {
+    /// # Errors
+    ///
+    /// Returns [`TypeSafeTranslationError::QuestionMalformed`] when a question is not a valid choice, noul or score question, [`TypeSafeTranslationError::ChoiceCriteriaOutOfRange`] or [`TypeSafeTranslationError::ScoreCriteriaOutOfRange`] when a choice or score question has no criteria or more than 255 of them, and [`TypeSafeTranslationError::DecisionInvalid`] when the request has no questions.
     pub fn translate(self) -> Result<TranslatedSystemOneRequest, TypeSafeTranslationError> {
         let mut answer_layouts = Vec::with_capacity(self.questions.len());
         let mut questions = Vec::with_capacity(self.questions.len());
@@ -136,12 +139,18 @@ impl SystemOneRequest {
             answer_layouts.push(answer_layout);
         }
 
-        let decide_params = RawDecideParams {
-            questions,
+        let mut leading_questions = questions;
+        let last_question =
+            leading_questions
+                .pop()
+                .ok_or(TypeSafeTranslationError::DecisionInvalid {
+                    source: RequestParamsValidationError::DecisionWithoutQuestions,
+                })?;
+        let decide_params = DecideParams {
+            last_question,
+            leading_questions,
             state: render_json_content(&self.state, 0),
-        }
-        .validate()
-        .map_err(|source| TypeSafeTranslationError::DecisionInvalid { source })?;
+        };
 
         Ok(TranslatedSystemOneRequest {
             decide_params,
