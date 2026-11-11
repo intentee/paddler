@@ -36,6 +36,7 @@ use self::batch_pass::BatchPass;
 use self::commit_phase::CommitPhase;
 use self::decode_failure_phase::DecodeFailurePhase;
 use self::sequence_ordered_insertion_index::sequence_ordered_insertion_index;
+use crate::classified_token_usage::ClassifiedTokenUsage;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
@@ -236,7 +237,8 @@ impl<'model> ContinuousBatchScheduler<'model> {
             if active_request.generate_tokens_stop_rx.is_stop_requested() {
                 let summary = GenerationSummary {
                     finish: GenerationFinish::StopRequested,
-                    usage: *active_request.token_classifier.usage(),
+                    usage: ClassifiedTokenUsage(active_request.token_classifier.usage())
+                        .to_token_usage(),
                 };
 
                 active_request.complete_with_outcome(GeneratedTokenResult::Done(summary));

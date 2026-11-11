@@ -37,12 +37,12 @@ impl ToolCallEvent<'_> {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
     use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
 
     use super::ToolCallEvent;

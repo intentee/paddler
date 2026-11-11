@@ -71,8 +71,8 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() {
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.reasoning_tokens > 0);
-    assert!(summary.usage.input_image_tokens > 0);
+    assert!(summary.usage.reasoning > 0);
+    assert!(summary.usage.input_image > 0);
 
     cluster
         .shutdown()

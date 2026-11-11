@@ -1,7 +1,6 @@
-use llama_cpp_bindings_types::token_usage::TokenUsage;
-
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::token_usage::TokenUsage;
 
 use crate::arguments_to_tool_call_string::arguments_to_tool_call_string;
 use crate::completes_generation::CompletesGeneration;
@@ -114,7 +113,6 @@ impl CompletesGeneration for ResponsesResponseHeader {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
     use serde_json::Value;
     use serde_json::json;
     use serde_json::to_value;
@@ -122,6 +120,7 @@ mod tests {
     use paddler_generation_result_fixture::weather_call::weather_call;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::token_usage::TokenUsage;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 
     use super::ResponsesResponseHeader;
@@ -154,9 +153,9 @@ mod tests {
             &GenerationSummary {
                 finish: GenerationFinish::EndOfGeneration,
                 usage: TokenUsage {
-                    prompt_tokens: 5,
-                    content_tokens: 3,
-                    reasoning_tokens: 2,
+                    prompt: 5,
+                    content: 3,
+                    reasoning: 2,
                     ..TokenUsage::default()
                 },
             },
@@ -199,14 +198,14 @@ mod tests {
                 "hello".to_owned(),
             )],
             &TokenUsage {
-                prompt_tokens: 3,
-                cached_prompt_tokens: 0,
-                input_image_tokens: 0,
-                input_audio_tokens: 0,
-                content_tokens: 5,
-                reasoning_tokens: 2,
-                tool_call_tokens: 0,
-                undeterminable_tokens: 0,
+                prompt: 3,
+                cached_prompt: 0,
+                input_image: 0,
+                input_audio: 0,
+                content: 5,
+                reasoning: 2,
+                tool_call: 0,
+                undeterminable: 0,
             },
             GenerationFinish::EndOfGeneration,
         ))

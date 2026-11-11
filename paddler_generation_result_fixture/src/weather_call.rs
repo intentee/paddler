@@ -1,7 +1,7 @@
-use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 use serde_json::json;
 
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
+use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
 #[must_use]
 pub fn weather_call() -> GeneratedToolCall {

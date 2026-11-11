@@ -41,12 +41,12 @@ async fn agent_tokenizes_gemma_3_chat_prompt_with_a_single_bos_token() {
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .prompt_tokens,
+            .prompt,
         raw_prompt
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .prompt_tokens
+            .prompt
     );
 
     cluster

@@ -1,16 +1,15 @@
 use std::mem::Discriminant;
 use std::mem::discriminant;
 
-use llama_cpp_bindings_types::token_usage::TokenUsage;
-
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::token_usage::TokenUsage;
 
 #[must_use]
-pub const fn generation_done_discriminant() -> Discriminant<GeneratedTokenResult> {
+pub fn generation_done_discriminant() -> Discriminant<GeneratedTokenResult> {
     discriminant(&GeneratedTokenResult::Done(GenerationSummary {
         finish: GenerationFinish::EndOfGeneration,
-        usage: TokenUsage::new(),
+        usage: TokenUsage::default(),
     }))
 }

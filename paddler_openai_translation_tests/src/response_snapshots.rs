@@ -1,6 +1,5 @@
 use std::time::UNIX_EPOCH;
 
-use llama_cpp_bindings_types::token_usage::TokenUsage;
 use serde_json::Value;
 use serde_json::from_value;
 use serde_json::json;
@@ -9,6 +8,7 @@ use serde_json::to_value;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::token_usage::TokenUsage;
 use paddler_openai_translation::completes_generation::CompletesGeneration as _;
 use paddler_openai_translation::generated_output::GeneratedOutput;
 use paddler_openai_translation::generated_output_part::GeneratedOutputPart;
@@ -32,7 +32,7 @@ fn response_snapshots_of_delivery(
                 GeneratedOutput::default(),
                 &GenerationSummary {
                     finish: GenerationFinish::EndOfGeneration,
-                    usage: TokenUsage::new(),
+                    usage: TokenUsage::default(),
                 },
             ))
             .map(|completed_response| vec![completed_response])

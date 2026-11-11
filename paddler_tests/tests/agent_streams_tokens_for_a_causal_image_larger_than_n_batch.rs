@@ -55,7 +55,7 @@ async fn agent_streams_tokens_for_a_causal_image_larger_than_n_batch() {
                 .summary()
                 .expect("the generation must report its summary")
                 .usage
-                .input_image_tokens
+                .input_image
                 > u64::from(N_BATCH_SMALLER_THAN_ONE_IMAGE)
         );
     }

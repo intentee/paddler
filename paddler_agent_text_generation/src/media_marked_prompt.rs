@@ -3,8 +3,7 @@ use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
 use llama_cpp_bindings::mtmd::mtmd_input_text_part::MtmdInputTextPart;
 
-use paddler_messaging::media_marker::MediaMarker;
-
+use crate::media_marker::MediaMarker;
 use crate::text_generation_error::TextGenerationError;
 
 fn text_part<'bitmap>(text_segment: &str, parse_special: bool) -> MtmdInputPart<'bitmap> {
@@ -66,9 +65,8 @@ mod tests {
     use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
     use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
 
-    use paddler_messaging::media_marker::MediaMarker;
-
     use super::MediaMarkedPrompt;
+    use crate::media_marker::MediaMarker;
     use crate::text_generation_error::TextGenerationError;
 
     const MEDIA_MARKER: &str = "<__media_test__>";

@@ -3,7 +3,6 @@
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings::token::logit_bias::LlamaLogitBias;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
@@ -12,6 +11,7 @@ use paddler_agent_text_generation::token_sampling::TokenSampling;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::token_usage::TokenUsage;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::constants::QWEN3_0_6B_UNUSED_PADDING_TOKEN;
@@ -69,7 +69,7 @@ fn a_sampled_token_the_vocabulary_renders_as_nothing_is_generated_like_any_other
             GenerationSummary {
                 finish: GenerationFinish::MaxTokens,
                 usage: TokenUsage {
-                    undeterminable_tokens: 1,
+                    undeterminable: 1,
                     ..TokenUsage::default()
                 },
             }

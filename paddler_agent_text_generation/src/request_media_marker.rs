@@ -1,8 +1,9 @@
 use llama_cpp_bindings_types::chat_tool::ChatTool;
 
 use paddler_messaging::conversation_history::ConversationHistory;
-use paddler_messaging::media_marker::MediaMarker;
 use paddler_sha256_hex::sha256_lowercase_hex::sha256_lowercase_hex;
+
+use crate::media_marker::MediaMarker;
 
 const TEXT_ONLY_MEDIA_MARKER: &str = "<__media__>";
 

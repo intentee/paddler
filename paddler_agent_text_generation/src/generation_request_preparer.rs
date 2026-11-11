@@ -14,7 +14,6 @@ use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
 use paddler_image_decoder::decoded_image::DecodedImage;
-use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -23,6 +22,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
+use crate::chat_template_conversation::ChatTemplateConversation;
+use crate::chat_template_tool::ChatTemplateTool;
 use crate::conversation_prompt_support::ConversationPromptSupport;
 use crate::conversation_support::ConversationSupport;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
@@ -112,13 +113,16 @@ impl GenerationRequestPreparer {
         };
         let chat_tools: Vec<ChatTool> = tools_with_schema_documents
             .iter()
-            .map(ChatTool::from)
+            .map(|tool| ChatTemplateTool(tool).to_chat_tool())
             .collect();
         let media_marker = request_media_marker(&conversation_history, &chat_tools);
         let ChatTemplateConversation {
             image_urls,
             messages,
-        } = conversation_history.into_chat_template_conversation(&media_marker);
+        } = ChatTemplateConversation::from_conversation_history(
+            conversation_history,
+            &media_marker,
+        );
         let prompt_modality = image_input.prompt_modality_for(&image_urls)?;
         let chat_session = ChatSession::new(
             model,

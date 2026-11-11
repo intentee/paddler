@@ -294,8 +294,6 @@ impl StreamableResult for GeneratedTokenResult {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-
     use super::GeneratedTokenResult;
     use crate::generation_finish::GenerationFinish;
     use crate::generation_summary::GenerationSummary;
@@ -304,6 +302,7 @@ mod tests {
     use crate::raw_tool_call_tokens::RawToolCallTokens;
     use crate::result_step::ResultStep;
     use crate::streamable_result::StreamableResult as _;
+    use crate::token_usage::TokenUsage;
 
     fn keeps_the_stream_open(token_result: &GeneratedTokenResult) -> bool {
         match token_result.clone().into_step() {
@@ -330,7 +329,7 @@ mod tests {
             GeneratedTokenResult::AnswerClassificationFailed("failure".to_owned()),
             GeneratedTokenResult::Done(GenerationSummary {
                 finish: GenerationFinish::EndOfGeneration,
-                usage: TokenUsage::new(),
+                usage: TokenUsage::default(),
             }),
             GeneratedTokenResult::GrammarIncompatibleWithThinking("failure".to_owned()),
             GeneratedTokenResult::GrammarInitializationFailed("failure".to_owned()),

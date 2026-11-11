@@ -59,13 +59,11 @@ async fn qwen3_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens() 
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.prompt_tokens > 0);
-    assert!(summary.usage.reasoning_tokens > 0);
+    assert!(summary.usage.prompt > 0);
+    assert!(summary.usage.reasoning > 0);
     assert_eq!(
         summary.usage.completion_tokens(),
-        summary.usage.content_tokens
-            + summary.usage.reasoning_tokens
-            + summary.usage.undeterminable_tokens
+        summary.usage.content + summary.usage.reasoning + summary.usage.undeterminable
     );
 
     cluster

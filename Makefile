@@ -208,58 +208,19 @@ test.client.js.llm: $(PADDLER_TEST_BINARY) node_modules target/test-model-cards.
 	$(PADDLER_BINARY_ENVIRONMENT) npm --workspace @intentee/paddler-client run test:llm
 
 .PHONY: test.coverage
-test.coverage: esbuild-meta.json node_modules target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/test-model-cards.stamp
+test.coverage: esbuild-meta.json target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/test-model-cards.stamp
 	cargo llvm-cov clean --workspace
 	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo llvm-cov nextest --features tests_that_use_llms,tests_that_use_opencode,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --include-build-script --no-report --workspace
 	cargo llvm-cov report --include-build-script --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --include-build-script --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --lcov --output-path target/lcov.info
 	cargo llvm-cov report --include-build-script --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)'
-	npx rust-coverage-check target/llvm-cov.json \
-		--workspace-root $(CURDIR) \
-		--gated paddler_agent=100 \
-		--gated paddler_agent_decision=100 \
-		--gated paddler_agent_embeddings=100 \
-		--gated paddler_agent_pointer_head=100 \
-		--gated paddler_agent_runtime=100 \
-		--gated paddler_agent_runtime_tests=100 \
-		--gated paddler_agent_status=100 \
-		--gated paddler_agent_tests=100 \
-		--gated paddler_agent_text_generation=100 \
-		--gated paddler_balancer=100 \
-		--gated paddler_balancer_desired_state_fixture=100 \
-		--gated paddler_blocking_thread_fixture=100 \
-		--gated paddler_bootstrap=100 \
-		--gated paddler_bootstrap_tests=100 \
-		--gated paddler_cache_dir=100 \
-		--gated paddler_chunked_response_fixture=100 \
-		--gated paddler_cli=100 \
-		--gated paddler_cli_tests=100 \
-		--gated paddler_client=100 \
-		--gated paddler_dashboard_assets=100 \
-		--gated paddler_download_manager=100 \
-		--gated paddler_download_manager_tests=100 \
-		--gated paddler_frame_writer=100 \
-		--gated paddler_generation_result_fixture=100 \
-		--gated paddler_image_decoder=100 \
-		--gated paddler_inference_parameters=100 \
-		--gated paddler_local_http_fixture=100 \
-		--gated paddler_messaging=100 \
-		--gated paddler_model_source=100 \
-		--gated paddler_openai_response_format_validator=100 \
-		--gated paddler_openai_translation=100 \
-		--gated paddler_openai_translation_tests=100 \
-		--gated paddler_opencode_tests=100 \
-		--gated paddler_outbox=100 \
-		--gated paddler_request_registry=100 \
-		--gated paddler_sha256_hex=100 \
-		--gated paddler_spawn_resuming_panic=100 \
-		--gated paddler_state_database=100 \
-		--gated paddler_tcp_buffer_limits=100 \
-		--gated paddler_test_cluster_harness=100 \
-		--gated paddler_tests=100 \
-		--gated paddler_tool_call_validator=100 \
-		--gated paddler_typesafe_translation=100 \
-		--gated paddler_typesafe_translation_tests=100
+	cargo fetch
+	heisenberg coverage-check \
+		--cargo-home "$(CARGO_HOME)" \
+		--sysroot "$(RUST_SYSROOT)" \
+		--configuration $(HOST_TUPLE) \
+		--workspace "$(CURDIR)" \
+		--coverage-export "$(CURDIR)/target/llvm-cov.json"
 
 .PHONY: test.coverage-clean
 test.coverage-clean:

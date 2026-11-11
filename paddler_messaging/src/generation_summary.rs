@@ -1,8 +1,8 @@
-use llama_cpp_bindings_types::token_usage::TokenUsage;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::generation_finish::GenerationFinish;
+use crate::token_usage::TokenUsage;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

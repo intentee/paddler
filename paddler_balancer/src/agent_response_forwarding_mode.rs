@@ -60,13 +60,12 @@ impl AgentResponseForwardingMode {
 mod tests {
     use std::time::Duration;
 
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-
     use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
     use paddler_messaging::generated_token_partial_result::GeneratedTokenPartialResult;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::result_step::ResultStep;
+    use paddler_messaging::token_usage::TokenUsage;
 
     use super::AgentResponseForwardingMode;
     use crate::agent_relay_event::AgentRelayEvent;
@@ -92,7 +91,7 @@ mod tests {
     fn generation_done() -> GeneratedTokenFinalResult {
         GeneratedTokenFinalResult::Done(GenerationSummary {
             finish: GenerationFinish::EndOfGeneration,
-            usage: TokenUsage::new(),
+            usage: TokenUsage::default(),
         })
     }
 

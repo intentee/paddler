@@ -84,20 +84,20 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.prompt_tokens > 0);
+    assert!(summary.usage.prompt > 0);
     assert_eq!(
-        summary.usage.reasoning_tokens, 0,
+        summary.usage.reasoning, 0,
         "Qwen3.5 thinking-disabled: usage.reasoning_tokens must be zero; usage={:?}",
         summary.usage
     );
     assert_eq!(
-        summary.usage.undeterminable_tokens, 0,
+        summary.usage.undeterminable, 0,
         "Qwen3.5 thinking-disabled: usage.undeterminable_tokens must be zero; usage={:?}",
         summary.usage
     );
     assert_eq!(
         summary.usage.completion_tokens(),
-        summary.usage.content_tokens,
+        summary.usage.content,
         "Qwen3.5 thinking-disabled: completion tokens equal content tokens since \
          reasoning and undeterminable are zero"
     );

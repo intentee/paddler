@@ -7,9 +7,9 @@ use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
-use llama_cpp_bindings_types::chat_tool::ChatTool;
 use serde_json::Value;
 
+use paddler_agent_text_generation::chat_template_tool::ChatTemplateTool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 
 use crate::constants::WEATHER_TOOL_QUESTION;
@@ -30,7 +30,7 @@ pub fn weather_chat_session(
             content: ChatMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
             reasoning_content: None,
         }],
-        &[ChatTool::from(&Tool::<Value>::from(get_weather_tool()))],
+        &[ChatTemplateTool(&Tool::<Value>::from(get_weather_tool())).to_chat_tool()],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,

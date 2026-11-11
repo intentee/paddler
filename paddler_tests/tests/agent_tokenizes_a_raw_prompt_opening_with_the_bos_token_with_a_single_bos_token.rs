@@ -31,7 +31,7 @@ async fn agent_tokenizes_a_raw_prompt_opening_with_the_bos_token_with_a_single_b
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .prompt_tokens
+            .prompt
     };
 
     let prompt_tokens_with_rendered_bos = prompt_tokens_of(format!(

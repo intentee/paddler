@@ -128,13 +128,14 @@ impl ChatCompletionStream {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
     use paddler_generation_result_fixture::finished_generation_summary::finished_generation_summary;
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
+    use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::ChatCompletionStream;
     use crate::chat_completion_chunk::ChatCompletionChunk;
@@ -227,7 +228,14 @@ mod tests {
                         1,
                         "call_invalid",
                         "broken_tool",
-                        ToolCallArguments::from_string("{not valid json".to_owned()),
+                        ToolCallArguments::InvalidJson {
+                            raw: "{not valid json".to_owned(),
+                            error: InvalidArgumentsJson {
+                                message: "key must be a string at line 1 column 2".to_owned(),
+                                line: 1,
+                                column: 2,
+                            },
+                        },
                     ),
                 ])),
             )),

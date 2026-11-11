@@ -55,7 +55,7 @@ async fn agent_reports_independent_usage_for_concurrent_requests() {
     assert_eq!(summaries.len(), 2);
 
     for summary in &summaries {
-        assert!(summary.usage.prompt_tokens > 0);
+        assert!(summary.usage.prompt > 0);
         assert!(summary.usage.completion_tokens() > 0);
     }
 

@@ -61,14 +61,14 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
         .summary()
         .expect("the generation must finish with a summary");
 
-    assert!(summary.usage.prompt_tokens > 0);
+    assert!(summary.usage.prompt > 0);
     assert!(
         tool_call_count > 0,
         "expected ToolCallToken (got {tool_call_count}); content_count={content_count}; usage={:?}; generated text:\n{}",
         summary.usage,
         collected.text,
     );
-    assert!(summary.usage.tool_call_tokens > 0);
+    assert!(summary.usage.tool_call > 0);
 
     cluster
         .shutdown()

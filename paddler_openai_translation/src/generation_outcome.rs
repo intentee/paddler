@@ -94,13 +94,13 @@ impl From<GeneratedTokenFinalResult> for GenerationOutcome {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
 
     use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::oversized_media_details::OversizedMediaDetails;
     use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
+    use paddler_messaging::token_usage::TokenUsage;
 
     use super::GenerationOutcome;
     use crate::generation_failure::GenerationFailure;
@@ -124,7 +124,7 @@ mod tests {
     fn classifies_the_summary_as_a_finished_generation() {
         let generation_summary = GenerationSummary {
             finish: GenerationFinish::EndOfGeneration,
-            usage: TokenUsage::new(),
+            usage: TokenUsage::default(),
         };
 
         assert_eq!(

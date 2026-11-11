@@ -13,12 +13,12 @@ use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchSc
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::media_marked_prompt::MediaMarkedPrompt;
+use paddler_agent_text_generation::media_marker::MediaMarker;
 use paddler_agent_text_generation::multimodal_prompt_ingestion::MultimodalPromptIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::media_marker::MediaMarker;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;

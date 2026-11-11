@@ -36,7 +36,7 @@ async fn agent_streams_a_bare_json_answer_without_tool_call_markup_as_content() 
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .tool_call_tokens,
+            .tool_call,
         0
     );
 

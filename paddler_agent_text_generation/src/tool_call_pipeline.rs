@@ -12,6 +12,7 @@ use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
+use crate::numbered_tool_call::NumberedToolCall;
 use crate::tool_call_event::ToolCallEvent;
 
 pub struct ToolCallPipeline {
@@ -69,27 +70,23 @@ impl ToolCallPipeline {
         }
     }
 
-    fn number_across_the_generation(
-        &mut self,
-        tool_calls: Vec<ParsedToolCall>,
-    ) -> Vec<GeneratedToolCall> {
-        tool_calls
-            .into_iter()
-            .zip(&mut self.tool_call_numbers)
-            .map(|(tool_call, tool_call_number)| {
-                GeneratedToolCall::at_index(tool_call, tool_call_number)
-            })
-            .collect()
-    }
-
     fn resolve<'reading>(
         &mut self,
         parsed_tool_calls: &[ParsedToolCall],
     ) -> ToolCallEvent<'reading> {
-        let newly_resolved: Vec<ParsedToolCall> = parsed_tool_calls
+        let mut tool_call_numbers = self.tool_call_numbers.clone();
+        let newly_resolved: Vec<GeneratedToolCall> = parsed_tool_calls
             .iter()
             .skip(self.tool_calls_resolved)
             .cloned()
+            .zip(&mut tool_call_numbers)
+            .map(|(parsed_tool_call, number)| {
+                NumberedToolCall {
+                    number,
+                    parsed_tool_call,
+                }
+                .into_generated_tool_call()
+            })
             .collect();
         let validation_errors: Vec<_> = newly_resolved
             .iter()
@@ -99,7 +96,9 @@ impl ToolCallPipeline {
         self.tool_calls_resolved = self.tool_calls_resolved.max(parsed_tool_calls.len());
 
         if validation_errors.is_empty() {
-            ToolCallEvent::Resolved(self.number_across_the_generation(newly_resolved))
+            self.tool_call_numbers = tool_call_numbers;
+
+            ToolCallEvent::Resolved(newly_resolved)
         } else {
             ToolCallEvent::ValidationFailed(validation_errors)
         }

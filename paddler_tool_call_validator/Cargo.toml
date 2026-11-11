@@ -10,7 +10,6 @@ version.workspace = true
 
 [dependencies]
 jsonschema = { workspace = true }
-llama-cpp-bindings-types = { workspace = true }
 paddler_messaging = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

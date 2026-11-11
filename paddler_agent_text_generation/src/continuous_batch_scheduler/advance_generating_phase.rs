@@ -12,6 +12,7 @@ use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 
 use crate::classified_token::ClassifiedToken;
+use crate::classified_token_usage::ClassifiedTokenUsage;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
@@ -222,7 +223,7 @@ impl AdvanceGeneratingPhase<'_> {
 
         AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
             finish,
-            usage: *token_classifier.usage(),
+            usage: ClassifiedTokenUsage(token_classifier.usage()).to_token_usage(),
         }))
     }
 

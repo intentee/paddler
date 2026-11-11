@@ -68,10 +68,10 @@ async fn qwen35_thinking_cut_by_max_tokens_reports_every_generated_token_as_reas
 
     assert_eq!(finish, GenerationFinish::MaxTokens);
     assert_eq!(
-        usage.reasoning_tokens,
+        usage.reasoning,
         u64::from(MAX_TOKENS_ENDING_ON_A_SINGLE_NEWLINE_INSIDE_THE_REASONING)
     );
-    assert_eq!(usage.content_tokens, 0);
+    assert_eq!(usage.content, 0);
 
     cluster
         .shutdown()

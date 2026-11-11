@@ -1,7 +1,8 @@
 use jsonschema::ValidationError;
-use llama_cpp_bindings_types::invalid_arguments_json::InvalidArgumentsJson;
 use serde_json::Value;
 use thiserror::Error;
+
+use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
 
 #[derive(Debug, Error)]
 pub enum ToolCallValidationError {

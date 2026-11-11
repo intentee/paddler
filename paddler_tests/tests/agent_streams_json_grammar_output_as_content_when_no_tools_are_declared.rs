@@ -46,7 +46,7 @@ async fn agent_streams_json_grammar_output_as_content_when_no_tools_are_declared
             .summary()
             .expect("the generation must finish with a summary")
             .usage
-            .tool_call_tokens,
+            .tool_call,
         0
     );
 

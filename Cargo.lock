@@ -3643,7 +3643,6 @@ dependencies = [
  "futures",
  "futures-util",
  "indoc",
- "llama-cpp-bindings-types",
  "log",
  "mime_guess",
  "nanoid",
@@ -3876,7 +3875,6 @@ dependencies = [
 name = "paddler_generation_result_fixture"
 version = "5.0.0"
 dependencies = [
- "llama-cpp-bindings-types",
  "paddler_messaging",
  "serde_json",
 ]
@@ -3922,7 +3920,6 @@ dependencies = [
 name = "paddler_messaging"
 version = "5.0.0"
 dependencies = [
- "llama-cpp-bindings-types",
  "paddler_inference_parameters",
  "serde",
  "serde_json",
@@ -3964,7 +3961,6 @@ dependencies = [
 name = "paddler_openai_translation"
 version = "5.0.0"
 dependencies = [
- "llama-cpp-bindings-types",
  "nanoid",
  "paddler_generation_result_fixture",
  "paddler_inference_parameters",
@@ -3979,7 +3975,6 @@ dependencies = [
 name = "paddler_openai_translation_tests"
 version = "5.0.0"
 dependencies = [
- "llama-cpp-bindings-types",
  "paddler_inference_parameters",
  "paddler_messaging",
  "paddler_openai_translation",
@@ -4140,7 +4135,6 @@ name = "paddler_tool_call_validator"
 version = "5.0.0"
 dependencies = [
  "jsonschema",
- "llama-cpp-bindings-types",
  "paddler_messaging",
  "serde_json",
  "thiserror",

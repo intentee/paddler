@@ -1,12 +1,12 @@
 use std::time::SystemTime;
 
-use llama_cpp_bindings_types::token_usage::TokenUsage;
 use serde_json::Value;
 use serde_json::from_value;
 use serde_json::to_value;
 
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::token_usage::TokenUsage;
 use paddler_openai_translation::chat_completion_delivery::ChatCompletionDelivery;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::completes_generation::CompletesGeneration as _;
@@ -21,7 +21,7 @@ fn finishing_json_of_delivery(
 ) -> Result<Vec<Value>, OpenAITranslationTestsError> {
     let generation_summary = GenerationSummary {
         finish: GenerationFinish::EndOfGeneration,
-        usage: TokenUsage::new(),
+        usage: TokenUsage::default(),
     };
 
     match delivery {

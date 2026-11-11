@@ -23,7 +23,6 @@ dashmap = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 indoc = { workspace = true }
-llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true, optional = true }
 nanoid = { workspace = true }

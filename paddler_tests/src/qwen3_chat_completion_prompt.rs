@@ -12,7 +12,8 @@ use llama_cpp_bindings_types::chat_message::ChatMessage;
 use serde_json::Value;
 use serde_json::from_value;
 
-use paddler_messaging::media_marker::MediaMarker;
+use paddler_agent_text_generation::chat_template_conversation::ChatTemplateConversation;
+use paddler_agent_text_generation::media_marker::MediaMarker;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::translated_chat_completion_request::TranslatedChatCompletionRequest;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -35,10 +36,11 @@ fn conversation_messages(chat_completion_request: Value) -> Result<Vec<ChatMessa
                  conversation_history_params,
                  ..
              }| {
-                conversation_history_params
-                    .conversation_history
-                    .into_chat_template_conversation(&MediaMarker::new(MEDIA_MARKER.to_owned()))
-                    .messages
+                ChatTemplateConversation::from_conversation_history(
+                    conversation_history_params.conversation_history,
+                    &MediaMarker::new(MEDIA_MARKER.to_owned()),
+                )
+                .messages
             },
         )
 }
