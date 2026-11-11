@@ -39,22 +39,17 @@ impl ResidentMultimodalContext {
             stream_count: *available_parallelism,
         }
         .alongside(|| {
-            #[expect(
-                clippy::disallowed_methods,
-                reason = "the multimodal projection is loaded here, paired with its VRAM occupancy"
-            )]
-            let initialized_multimodal_context = MtmdContext::init_from_file(
+            MtmdContext::init_from_file(
                 &multimodal_projection_path.to_string_lossy(),
                 model,
                 &MtmdContextParams::default(),
-            );
-
-            initialized_multimodal_context.map_err(|source| {
-                TextGenerationError::MultimodalProjectionLoadFailed {
+            )
+            .map_err(
+                |source| TextGenerationError::MultimodalProjectionLoadFailed {
                     multimodal_projection_path: multimodal_projection_path.to_path_buf(),
                     source,
-                }
-            })
+                },
+            )
         })
         .map(|multimodal_context| Self {
             multimodal_context,

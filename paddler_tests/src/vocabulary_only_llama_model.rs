@@ -24,22 +24,16 @@ impl VocabularyOnlyLlamaModel {
             .get_or_init()
             .context("the llama backend must initialize")
             .and_then(|llama_backend| {
-                #[expect(
-                    clippy::disallowed_methods,
-                    reason = "a vocabulary-only load allocates no tensors, so it holds no VRAM residency"
-                )]
-                let llama_model = LlamaModel::load_from_file(
+                LlamaModel::load_from_file(
                     &llama_backend,
                     model_path,
                     &LlamaModelParams::default().with_vocab_only(true),
-                );
-
-                llama_model
-                    .context("the model vocabulary must load")
-                    .map(|llama_model| Self {
-                        llama_model,
-                        _llama_backend: llama_backend,
-                    })
+                )
+                .context("the model vocabulary must load")
+                .map(|llama_model| Self {
+                    llama_model,
+                    _llama_backend: llama_backend,
+                })
             })
     }
 }

@@ -107,17 +107,12 @@ impl LoadedLlamaModel {
             stream_count: inference_parallelism.available_parallelism,
         }
         .alongside(|| {
-            #[expect(
-                clippy::disallowed_methods,
-                reason = "the model is loaded here, paired with the VRAM occupancy of the model weights"
-            )]
-            let loaded_model = LlamaModel::load_from_file(
+            LlamaModel::load_from_file(
                 &llama_backend,
                 &llama_model_settings.model_path,
                 &llama_model_settings.to_llama_model_params(),
-            );
-
-            loaded_model.map_err(|source| AgentRuntimeError::ModelLoadFailed {
+            )
+            .map_err(|source| AgentRuntimeError::ModelLoadFailed {
                 model_path: llama_model_settings.model_path.clone(),
                 source,
             })
@@ -154,37 +149,31 @@ impl LoadedLlamaModel {
             .try_occupy()?;
         let n_seq_max = llama_context_params.n_seq_max();
 
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "the context is created here, paired with the VRAM occupancy of its capability"
-        )]
-        let created_llama_context = LlamaContext::from_model(
+        LlamaContext::from_model(
             &self.model.llama_model,
             &self.model.llama_backend,
             llama_context_params,
-        );
+        )
+        .map(|llama_context| ResidentLlamaContext {
+            llama_context,
+            vram_occupancy,
+        })
+        .map_err(|source| {
+            let context_creation_failure = AgentRuntimeError::ContextCreationFailed(source);
+            let error = context_creation_failure.to_string();
 
-        created_llama_context
-            .map(|llama_context| ResidentLlamaContext {
-                llama_context,
-                vram_occupancy,
-            })
-            .map_err(|source| {
-                let context_creation_failure = AgentRuntimeError::ContextCreationFailed(source);
-                let error = context_creation_failure.to_string();
+            for slot_index in 0..n_seq_max {
+                slot_aggregated_status.register_pipeline_issue(AgentIssue::SlotCannotStart(
+                    SlotCannotStartParams {
+                        error: error.clone(),
+                        inference_capability,
+                        slot_index,
+                    },
+                ));
+            }
 
-                for slot_index in 0..n_seq_max {
-                    slot_aggregated_status.register_pipeline_issue(AgentIssue::SlotCannotStart(
-                        SlotCannotStartParams {
-                            error: error.clone(),
-                            inference_capability,
-                            slot_index,
-                        },
-                    ));
-                }
-
-                context_creation_failure
-            })
+            context_creation_failure
+        })
     }
 
     #[must_use]
