@@ -45,6 +45,8 @@ use crate::collected_decision_results::CollectedDecisionResults;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::concurrent_connection_budget::ConcurrentConnectionBudget;
+use crate::connection_keep_alive::ConnectionKeepAlive;
+use crate::connection_runtime::ConnectionRuntime;
 use crate::every_agent_serves_decisions::every_agent_serves_decisions;
 use crate::openai_api_client::OpenAIApiClient;
 use crate::running_agent::RunningAgent;
@@ -54,6 +56,32 @@ use crate::typesafe_api_client::TypeSafeApiClient;
 use crate::typesafe_api_response::TypeSafeApiResponse;
 
 const INFERENCE_SOCKET_POOL_SIZE: NonZeroUsize = NonZeroUsize::MIN;
+
+async fn open_cluster_connections(
+    client_management: ClientManagement,
+    cancellation_token: CancellationToken,
+    desired_state: ClusterDesiredState,
+    connection_keep_alive: ConnectionKeepAlive,
+) -> Result<ClusterSnapshotsWatchers> {
+    client_management
+        .wait_until_healthy(cancellation_token.clone())
+        .await
+        .context("balancer did not become healthy")?;
+
+    if let ClusterDesiredState::Apply(desired_state) = &desired_state {
+        client_management
+            .put_balancer_desired_state(cancellation_token.clone(), desired_state)
+            .await
+            .context("failed to PUT balancer desired state")?;
+    }
+
+    ClusterSnapshotsWatchers::open(
+        &client_management,
+        cancellation_token,
+        connection_keep_alive,
+    )
+    .await
+}
 
 pub struct Cluster {
     pub agent_ids: Vec<String>,
@@ -65,6 +93,7 @@ pub struct Cluster {
     pub client_management: ClientManagement,
     agent_spawner: Box<dyn AgentSpawner>,
     connection_budget: ConcurrentConnectionBudget,
+    connection_runtime: ConnectionRuntime,
 }
 
 impl Cluster {
@@ -83,36 +112,31 @@ impl Cluster {
             url: balancer.inference_base_url.clone(),
         });
 
-        client_management
-            .wait_until_healthy(cancellation_token.clone())
-            .await
-            .context("balancer did not become healthy")?;
+        let connection_runtime = ConnectionRuntime::start()?;
+        let ClusterSnapshotsWatchers {
+            agents_watcher,
+            buffered_requests_watcher,
+        } = connection_runtime
+            .run(open_cluster_connections(
+                client_management.clone(),
+                cancellation_token,
+                desired_state.clone(),
+                connection_runtime.keep_alive(),
+            ))
+            .await??;
 
-        if let ClusterDesiredState::Apply(desired_state) = desired_state {
-            client_management
-                .put_balancer_desired_state(cancellation_token.clone(), desired_state)
-                .await
-                .context("failed to PUT balancer desired state")?;
-        }
-
-        ClusterSnapshotsWatchers::open(&client_management, cancellation_token)
-            .await
-            .map(
-                |ClusterSnapshotsWatchers {
-                     agents_watcher,
-                     buffered_requests_watcher,
-                 }| Self {
-                    agent_ids: Vec::new(),
-                    agents: Vec::new(),
-                    agents_watcher,
-                    balancer,
-                    buffered_requests_watcher,
-                    client_inference,
-                    client_management,
-                    agent_spawner,
-                    connection_budget: ConcurrentConnectionBudget::default(),
-                },
-            )
+        Ok(Self {
+            agent_ids: Vec::new(),
+            agents: Vec::new(),
+            agents_watcher,
+            balancer,
+            buffered_requests_watcher,
+            client_inference,
+            client_management,
+            agent_spawner,
+            connection_budget: ConcurrentConnectionBudget::default(),
+            connection_runtime,
+        })
     }
 
     /// # Errors
@@ -370,11 +394,25 @@ impl Cluster {
     ///
     /// Fails when an agent or the balancer cannot be terminated, or ends with a failure.
     pub async fn shutdown(self) -> Result<()> {
-        for agent in self.agents {
+        let Self {
+            agents,
+            agents_watcher,
+            balancer,
+            buffered_requests_watcher,
+            connection_runtime,
+            ..
+        } = self;
+
+        for agent in agents {
             agent.shutdown().await?;
         }
 
-        self.balancer.shutdown().await
+        balancer.shutdown().await?;
+        drop(agents_watcher);
+        drop(buffered_requests_watcher);
+        connection_runtime.shut_down().await;
+
+        Ok(())
     }
 
     /// # Errors

@@ -8,6 +8,7 @@ use quick_xml::events::attributes::AttrError;
 use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
+use tokio::task::JoinError;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use url::ParseError;
@@ -100,6 +101,12 @@ pub enum ClusterHarnessError {
         held_connections: usize,
         limit: usize,
     },
+    #[error("Unable to build the runtime that holds the cluster's connections")]
+    ConnectionRuntimeUnbuildable(#[source] IoError),
+    #[error("The work on the cluster's connection runtime did not complete")]
+    ConnectionTaskFailed(#[source] JoinError),
+    #[error("Unable to spawn the thread that drives the cluster's connection runtime")]
+    ConnectionThreadUnspawnable(#[source] IoError),
     #[error("The generation did not end with a summary; its last result was {last_token_result:?}")]
     GenerationEndedWithoutSummary {
         last_token_result: Option<GeneratedTokenResult>,

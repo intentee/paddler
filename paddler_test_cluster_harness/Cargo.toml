@@ -1,5 +1,6 @@
 [package]
 name = "paddler_test_cluster_harness"
+autotests = false
 authors.workspace = true
 description = "Shared balancer-API-facing test harness for Paddler integration tests"
 edition.workspace = true
@@ -8,6 +9,13 @@ license.workspace = true
 publish = false
 repository.workspace = true
 version.workspace = true
+
+[lib]
+doctest = false
+
+[[test]]
+name = "every_model_card_resolves_from_the_hugging_face_cache"
+path = "tests/every_model_card_resolves_from_the_hugging_face_cache.rs"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -22,6 +30,7 @@ paddler_client = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_model_source = { workspace = true }
+paddler_spawn_resuming_panic = { workspace = true }
 quick-xml = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
