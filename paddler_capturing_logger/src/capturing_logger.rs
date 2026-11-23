@@ -31,7 +31,7 @@ impl CapturingLogger {
                 set_logger(&CAPTURING_LOGGER).is_ok(),
                 "the capturing logger must be the only logger of the test process"
             );
-            set_max_level(LevelFilter::Trace);
+            set_max_level(LevelFilter::Debug);
         });
     }
 
@@ -76,6 +76,7 @@ impl Log for CapturingLogger {
 mod tests {
     use log::Level;
     use log::info;
+    use log::trace;
 
     use super::CapturingLogger;
     use crate::captured_record::CapturedRecord;
@@ -93,6 +94,18 @@ mod tests {
                 message: "the record the test asserts on".to_owned(),
                 target: module_path!().to_owned(),
             }]
+        );
+    }
+
+    #[test]
+    fn leaves_out_the_trace_records_only_dependencies_emit() {
+        CapturingLogger::install();
+
+        trace!(target: "dependency_frame_dump", "a frame payload");
+
+        assert_eq!(
+            CapturingLogger::records_for("dependency_frame_dump"),
+            Vec::<CapturedRecord>::new()
         );
     }
 }
