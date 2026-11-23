@@ -1,3 +1,6 @@
+use std::ffi::NulError;
+use std::num::TryFromIntError;
+
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::error::decode_error::DecodeError;
 use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
@@ -24,48 +27,68 @@ pub enum DecisionError {
     #[error(transparent)]
     AgentRuntime(#[from] AgentRuntimeError),
 
-    #[error("failed to add a decision token to the batch: {0}")]
+    #[error("failed to add a decision token to the batch")]
     BatchAssemblyFailed(#[source] BatchAddError),
 
-    #[error("the client stopped listening for decisions: {0}")]
+    #[error("the client stopped listening for decisions")]
     ClientDisconnected(#[source] SendError<DecisionResult>),
 
     #[error("no pointer head is configured, so the agent serves no decisions")]
     DecisionsNotServed,
 
-    #[error("llama.cpp rejected the decision batch: {0}")]
+    #[error("llama.cpp rejected the decision batch")]
     DecodeFailed(#[source] DecodeError),
 
-    #[error("unable to read the attributes of the pointer head delimiter {delimiter}: {source}")]
+    #[error("unable to read the attributes of the pointer head delimiter {delimiter}")]
     DelimiterAttributesUnreadable {
         delimiter: String,
         #[source]
         source: TokenAttrError,
     },
 
-    #[error("unable to tokenize the pointer head delimiter {delimiter}: {source}")]
+    #[error("unable to tokenize the pointer head delimiter {delimiter}")]
     DelimiterTokenizationFailed {
         delimiter: String,
         #[source]
         source: StringToTokenError,
     },
 
-    #[error("unable to read the hidden state of a decision output: {0}")]
+    #[error("unable to tokenize the pointer head delimiter {delimiter}")]
+    DelimiterContainsNul {
+        delimiter: String,
+        #[source]
+        source: NulError,
+    },
+
+    #[error("unable to tokenize the pointer head delimiter {delimiter}")]
+    DelimiterLengthUnrepresentable {
+        delimiter: String,
+        #[source]
+        source: TryFromIntError,
+    },
+
+    #[error("unable to read the hidden state of a decision output")]
     HiddenStateUnavailable(#[source] EmbeddingsError),
 
-    #[error("failed to tokenize the decision input: {0}")]
+    #[error("failed to tokenize the decision input")]
     InputTokenizationFailed(#[source] StringToTokenError),
 
-    #[error("failed to copy the decision state into its question lane: {0}")]
+    #[error("failed to tokenize the decision input")]
+    InputContainsNul(#[source] NulError),
+
+    #[error("failed to tokenize the decision input")]
+    InputLengthUnrepresentable(#[source] TryFromIntError),
+
+    #[error("failed to copy the decision state into its question lane")]
     KvCacheCopyFailed(#[source] MemorySeqCpError),
 
-    #[error("failed to remove a decision sequence from the KV cache: {0}")]
+    #[error("failed to remove a decision sequence from the KV cache")]
     KvCacheRemovalFailed(#[source] MemorySeqRmError),
 
     #[error("no model is loaded")]
     ModelNotLoaded,
 
-    #[error("unable to load the pointer head: {0}")]
+    #[error("unable to load the pointer head")]
     PointerHeadCannotBeLoaded(#[source] PointerHeadError),
 
     #[error("the pointer head does not fit the model: {incompatibility:?}")]
@@ -90,6 +113,68 @@ pub enum DecisionError {
     },
 }
 
+impl DecisionError {
+    #[must_use]
+    pub fn for_delimiter_tokenization_error(
+        delimiter: String,
+        tokenization_error: StringToTokenError,
+    ) -> Self {
+        match tokenization_error {
+            StringToTokenError::NulError(nul_error) => Self::DelimiterContainsNul {
+                delimiter,
+                source: nul_error,
+            },
+            StringToTokenError::CIntConversionError(conversion_error) => {
+                Self::DelimiterLengthUnrepresentable {
+                    delimiter,
+                    source: conversion_error,
+                }
+            }
+            StringToTokenError::CppString(_)
+            | StringToTokenError::FfiContract(_)
+            | StringToTokenError::FfiStatus(_)
+            | StringToTokenError::LlamaCppOutOfMemory
+            | StringToTokenError::NotEnoughMemory
+            | StringToTokenError::Reported { .. } => Self::DelimiterTokenizationFailed {
+                delimiter,
+                source: tokenization_error,
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn for_input_tokenization_error(tokenization_error: StringToTokenError) -> Self {
+        match tokenization_error {
+            StringToTokenError::NulError(nul_error) => Self::InputContainsNul(nul_error),
+            StringToTokenError::CIntConversionError(conversion_error) => {
+                Self::InputLengthUnrepresentable(conversion_error)
+            }
+            StringToTokenError::CppString(_)
+            | StringToTokenError::FfiContract(_)
+            | StringToTokenError::FfiStatus(_)
+            | StringToTokenError::LlamaCppOutOfMemory
+            | StringToTokenError::NotEnoughMemory
+            | StringToTokenError::Reported { .. } => {
+                Self::InputTokenizationFailed(tokenization_error)
+            }
+        }
+    }
+
+    pub fn report_decisions_not_served(
+        agent_name: Option<&str>,
+        decision_result_tx: &mpsc::UnboundedSender<DecisionResult>,
+    ) {
+        Self::DecisionsNotServed.report(agent_name, decision_result_tx);
+    }
+
+    pub fn report_model_not_loaded(
+        agent_name: Option<&str>,
+        decision_result_tx: &mpsc::UnboundedSender<DecisionResult>,
+    ) {
+        Self::ModelNotLoaded.report(agent_name, decision_result_tx);
+    }
+}
+
 impl ReportsDecisionOutcome for DecisionError {
     fn report(
         self,
@@ -103,6 +188,8 @@ impl ReportsDecisionOutcome for DecisionError {
         let result = match self {
             Self::AgentRuntime(_)
             | Self::DelimiterAttributesUnreadable { .. }
+            | Self::DelimiterContainsNul { .. }
+            | Self::DelimiterLengthUnrepresentable { .. }
             | Self::DelimiterTokenizationFailed { .. }
             | Self::ModelNotLoaded
             | Self::PointerHeadCannotBeLoaded(_)
@@ -113,7 +200,9 @@ impl ReportsDecisionOutcome for DecisionError {
             Self::DecisionsNotServed => DecisionResult::DecisionsNotServed(message),
             Self::DecodeFailed(_) => DecisionResult::DecodeFailed(message),
             Self::HiddenStateUnavailable(_) => DecisionResult::HiddenStateUnavailable(message),
-            Self::InputTokenizationFailed(_) => DecisionResult::InputTokenizationFailed(message),
+            Self::InputContainsNul(_)
+            | Self::InputLengthUnrepresentable(_)
+            | Self::InputTokenizationFailed(_) => DecisionResult::InputTokenizationFailed(message),
             Self::KvCacheCopyFailed(_) => DecisionResult::KvCacheCopyFailed(message),
             Self::KvCacheRemovalFailed(_) => DecisionResult::KvCacheRemovalFailed(message),
             Self::RequestExceedsContext { details } => {
@@ -128,7 +217,6 @@ impl ReportsDecisionOutcome for DecisionError {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CString;
     use std::mem::discriminant;
 
     use llama_cpp_bindings::batch_add_error::BatchAddError;
@@ -181,9 +269,7 @@ mod tests {
                 DecisionResult::HiddenStateUnavailable(description()),
             ),
             (
-                DecisionError::InputTokenizationFailed(StringToTokenError::NulError(
-                    CString::new("a \0 byte").unwrap_err(),
-                )),
+                DecisionError::for_input_tokenization_error(StringToTokenError::NotEnoughMemory),
                 DecisionResult::InputTokenizationFailed(description()),
             ),
             (
@@ -220,6 +306,47 @@ mod tests {
                 Some(discriminant(&expected_result))
             );
         }
+    }
+
+    #[test]
+    fn a_decision_input_too_long_for_llama_cpp_describes_the_conversion_failure_once() {
+        assert_eq!(
+            reported(DecisionError::for_input_tokenization_error(
+                StringToTokenError::CIntConversionError(u8::try_from(256_u16).unwrap_err())
+            )),
+            Some(DecisionResult::InputTokenizationFailed(
+                "failed to tokenize the decision input: number too large to fit in target type"
+                    .to_owned()
+            ))
+        );
+    }
+
+    #[test]
+    fn a_delimiter_too_long_for_llama_cpp_describes_the_conversion_failure_once() {
+        assert_eq!(
+            reported(DecisionError::for_delimiter_tokenization_error(
+                "<decide>".to_owned(),
+                StringToTokenError::CIntConversionError(u8::try_from(256_u16).unwrap_err())
+            )),
+            Some(DecisionResult::ModelNotLoaded(
+                "unable to tokenize the pointer head delimiter <decide>: number too large to fit in target type"
+                    .to_owned()
+            ))
+        );
+    }
+
+    #[test]
+    fn a_delimiter_llama_cpp_cannot_tokenize_is_described_through_its_cause() {
+        assert_eq!(
+            reported(DecisionError::for_delimiter_tokenization_error(
+                "<decide>".to_owned(),
+                StringToTokenError::NotEnoughMemory
+            )),
+            Some(DecisionResult::ModelNotLoaded(
+                "unable to tokenize the pointer head delimiter <decide>: not enough memory"
+                    .to_owned()
+            ))
+        );
     }
 
     #[test]

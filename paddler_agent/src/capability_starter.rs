@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_pipeline::DecisionPipeline;
@@ -29,7 +31,7 @@ use crate::served_text_generation::ServedTextGeneration;
 use crate::serving_interruption::ServingInterruption;
 
 trait IntoEstablishedCapability<TStarted> {
-    fn into_established_capability(self) -> Result<TStarted, CapabilityStartupInterruption>;
+    fn into_established_capability(self) -> ControlFlow<CapabilityStartupInterruption, TStarted>;
 }
 
 impl<TStarted, TError> IntoEstablishedCapability<TStarted>
@@ -37,13 +39,15 @@ impl<TStarted, TError> IntoEstablishedCapability<TStarted>
 where
     AgentError: From<TError>,
 {
-    fn into_established_capability(self) -> Result<TStarted, CapabilityStartupInterruption> {
+    fn into_established_capability(self) -> ControlFlow<CapabilityStartupInterruption, TStarted> {
         match self {
-            Ok(StartupOutcome::Ready(started)) => Ok(started),
-            Ok(StartupOutcome::Cancelled) => Err(CapabilityStartupInterruption::Cancelled),
-            Err(startup_error) => Err(CapabilityStartupInterruption::Failed(Box::new(
-                AgentError::from(startup_error),
-            ))),
+            Ok(StartupOutcome::Ready(started)) => ControlFlow::Continue(started),
+            Ok(StartupOutcome::Cancelled) => {
+                ControlFlow::Break(CapabilityStartupInterruption::Cancelled)
+            }
+            Err(startup_error) => ControlFlow::Break(CapabilityStartupInterruption::Failed(
+                Box::new(AgentError::from(startup_error)),
+            )),
         }
     }
 }
@@ -54,13 +58,10 @@ pub struct CapabilityStarter<'startup> {
 }
 
 impl CapabilityStarter<'_> {
-    /// # Errors
-    ///
-    /// Returns [`CapabilityStartupInterruption::Cancelled`] when the agent shuts down before or while the model loads, and [`CapabilityStartupInterruption::Failed`] when the model cannot be loaded.
     pub async fn load_model(
         &self,
         llama_model_settings: LlamaModelSettings,
-    ) -> Result<LoadedLlamaModel, CapabilityStartupInterruption> {
+    ) -> ControlFlow<CapabilityStartupInterruption, LoadedLlamaModel> {
         LlamaModelLoader {
             inference_runtime_context: self.inference_runtime_context.clone(),
             llama_model_settings,
@@ -70,15 +71,12 @@ impl CapabilityStarter<'_> {
         .into_established_capability()
     }
 
-    /// # Errors
-    ///
-    /// Returns [`CapabilityStartupInterruption::Cancelled`] when the agent shuts down while the pointer head loads, and [`CapabilityStartupInterruption::Failed`] when the agent runs too few slots for decisions or the pointer head cannot be loaded.
     pub async fn prepare_decisions(
         &self,
         applicable_decisions: &ApplicableDecisions,
-    ) -> Result<PreparedDecisions, CapabilityStartupInterruption> {
+    ) -> ControlFlow<CapabilityStartupInterruption, PreparedDecisions> {
         match applicable_decisions {
-            ApplicableDecisions::Disabled => Ok(PreparedDecisions::Disabled),
+            ApplicableDecisions::Disabled => ControlFlow::Continue(PreparedDecisions::Disabled),
             ApplicableDecisions::Enabled { pointer_head_path } => {
                 let decision_prerequisites = DecisionPrerequisites {
                     inference_runtime_context: self.inference_runtime_context.clone(),
@@ -99,16 +97,13 @@ impl CapabilityStarter<'_> {
                 })
                 .await
                 .into_established_capability()
-                .map(|met_decision_prerequisites| {
+                .map_continue(|met_decision_prerequisites| {
                     PreparedDecisions::Enabled(Box::new(met_decision_prerequisites))
                 })
             }
         }
     }
 
-    /// # Errors
-    ///
-    /// Returns a [`ServingInterruption`] holding the loaded model, after shutting down the capabilities already started, when the agent shuts down or a decisions, embeddings or text generation pipeline fails to start.
     pub async fn serve(
         &self,
         LoadedModelServingPlan {
@@ -122,7 +117,7 @@ impl CapabilityStarter<'_> {
             model_serving_settings,
         }: LoadedModelServingPlan,
         prepared_decisions: PreparedDecisions,
-    ) -> Result<ServedModel, Box<ServingInterruption>> {
+    ) -> ControlFlow<Box<ServingInterruption>, ServedModel> {
         let decisions = match self
             .establish_decisions(
                 &loaded_llama_model,
@@ -132,12 +127,12 @@ impl CapabilityStarter<'_> {
             )
             .await
         {
-            Ok(decisions) => decisions,
-            Err(interruption) => {
+            ControlFlow::Continue(decisions) => decisions,
+            ControlFlow::Break(interruption) => {
                 embeddings_plan.shut_down().await;
                 text_generation_plan.shut_down().await;
 
-                return Err(Box::new(ServingInterruption {
+                return ControlFlow::Break(Box::new(ServingInterruption {
                     interruption,
                     loaded_llama_model,
                 }));
@@ -151,12 +146,12 @@ impl CapabilityStarter<'_> {
             )
             .await
         {
-            Ok(embeddings) => embeddings,
-            Err(interruption) => {
+            ControlFlow::Continue(embeddings) => embeddings,
+            ControlFlow::Break(interruption) => {
                 decisions.shut_down().await;
                 text_generation_plan.shut_down().await;
 
-                return Err(Box::new(ServingInterruption {
+                return ControlFlow::Break(Box::new(ServingInterruption {
                     interruption,
                     loaded_llama_model,
                 }));
@@ -170,19 +165,19 @@ impl CapabilityStarter<'_> {
             )
             .await
         {
-            Ok(text_generation) => text_generation,
-            Err(interruption) => {
+            ControlFlow::Continue(text_generation) => text_generation,
+            ControlFlow::Break(interruption) => {
                 decisions.shut_down().await;
                 embeddings.shut_down().await;
 
-                return Err(Box::new(ServingInterruption {
+                return ControlFlow::Break(Box::new(ServingInterruption {
                     interruption,
                     loaded_llama_model,
                 }));
             }
         };
 
-        Ok(ServedModel {
+        ControlFlow::Continue(ServedModel {
             capabilities: ServedCapabilities {
                 decisions,
                 embeddings,
@@ -199,10 +194,12 @@ impl CapabilityStarter<'_> {
         model_runtime_parameters: &ModelRuntimeParameters,
         decisions_plan: CapabilityPlan<ServedDecisions>,
         prepared_decisions: PreparedDecisions,
-    ) -> Result<ServedDecisions, CapabilityStartupInterruption> {
+    ) -> ControlFlow<CapabilityStartupInterruption, ServedDecisions> {
         match (decisions_plan, prepared_decisions) {
-            (CapabilityPlan::Keep(served_decisions), _) => Ok(served_decisions),
-            (CapabilityPlan::Start, PreparedDecisions::Disabled) => Ok(ServedDecisions::Disabled),
+            (CapabilityPlan::Keep(served_decisions), _) => ControlFlow::Continue(served_decisions),
+            (CapabilityPlan::Start, PreparedDecisions::Disabled) => {
+                ControlFlow::Continue(ServedDecisions::Disabled)
+            }
             (CapabilityPlan::Start, PreparedDecisions::Enabled(met_decision_prerequisites)) => {
                 DecisionPipeline {
                     inference_runtime_context: self.inference_runtime_context.clone(),
@@ -213,7 +210,7 @@ impl CapabilityStarter<'_> {
                 .spawn(self.cancellation_token)
                 .await
                 .into_established_capability()
-                .map(ServedDecisions::Enabled)
+                .map_continue(ServedDecisions::Enabled)
             }
         }
     }
@@ -227,9 +224,9 @@ impl CapabilityStarter<'_> {
             ..
         }: &ModelServingSettings,
         embeddings_plan: CapabilityPlan<ServedEmbeddings>,
-    ) -> Result<ServedEmbeddings, CapabilityStartupInterruption> {
+    ) -> ControlFlow<CapabilityStartupInterruption, ServedEmbeddings> {
         match embeddings_plan {
-            CapabilityPlan::Keep(served_embeddings) => Ok(served_embeddings),
+            CapabilityPlan::Keep(served_embeddings) => ControlFlow::Continue(served_embeddings),
             CapabilityPlan::Start => EmbeddingPipeline {
                 inference_runtime_context: self.inference_runtime_context.clone(),
                 loaded_llama_model: loaded_llama_model.clone(),
@@ -253,9 +250,11 @@ impl CapabilityStarter<'_> {
             ..
         }: &ModelServingSettings,
         text_generation_plan: CapabilityPlan<ServedTextGeneration>,
-    ) -> Result<ServedTextGeneration, CapabilityStartupInterruption> {
+    ) -> ControlFlow<CapabilityStartupInterruption, ServedTextGeneration> {
         match text_generation_plan {
-            CapabilityPlan::Keep(served_text_generation) => Ok(served_text_generation),
+            CapabilityPlan::Keep(served_text_generation) => {
+                ControlFlow::Continue(served_text_generation)
+            }
             CapabilityPlan::Start => TextGenerationPipeline {
                 inference_runtime_context: self.inference_runtime_context.clone(),
                 loaded_llama_model: loaded_llama_model.clone(),

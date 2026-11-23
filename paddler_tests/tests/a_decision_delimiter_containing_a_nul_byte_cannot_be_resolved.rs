@@ -2,11 +2,9 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
-
 use paddler_agent_decision::decision_delimiter_tokens::DecisionDelimiterTokens;
-use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_pointer_head::pointer_head_delimiters::PointerHeadDelimiters;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::kev_0_8b_pointer_head::kev_0_8b_pointer_head;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
@@ -34,13 +32,12 @@ fn a_decision_delimiter_containing_a_nul_byte_cannot_be_resolved() {
         )
         .err()
         .as_ref()
-        .map(ToString::to_string),
-        Some(
-            DecisionError::DelimiterTokenizationFailed {
-                delimiter: delimiter_with_nul_byte,
-                source: StringToTokenError::NulError(nul_error),
-            }
-            .to_string()
-        )
+        .map(|decision_error| ErrorChain {
+            error: decision_error
+        }
+        .to_string()),
+        Some(format!(
+            "unable to tokenize the pointer head delimiter {delimiter_with_nul_byte}: {nul_error}"
+        ))
     );
 }

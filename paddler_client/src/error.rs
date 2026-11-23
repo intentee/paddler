@@ -8,13 +8,13 @@ use url::ParseError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("HTTP request failed: {0}")]
+    #[error("HTTP request failed")]
     Http(#[from] ReqwestError),
 
-    #[error("WebSocket error: {0}")]
+    #[error("WebSocket error")]
     WebSocket(#[from] WebSocketError),
 
-    #[error("JSON serialization error: {0}")]
+    #[error("JSON serialization error")]
     Json(#[from] SerdeJsonError),
 
     #[error("Failed to parse NDJSON line: {line}")]
@@ -30,7 +30,7 @@ pub enum Error {
         source: FromUtf8Error,
     },
 
-    #[error("URL parse error: {0}")]
+    #[error("URL parse error")]
     Url(#[from] ParseError),
 
     #[error("Failed to connect to {url}")]

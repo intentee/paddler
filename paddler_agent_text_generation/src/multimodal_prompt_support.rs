@@ -21,7 +21,7 @@ pub struct MultimodalPromptSupport {
 impl MultimodalPromptSupport {
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::RenderedMediaMarkersMismatchImages`] when the prompt does not mark every image, [`TextGenerationError::MultimodalTokenizationFailed`] when the multimodal context cannot tokenize it, [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context, and [`TextGenerationError::MediaExceedsMicroBatch`] or [`TextGenerationError::MediaMicroBatchCheckFailed`] when its media chunks cannot be fitted into a micro batch.
+    /// Returns [`TextGenerationError::RenderedMediaMarkersMismatchImages`] when the prompt does not mark every image, [`TextGenerationError::MultimodalTextContainsNul`], [`TextGenerationError::MultimodalInputChunksUnavailable`] or [`TextGenerationError::MultimodalTokenizationFailed`] when the multimodal context cannot tokenize it, [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context, and [`TextGenerationError::MediaExceedsMicroBatch`], [`TextGenerationError::MediaChunkTypeUnknown`] or [`TextGenerationError::MediaMicroBatchCheckFailed`] when its media chunks cannot be fitted into a micro batch.
     pub fn prepare_prompt(
         &self,
         bitmaps: &[MtmdBitmap],
@@ -33,7 +33,7 @@ impl MultimodalPromptSupport {
                 &media_marked_prompt.interleave_with(bitmaps)?,
                 ADD_THE_VOCABULARY_SPECIAL_TOKENS,
             )
-            .map_err(TextGenerationError::MultimodalTokenizationFailed)?;
+            .map_err(TextGenerationError::for_multimodal_tokenization_error)?;
 
         require_prompt_fits_sequence_context(chunks.total_tokens(), self.sequence_context_size)?;
 

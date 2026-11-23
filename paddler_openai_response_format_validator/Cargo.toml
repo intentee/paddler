@@ -9,6 +9,9 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 jsonschema = { workspace = true }
 serde_json = { workspace = true }

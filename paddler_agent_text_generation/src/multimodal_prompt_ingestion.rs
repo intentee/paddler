@@ -24,7 +24,7 @@ pub struct MultimodalPromptIngestion {
 impl MultimodalPromptIngestion {
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::MultimodalIngestionFailed`] when the next chunk does not exist or llama.cpp cannot evaluate it.
+    /// Returns [`TextGenerationError::MultimodalIngestionFailed`] when the next chunk does not exist, and [`TextGenerationError::MultimodalChunkEvaluationFailed`] or [`TextGenerationError::MultimodalIngestedChunkTypeUnknown`] when llama.cpp cannot evaluate it.
     pub fn ingest_next_chunk(
         &mut self,
         token_classifier: &mut SampledTokenClassifier<'_>,
@@ -33,7 +33,7 @@ impl MultimodalPromptIngestion {
         start_position: i32,
     ) -> Result<MultimodalIngestionProgress, TextGenerationError> {
         self.ingest_next_fitted_chunk(token_classifier, llama_context, sequence_id, start_position)
-            .map_err(TextGenerationError::MultimodalIngestionFailed)
+            .map_err(TextGenerationError::for_multimodal_ingestion_error)
     }
 
     fn ingest_next_fitted_chunk(

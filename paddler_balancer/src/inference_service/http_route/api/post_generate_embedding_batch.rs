@@ -7,7 +7,6 @@ use actix_web::http::header;
 use actix_web::rt;
 use actix_web::web;
 use actix_web::web::post;
-use anyhow::Result;
 use futures::stream::StreamExt;
 use nanoid::nanoid;
 use tokio::sync::mpsc;
@@ -27,7 +26,6 @@ use crate::awaiting_agent_relay::AwaitingAgentRelay;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::controls_session::ControlsSession as _;
 use crate::dispatchable_request::DispatchableRequest;
@@ -36,6 +34,7 @@ use crate::embedding_chunk_dispatch::EmbeddingChunkDispatch;
 use crate::embedding_document_duplicates::EmbeddingDocumentDuplicates;
 use crate::inference_service::app_data::AppData;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
+use crate::transform_result::TransformResult;
 
 async fn respond(
     app_data: web::Data<AppData>,
@@ -159,8 +158,6 @@ struct EmbeddingChunkBodyTransformer {
 }
 
 impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
-    type Output = TransformResult;
-
     fn transform(&self, message: OutgoingMessage) -> Vec<TransformResult> {
         if let OutgoingMessage::Response(ResponseEnvelope {
             response: OutgoingResponse::Embedding(EmbeddingResult::Done),

@@ -243,7 +243,7 @@ mod tests {
             ),
             (
                 format!(
-                    "Hugging Face model URI '{uri}' has a path component that is not valid UTF-8 once percent-decoded: invalid utf-8 sequence of 1 bytes from index 5"
+                    "Hugging Face model URI '{uri}' has a path component that is not valid UTF-8 once percent-decoded"
                 ),
                 Some("invalid utf-8 sequence of 1 bytes from index 5".to_owned())
             )

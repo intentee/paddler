@@ -6,10 +6,9 @@ use actix_web::dev::ServiceFactory;
 use actix_web::dev::ServiceRequest;
 use actix_web::dev::ServiceResponse;
 use actix_web::http::KeepAlive;
-use anyhow::Context as _;
-use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
+use crate::balancer_error::BalancerError;
 use crate::http_listener::HttpListener;
 use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 
@@ -23,11 +22,11 @@ pub struct HttpServiceRunner<TAppFactory> {
 impl<TAppFactory> HttpServiceRunner<TAppFactory> {
     /// # Errors
     ///
-    /// Fails when the HTTP server cannot listen on the bound listener, and when serving stops with an error.
+    /// Returns [`BalancerError::HttpServiceCannotListen`] when the HTTP server cannot listen on the bound listener, and [`BalancerError::HttpServiceFailed`] when serving stops with an error.
     pub async fn run<TAppEntry, TResponseBody>(
         self,
         cancellation_token: CancellationToken,
-    ) -> Result<()>
+    ) -> Result<(), BalancerError>
     where
         TAppFactory: Fn() -> App<TAppEntry> + Send + Clone + 'static,
         TAppEntry: ServiceFactory<
@@ -55,12 +54,20 @@ impl<TAppFactory> HttpServiceRunner<TAppFactory> {
             .h1_allow_half_closed(false)
             .disable_signals()
             .listen(tcp_listener)
-            .with_context(|| format!("Unable to listen for {service_name} on {local_addr}"))?
+            .map_err(|source| BalancerError::HttpServiceCannotListen {
+                local_addr,
+                service_name,
+                source,
+            })?
             .run();
 
         serve_http_until_shutdown(cancellation_token, server)
             .await
-            .context(format!("Unable to serve {service_name} on {local_addr}"))
+            .map_err(|source| BalancerError::HttpServiceFailed {
+                local_addr,
+                service_name,
+                source,
+            })
     }
 }
 
@@ -69,15 +76,16 @@ mod tests {
     use std::net::SocketAddr;
 
     use actix_web::App;
-    use anyhow::Result;
     use tokio::join;
     use tokio_util::sync::CancellationToken;
 
     use super::HttpServiceRunner;
+    use crate::balancer_error::BalancerError;
     use crate::http_listener::HttpListener;
 
     #[actix_web::test]
-    async fn a_bound_service_stops_cleanly_when_its_token_is_cancelled() -> Result<()> {
+    async fn a_bound_service_stops_cleanly_when_its_token_is_cancelled() -> Result<(), BalancerError>
+    {
         let cancellation_token = CancellationToken::new();
         let requested_shutdown = cancellation_token.clone();
 

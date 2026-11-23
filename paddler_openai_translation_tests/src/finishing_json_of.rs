@@ -9,6 +9,7 @@ use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::token_usage::TokenUsage;
 use paddler_openai_translation::chat_completion_delivery::ChatCompletionDelivery;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
+use paddler_openai_translation::chat_completion_stream_emission::ChatCompletionStreamEmission;
 use paddler_openai_translation::completes_generation::CompletesGeneration as _;
 use paddler_openai_translation::generated_output::GeneratedOutput;
 use paddler_openai_translation::generation_outcome::GenerationOutcome;
@@ -34,21 +35,25 @@ fn finishing_json_of_delivery(
             .map(|completion| vec![completion])
             .map_err(OpenAITranslationTestsError::CompletionUnserializable)
         }
-        ChatCompletionDelivery::Streamed(chat_completion_stream) => chat_completion_stream
-            .conclude(
+        ChatCompletionDelivery::Streamed(chat_completion_stream) => {
+            match chat_completion_stream.conclude(
                 "test-request",
                 GenerationOutcome::Finished(generation_summary),
-            )
-            .map_err(OpenAITranslationTestsError::GenerationFailed)
-            .and_then(|chat_completion_chunks| {
-                chat_completion_chunks
-                    .iter()
-                    .map(|chat_completion_chunk| {
-                        to_value(chat_completion_chunk)
-                            .map_err(OpenAITranslationTestsError::ChunkUnserializable)
-                    })
-                    .collect()
-            }),
+            ) {
+                ChatCompletionStreamEmission::Chunks(chat_completion_chunks) => {
+                    chat_completion_chunks
+                        .iter()
+                        .map(|chat_completion_chunk| {
+                            to_value(chat_completion_chunk)
+                                .map_err(OpenAITranslationTestsError::ChunkUnserializable)
+                        })
+                        .collect()
+                }
+                ChatCompletionStreamEmission::Failure(generation_failure) => Err(
+                    OpenAITranslationTestsError::GenerationFailed(generation_failure),
+                ),
+            }
+        }
     }
 }
 

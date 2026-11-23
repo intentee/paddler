@@ -9,6 +9,9 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 paddler_messaging = { workspace = true }
 

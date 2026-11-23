@@ -23,10 +23,7 @@ pub struct ReconciliationService {
 }
 
 impl ReconciliationService {
-    async fn reconcile_desired_states_until_shutdown(
-        self: Box<Self>,
-        shutdown: CancellationToken,
-    ) -> Result<()> {
+    async fn reconcile_desired_states_until_shutdown(self: Box<Self>, shutdown: CancellationToken) {
         let Self {
             agent_applicable_state_holder,
             mut agent_desired_state_rx,
@@ -34,15 +31,15 @@ impl ReconciliationService {
         } = *self;
         let mut reconciliation_attempt = DesiredStateReconciliationAttempt::Idle;
 
-        let service_outcome = loop {
+        loop {
             select! {
                 biased;
-                () = shutdown.cancelled() => break Ok(()),
+                () = shutdown.cancelled() => break,
                 desired_state_change = agent_desired_state_rx.changed() => {
                     if desired_state_change.is_err() {
                         error!("Agent desired state channel closed, stopping reconciliation service.");
 
-                        break Ok(());
+                        break;
                     }
 
                     reconciliation_attempt.abandon().await;
@@ -73,11 +70,9 @@ impl ReconciliationService {
                     }
                 }
             }
-        };
+        }
 
         reconciliation_attempt.abandon().await;
-
-        service_outcome
     }
 }
 
@@ -88,7 +83,9 @@ impl Service for ReconciliationService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.reconcile_desired_states_until_shutdown(shutdown).await
+        self.reconcile_desired_states_until_shutdown(shutdown).await;
+
+        Ok(())
     }
 }
 

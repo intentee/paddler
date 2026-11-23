@@ -10,6 +10,7 @@ use serde_json::Error as SerdeJsonError;
 
 use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
 use paddler_openai_translation::chat_completion_stream::ChatCompletionStream;
+use paddler_openai_translation::chat_completion_stream_emission::ChatCompletionStreamEmission;
 use paddler_openai_translation::generation_outcome::GenerationOutcome;
 use paddler_openai_translation::generation_progress::GenerationProgress;
 
@@ -26,7 +27,7 @@ fn chat_completion_sse_data(
     request_id: &str,
     agent_relay_event: AgentRelayEvent<GenerationProgress, GeneratedTokenFinalResult>,
 ) -> Vec<Result<sse::Data, SerdeJsonError>> {
-    let chat_completion_chunks = match agent_relay_event {
+    let chat_completion_stream_emission = match agent_relay_event {
         AgentRelayEvent::Failed(relay_failure) => {
             return openai_failure_data(OpenAIFailure::Relay(relay_failure));
         }
@@ -38,12 +39,12 @@ fn chat_completion_sse_data(
         }
     };
 
-    match chat_completion_chunks {
-        Ok(chat_completion_chunks) => chat_completion_chunks
+    match chat_completion_stream_emission {
+        ChatCompletionStreamEmission::Chunks(chat_completion_chunks) => chat_completion_chunks
             .into_iter()
             .map(sse::Data::new_json)
             .collect(),
-        Err(generation_failure) => {
+        ChatCompletionStreamEmission::Failure(generation_failure) => {
             openai_failure_data(OpenAIFailure::Generation(generation_failure))
         }
     }

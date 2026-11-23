@@ -15,6 +15,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
@@ -83,12 +84,14 @@ fn a_prompt_token_outside_the_vocabulary_fails_the_generation_as_batch_assembly(
     assert_eq!(
         last_generated_token_result(generated_tokens_rx),
         Some(GeneratedTokenResult::BatchAssemblyFailed(
-            TextGenerationError::BatchAssemblyFailed(BatchAddError::TokenOutsideVocabulary(
-                TokenOutsideVocabulary {
-                    token: token_outside_the_vocabulary,
-                    n_vocab: model.n_vocab(),
-                }
-            ))
+            ErrorChain {
+                error: &TextGenerationError::BatchAssemblyFailed(
+                    BatchAddError::TokenOutsideVocabulary(TokenOutsideVocabulary {
+                        token: token_outside_the_vocabulary,
+                        n_vocab: model.n_vocab(),
+                    })
+                ),
+            }
             .to_string()
         ))
     );

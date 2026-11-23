@@ -68,6 +68,14 @@ fn exit_code(command_status: ExitStatus) -> ExitCode {
     }
 }
 
+#[derive(Parser)]
+struct RunWithTestClusterArguments {
+    preset: TestClusterPreset,
+    program: String,
+    #[arg(allow_hyphen_values = true, trailing_var_arg = true)]
+    arguments: Vec<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<ExitCode> {
     let RunWithTestClusterArguments {
@@ -82,14 +90,6 @@ async fn main() -> Result<ExitCode> {
         .await;
 
     command_status.map(exit_code)
-}
-
-#[derive(Parser)]
-struct RunWithTestClusterArguments {
-    preset: TestClusterPreset,
-    program: String,
-    #[arg(allow_hyphen_values = true, trailing_var_arg = true)]
-    arguments: Vec<String>,
 }
 
 #[cfg(test)]

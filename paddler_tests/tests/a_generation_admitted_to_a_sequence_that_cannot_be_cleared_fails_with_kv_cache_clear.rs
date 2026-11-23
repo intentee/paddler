@@ -12,6 +12,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchSc
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
@@ -93,12 +94,14 @@ fn a_generation_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cach
     assert_eq!(
         generated_tokens_rx.try_recv(),
         Ok(GeneratedTokenResult::KvCacheClearFailed(
-            TextGenerationError::KvCacheClearFailed(MemorySeqRmError::SequenceIdOutOfRange(
-                SequenceIdOutOfRange {
-                    seq_id: 1,
-                    n_seq_max: SEQUENCES_THE_CONTEXT_HOLDS,
-                }
-            ))
+            ErrorChain {
+                error: &TextGenerationError::KvCacheClearFailed(
+                    MemorySeqRmError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+                        seq_id: 1,
+                        n_seq_max: SEQUENCES_THE_CONTEXT_HOLDS,
+                    })
+                ),
+            }
             .to_string()
         ))
     );

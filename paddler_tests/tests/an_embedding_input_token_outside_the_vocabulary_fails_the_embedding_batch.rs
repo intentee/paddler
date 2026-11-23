@@ -9,6 +9,7 @@ use llama_cpp_bindings::token::LlamaToken;
 use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
 use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
@@ -41,12 +42,14 @@ fn an_embedding_input_token_outside_the_vocabulary_fails_the_embedding_batch() {
     assert_eq!(
         generated_embedding_rx.try_recv(),
         Ok(EmbeddingResult::BatchAssemblyFailed(
-            EmbeddingError::BatchAssemblyFailed(BatchAddError::TokenOutsideVocabulary(
-                TokenOutsideVocabulary {
-                    token: LlamaToken::new(n_vocab),
-                    n_vocab,
-                }
-            ))
+            ErrorChain {
+                error: &EmbeddingError::BatchAssemblyFailed(BatchAddError::TokenOutsideVocabulary(
+                    TokenOutsideVocabulary {
+                        token: LlamaToken::new(n_vocab),
+                        n_vocab,
+                    }
+                )),
+            }
             .to_string()
         ))
     );

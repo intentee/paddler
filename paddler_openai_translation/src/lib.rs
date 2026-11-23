@@ -12,6 +12,7 @@ pub mod chat_completion_request;
 pub mod chat_completion_requested_function;
 pub mod chat_completion_requested_tool_call;
 pub mod chat_completion_stream;
+pub mod chat_completion_stream_emission;
 pub mod chat_completion_stream_options;
 pub mod chat_completion_stream_params;
 pub mod chat_completion_tool;

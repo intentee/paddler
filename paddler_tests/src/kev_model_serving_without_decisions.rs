@@ -1,4 +1,5 @@
 use std::num::NonZeroU32;
+use std::ops::ControlFlow;
 use std::path::PathBuf;
 
 use futures_util::FutureExt as _;
@@ -52,10 +53,10 @@ impl KevModelServingWithoutDecisions {
             model_runtime_parameters: llama_runtime.model_runtime_parameters.clone(),
         };
 
-        CapabilityStarter {
+        match (CapabilityStarter {
             cancellation_token: agent_shutdown,
             inference_runtime_context: &llama_runtime.inference_runtime_context,
-        }
+        })
         .serve(
             LoadedModelServingPlan::starting_every_capability(
                 llama_runtime.loaded_llama_model.clone(),
@@ -64,12 +65,14 @@ impl KevModelServingWithoutDecisions {
             PreparedDecisions::Disabled,
         )
         .await
-        .map_err(|serving_interruption| serving_interruption.interruption)
-        .map(|served_model| Self {
-            llama_runtime,
-            model_serving_settings,
-            served_model,
-        })
+        {
+            ControlFlow::Continue(served_model) => Ok(Self {
+                llama_runtime,
+                model_serving_settings,
+                served_model,
+            }),
+            ControlFlow::Break(serving_interruption) => Err(serving_interruption.interruption),
+        }
     }
 
     /// # Errors

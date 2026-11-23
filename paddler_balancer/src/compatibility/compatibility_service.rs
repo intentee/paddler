@@ -10,6 +10,7 @@ use trzcina::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::balancer_error::BalancerError;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::attach_request_id::attach_request_id;
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
@@ -30,7 +31,10 @@ pub struct CompatibilityService<TCompatibilityLayer> {
 }
 
 impl<TCompatibilityLayer: ServesCompatibilityLayer> CompatibilityService<TCompatibilityLayer> {
-    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn serve_until_shutdown(
+        self: Box<Self>,
+        shutdown: CancellationToken,
+    ) -> Result<(), BalancerError> {
         let service_name = self.name();
         let cors_allowed_hosts_arc = Arc::new(
             self.inference_service_configuration
@@ -74,6 +78,6 @@ impl<TCompatibilityLayer: ServesCompatibilityLayer> Service
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.serve_until_shutdown(shutdown).await
+        Ok(self.serve_until_shutdown(shutdown).await?)
     }
 }

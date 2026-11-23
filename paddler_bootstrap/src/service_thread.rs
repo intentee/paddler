@@ -4,24 +4,25 @@ use std::thread::JoinHandle;
 use std::thread::spawn;
 
 use actix_web::rt::System;
-use anyhow::Result;
 use log::error;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
+
+use paddler_error_chain::error_chain::ErrorChain;
 
 use crate::bootstrap_error::BootstrapError;
 
 pub struct ServiceThread {
     cancellation_token: CancellationToken,
     finished_rx: oneshot::Receiver<Infallible>,
-    thread: Option<JoinHandle<Result<()>>>,
+    thread: Option<JoinHandle<Result<(), BootstrapError>>>,
 }
 
 impl ServiceThread {
     pub fn spawn<TRun, TFuture>(cancellation_token: CancellationToken, run: TRun) -> Self
     where
         TRun: FnOnce(CancellationToken) -> TFuture + Send + 'static,
-        TFuture: Future<Output = Result<()>>,
+        TFuture: Future<Output = Result<(), BootstrapError>>,
     {
         let task_token = cancellation_token.clone();
         let (finished_tx, finished_rx) = oneshot::channel::<Infallible>();
@@ -45,7 +46,7 @@ impl ServiceThread {
 
     /// # Errors
     ///
-    /// Returns [`BootstrapError::ServiceRunFailed`] when the run stopped with an error, and [`BootstrapError::ServiceThreadPanicked`] when the service thread panicked.
+    /// Returns the [`BootstrapError`] that the run stopped with, and [`BootstrapError::ServiceThreadPanicked`] when the service thread panicked.
     pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
         let Err(_thread_finished) = (&mut self.finished_rx).await;
 
@@ -56,9 +57,7 @@ impl ServiceThread {
         self.thread
             .take()
             .map_or(Ok(()), |thread| match thread.join() {
-                Ok(run_result) => {
-                    run_result.map_err(|source| BootstrapError::ServiceRunFailed { source })
-                }
+                Ok(run_result) => run_result,
                 Err(_panic_payload) => Err(BootstrapError::ServiceThreadPanicked),
             })
     }
@@ -69,7 +68,10 @@ impl Drop for ServiceThread {
         self.cancellation_token.cancel();
 
         if let Err(run_error) = self.join_thread() {
-            error!("service thread stopped with an error nobody waited for: {run_error:#}");
+            error!(
+                "service thread stopped with an error nobody waited for: {}",
+                ErrorChain { error: &run_error }
+            );
         }
     }
 }
@@ -81,15 +83,29 @@ mod tests {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering;
 
-    use thiserror::Error;
+    use log::Level;
     use tokio_util::sync::CancellationToken;
+    use trzcina::ServiceShutdownError;
+    use trzcina::ServiceShutdownOutcome;
+    use trzcina::ServiceShutdownOutcomeWithServiceName;
+
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
+    use paddler_error_chain::error_chain::ErrorChain;
 
     use super::ServiceThread;
     use crate::bootstrap_error::BootstrapError;
 
-    #[derive(Debug, Error)]
-    #[error("the service could not run")]
-    struct ServiceRunFailed;
+    const ABORTED_SERVICE_NAME: &str = "aborted_service";
+
+    fn aborted_service_run() -> BootstrapError {
+        BootstrapError::ServiceRunFailed {
+            source: ServiceShutdownError::new(vec![ServiceShutdownOutcomeWithServiceName {
+                name: ABORTED_SERVICE_NAME,
+                outcome: ServiceShutdownOutcome::AbortedByShutdownDeadline,
+            }]),
+        }
+    }
 
     #[tokio::test]
     async fn dropping_a_service_thread_stops_and_joins_it() {
@@ -112,6 +128,8 @@ mod tests {
 
     #[tokio::test]
     async fn dropping_a_service_thread_joins_it_after_its_run_failed() {
+        CapturingLogger::install();
+
         let run_finished = Arc::new(AtomicBool::new(false));
         let run_finished_flag = run_finished.clone();
         let service_thread = ServiceThread::spawn(
@@ -120,20 +138,34 @@ mod tests {
                 task_cancellation_token.cancelled().await;
                 run_finished_flag.store(true, Ordering::Release);
 
-                Err(ServiceRunFailed.into())
+                Err(aborted_service_run())
             },
         );
 
         drop(service_thread);
 
         assert!(run_finished.load(Ordering::Acquire));
+        assert!(
+            CapturingLogger::records_for("paddler_bootstrap::service_thread").contains(
+                &CapturedRecord {
+                    level: Level::Error,
+                    message: format!(
+                        "service thread stopped with an error nobody waited for: {}",
+                        ErrorChain {
+                            error: &aborted_service_run()
+                        }
+                    ),
+                    target: "paddler_bootstrap::service_thread".to_owned(),
+                }
+            )
+        );
     }
 
     #[tokio::test]
     async fn waiting_reports_the_error_of_a_failed_run() {
         let mut service_thread =
             ServiceThread::spawn(CancellationToken::new(), |_task_cancellation_token| async {
-                Err(ServiceRunFailed.into())
+                Err(aborted_service_run())
             });
 
         let completion_error = service_thread
@@ -144,7 +176,11 @@ mod tests {
         assert!(matches!(
             completion_error,
             BootstrapError::ServiceRunFailed { source }
-                if source.downcast_ref::<ServiceRunFailed>().is_some()
+                if source
+                    .failed_outcomes()
+                    .iter()
+                    .map(|failed_outcome| failed_outcome.name)
+                    .eq([ABORTED_SERVICE_NAME])
         ));
     }
 

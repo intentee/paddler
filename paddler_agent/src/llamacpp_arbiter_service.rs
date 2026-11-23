@@ -22,10 +22,7 @@ pub struct LlamaCppArbiterService {
 }
 
 impl LlamaCppArbiterService {
-    async fn arbitrate_pipelines_until_shutdown(
-        self: Box<Self>,
-        shutdown: CancellationToken,
-    ) -> Result<()> {
+    async fn arbitrate_pipelines_until_shutdown(self: Box<Self>, shutdown: CancellationToken) {
         let Self {
             agent_applicable_state_holder,
             inference_runtime_context,
@@ -39,10 +36,10 @@ impl LlamaCppArbiterService {
             served_applicable_state_holder,
         });
 
-        let service_outcome = loop {
+        loop {
             select! {
                 biased;
-                () = shutdown.cancelled() => break Ok(()),
+                () = shutdown.cancelled() => break,
                 Ok(()) = agent_applicable_state_rx.changed() => {
                     pipeline_arbiter.apply(agent_applicable_state_rx.borrow_and_update().clone());
                 }
@@ -51,11 +48,9 @@ impl LlamaCppArbiterService {
                 }
                 pipeline_request = pipeline_requests.next() => pipeline_arbiter.forward(pipeline_request),
             }
-        };
+        }
 
         pipeline_arbiter.shut_down().await;
-
-        service_outcome
     }
 }
 
@@ -66,7 +61,9 @@ impl Service for LlamaCppArbiterService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.arbitrate_pipelines_until_shutdown(shutdown).await
+        self.arbitrate_pipelines_until_shutdown(shutdown).await;
+
+        Ok(())
     }
 }
 

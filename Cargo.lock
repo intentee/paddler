@@ -3475,7 +3475,9 @@ dependencies = [
  "paddler_agent_status",
  "paddler_agent_text_generation",
  "paddler_cache_dir",
+ "paddler_capturing_logger",
  "paddler_download_manager",
+ "paddler_error_chain",
  "paddler_frame_writer",
  "paddler_inference_parameters",
  "paddler_local_http_fixture",
@@ -3543,6 +3545,7 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "log",
  "paddler_agent_status",
+ "paddler_error_chain",
  "paddler_inference_parameters",
  "paddler_messaging",
  "paddler_spawn_resuming_panic",
@@ -3557,7 +3560,9 @@ name = "paddler_agent_runtime_tests"
 version = "5.0.0"
 dependencies = [
  "llama-cpp-bindings",
+ "log",
  "paddler_agent_runtime",
+ "paddler_capturing_logger",
  "paddler_messaging",
  "paddler_tests",
  "tempfile",
@@ -3583,12 +3588,14 @@ dependencies = [
  "anyhow",
  "futures-util",
  "hf-hub",
+ "log",
  "paddler_agent",
  "paddler_agent_runtime",
  "paddler_agent_status",
  "paddler_agent_text_generation",
  "paddler_blocking_thread_fixture",
  "paddler_cache_dir",
+ "paddler_capturing_logger",
  "paddler_download_manager",
  "paddler_inference_parameters",
  "paddler_local_http_fixture",
@@ -3611,9 +3618,11 @@ dependencies = [
  "llama-cpp-bindings",
  "llama-cpp-bindings-types",
  "llama-cpp-ffi-status",
+ "llama-cpp-gbnf",
  "log",
  "paddler_agent_runtime",
  "paddler_agent_status",
+ "paddler_error_chain",
  "paddler_image_decoder",
  "paddler_inference_parameters",
  "paddler_messaging",
@@ -3648,7 +3657,9 @@ dependencies = [
  "nanoid",
  "paddler_balancer_desired_state_fixture",
  "paddler_blocking_thread_fixture",
+ "paddler_capturing_logger",
  "paddler_dashboard_assets",
+ "paddler_error_chain",
  "paddler_frame_writer",
  "paddler_inference_parameters",
  "paddler_messaging",
@@ -3692,12 +3703,13 @@ name = "paddler_bootstrap"
 version = "5.0.0"
 dependencies = [
  "actix-web",
- "anyhow",
  "log",
  "nanoid",
  "paddler_agent",
  "paddler_agent_runtime",
  "paddler_balancer",
+ "paddler_capturing_logger",
+ "paddler_error_chain",
  "paddler_messaging",
  "paddler_model_source",
  "paddler_outbox",
@@ -3714,8 +3726,10 @@ name = "paddler_bootstrap_tests"
 version = "5.0.0"
 dependencies = [
  "futures-util",
+ "log",
  "paddler_balancer",
  "paddler_bootstrap",
+ "paddler_capturing_logger",
  "paddler_client",
  "paddler_messaging",
  "paddler_model_source",
@@ -3743,6 +3757,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_capturing_logger"
+version = "5.0.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "paddler_chunked_response_fixture"
 version = "5.0.0"
 dependencies = [
@@ -3757,14 +3778,15 @@ version = "5.0.0"
 dependencies = [
  "actix-web",
  "anyhow",
- "async-trait",
  "clap",
  "command_handler",
  "env_logger",
  "paddler_balancer",
  "paddler_bootstrap",
+ "paddler_error_chain",
  "paddler_model_source",
  "paddler_state_database",
+ "thiserror",
  "tokio-util",
  "trzcina",
 ]
@@ -3811,6 +3833,7 @@ dependencies = [
  "http 1.5.0",
  "log",
  "nanoid",
+ "paddler_capturing_logger",
  "paddler_chunked_response_fixture",
  "paddler_messaging",
  "parking_lot 0.13.0",
@@ -3862,6 +3885,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_error_chain"
+version = "5.0.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "paddler_frame_writer"
 version = "5.0.0"
 dependencies = [
@@ -3887,6 +3917,7 @@ dependencies = [
  "image",
  "log",
  "num-traits",
+ "paddler_capturing_logger",
  "paddler_messaging",
  "resvg",
  "thiserror",
@@ -3925,7 +3956,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "url",
 ]
 
 [[package]]
@@ -4068,6 +4098,7 @@ dependencies = [
  "paddler_inference_parameters",
  "paddler_messaging",
  "paddler_model_source",
+ "paddler_spawn_resuming_panic",
  "quick-xml",
  "reqwest",
  "serde_json",
@@ -4107,8 +4138,10 @@ dependencies = [
  "paddler_blocking_thread_fixture",
  "paddler_bootstrap",
  "paddler_cache_dir",
+ "paddler_capturing_logger",
  "paddler_client",
  "paddler_download_manager",
+ "paddler_error_chain",
  "paddler_inference_parameters",
  "paddler_local_http_fixture",
  "paddler_messaging",

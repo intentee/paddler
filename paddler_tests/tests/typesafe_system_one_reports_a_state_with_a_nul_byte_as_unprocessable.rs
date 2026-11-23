@@ -2,12 +2,9 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use reqwest::StatusCode;
 use serde_json::json;
 
-use paddler_agent_decision::decision_error::DecisionError;
-use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_test_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::with_nul_byte::with_nul_byte;
@@ -19,6 +16,8 @@ async fn typesafe_system_one_reports_a_state_with_a_nul_byte_as_unprocessable() 
         .await
         .expect("the cluster must start");
     let state_with_nul_byte = with_nul_byte("state");
+    let nul_error =
+        CString::new(state_with_nul_byte.clone()).expect_err("the state must contain a nul byte");
 
     let response = cluster
         .typesafe_system_one(
@@ -33,12 +32,8 @@ async fn typesafe_system_one_reports_a_state_with_a_nul_byte_as_unprocessable() 
         (
             StatusCode::UNPROCESSABLE_ENTITY,
             json!({
-                "detail": rejection_description(
-                    Some("test-agent-0"),
-                    &DecisionError::InputTokenizationFailed(StringToTokenError::NulError(
-                        CString::new(state_with_nul_byte)
-                            .expect_err("the state must contain a nul byte")
-                    ))
+                "detail": format!(
+                    "test-agent-0: failed to tokenize the decision input: {nul_error}"
                 )
             })
         )

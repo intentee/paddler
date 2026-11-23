@@ -1,6 +1,7 @@
 mod agent_runner_completes_when_cancelled;
 mod agent_runner_completes_when_its_parent_token_is_cancelled;
 mod agent_runner_leaves_its_balancer_when_dropped;
+mod balancer_logs_a_statsd_report_it_cannot_send;
 mod balancer_reports_its_gauges_to_statsd;
 mod balancer_runner_completes_when_cancelled;
 mod balancer_runner_completes_when_its_parent_token_is_cancelled;

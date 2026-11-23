@@ -1,4 +1,3 @@
-use std::io;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
@@ -12,6 +11,7 @@ use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer::balancer_error::BalancerError;
 use paddler_balancer::http_listener::HttpListener;
 use paddler_balancer::http_service_runner::HttpServiceRunner;
 use paddler_cli_tests::refused_syscall::RefusedSyscall;
@@ -55,11 +55,8 @@ async fn an_http_service_reports_a_listener_it_cannot_make_nonblocking() {
         service_error.to_string(),
         format!("Unable to listen for {SERVICE_NAME} on {local_addr}")
     );
-    assert_eq!(
-        service_error
-            .root_cause()
-            .downcast_ref::<io::Error>()
-            .and_then(io::Error::raw_os_error),
-        Some(EPERM)
-    );
+    assert!(matches!(
+        service_error,
+        BalancerError::HttpServiceCannotListen { source, .. } if source.raw_os_error() == Some(EPERM)
+    ));
 }

@@ -13,6 +13,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchSc
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
@@ -30,6 +31,17 @@ const ANSWER: &str = "two llamas";
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(16).unwrap();
 const SLOTS: u16 = 2;
 const TOKENS_THE_BATCH_HOLDS: u32 = 1;
+
+fn batch_assembly_failure() -> GeneratedTokenResult {
+    GeneratedTokenResult::BatchAssemblyFailed(
+        ErrorChain {
+            error: &TextGenerationError::BatchAssemblyFailed(BatchAddError::BatchFull {
+                n_batch: TOKENS_THE_BATCH_HOLDS,
+            }),
+        }
+        .to_string(),
+    )
+}
 
 #[test]
 fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
@@ -120,12 +132,7 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
     })
     .run();
 
-    let batch_assembly_failure = GeneratedTokenResult::BatchAssemblyFailed(
-        TextGenerationError::BatchAssemblyFailed(BatchAddError::BatchFull {
-            n_batch: TOKENS_THE_BATCH_HOLDS,
-        })
-        .to_string(),
-    );
+    let batch_assembly_failure = batch_assembly_failure();
 
     assert_eq!(
         [

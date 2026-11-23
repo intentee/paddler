@@ -1,5 +1,3 @@
-use anyhow::Context as _;
-use anyhow::Result;
 use clap::Args;
 use clap::value_parser;
 
@@ -7,6 +5,8 @@ use paddler_bootstrap::agent_runtime_config::AgentRuntimeConfig;
 use paddler_bootstrap::constants::LLAMA_CPP_MAX_SEQUENCES;
 use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+
+use crate::cli_error::CliError;
 
 #[derive(Args)]
 pub struct AgentRuntimeArguments {
@@ -24,7 +24,7 @@ pub struct AgentRuntimeArguments {
 }
 
 impl AgentRuntimeArguments {
-    pub fn runtime_config(self) -> Result<AgentRuntimeConfig> {
+    pub fn runtime_config(self) -> Result<AgentRuntimeConfig, CliError> {
         let Self {
             huggingface_endpoint,
             name,
@@ -34,7 +34,7 @@ impl AgentRuntimeArguments {
         Ok(AgentRuntimeConfig {
             agent_name: name,
             desired_model_resolver: DesiredModelResolver::from_process_env(huggingface_endpoint)
-                .context("Unable to set up the model downloader")?,
+                .map_err(CliError::ModelDownloaderUnconfigurable)?,
             slots,
         })
     }

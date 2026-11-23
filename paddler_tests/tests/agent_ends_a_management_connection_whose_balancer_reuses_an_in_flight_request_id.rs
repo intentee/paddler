@@ -2,9 +2,12 @@
 
 use std::num::NonZeroU16;
 
+use log::Level;
 use serde_json::to_string;
 use tokio_tungstenite::tungstenite::Message;
 
+use paddler_capturing_logger::captured_record::CapturedRecord;
+use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
@@ -18,6 +21,8 @@ use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_request_id() {
+    CapturingLogger::install();
+
     let AgentConnectedToAnUntrustedBalancer {
         agent_runner: _agent_runner,
         connection: mut first_connection,
@@ -64,6 +69,18 @@ async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_r
         .await
         .expect("the reused request must be sent");
     first_connection.wait_for_the_agent_to_hang_up().await;
+
+    assert!(
+        CapturingLogger::records_for("paddler_agent::balancer_message_context").contains(
+            &CapturedRecord {
+                level: Level::Error,
+                message:
+                    "The balancer reused the id of request \"in-flight\", which is still in flight"
+                        .to_owned(),
+                target: "paddler_agent::balancer_message_context".to_owned(),
+            }
+        )
+    );
 
     untrusted_balancer
         .accept_agent()

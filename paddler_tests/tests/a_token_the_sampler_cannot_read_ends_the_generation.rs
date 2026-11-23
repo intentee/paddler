@@ -4,6 +4,7 @@ use llama_cpp_bindings::error::logits_error::LogitsError;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
@@ -35,8 +36,12 @@ fn a_token_the_sampler_cannot_read_ends_the_generation() {
         .advance(|prepared_request| prepared_request)
         .expect("the request must be ready to sample"),
         ContinuousBatchTerminalOutcome::EmitToClient(GeneratedTokenResult::SamplerError(
-            TextGenerationError::TokenDataUnreadable(LogitsError::TokenNotInitialized(0))
-                .to_string()
+            ErrorChain {
+                error: &TextGenerationError::TokenDataUnreadable(LogitsError::TokenNotInitialized(
+                    0
+                )),
+            }
+            .to_string()
         ))
     );
 }

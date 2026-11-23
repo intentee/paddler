@@ -17,6 +17,7 @@ use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::dispatchable_request::DispatchableRequest;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
+use crate::transform_result::TransformResult;
 
 pub struct UnboundedStreamFromAgent<TParams, TTransformsOutgoingMessage> {
     pub buffered_request_manager: Arc<BufferedRequestManager>,
@@ -32,7 +33,7 @@ where
     TParams: AgentStreamingRequest + 'static,
     TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync + 'static,
 {
-    pub fn into_stream(self) -> impl Stream<Item = TTransformsOutgoingMessage::Output> {
+    pub fn into_stream(self) -> impl Stream<Item = TransformResult> {
         let Self {
             buffered_request_manager,
             inference_item_timeout,
@@ -85,7 +86,7 @@ mod tests {
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
+    use crate::transform_result::TransformResult;
 
     const TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
 

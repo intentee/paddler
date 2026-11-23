@@ -15,6 +15,7 @@ members = [
     "paddler_bootstrap",
     "paddler_bootstrap_tests",
     "paddler_cache_dir",
+    "paddler_capturing_logger",
     "paddler_chunked_response_fixture",
     "paddler_cli",
     "paddler_cli_tests",
@@ -22,6 +23,7 @@ members = [
     "paddler_dashboard_assets",
     "paddler_download_manager",
     "paddler_download_manager_tests",
+    "paddler_error_chain",
     "paddler_frame_writer",
     "paddler_generation_result_fixture",
     "paddler_image_decoder",
@@ -63,6 +65,7 @@ test_crates = [
     "paddler_balancer_desired_state_fixture",
     "paddler_blocking_thread_fixture",
     "paddler_bootstrap_tests",
+    "paddler_capturing_logger",
     "paddler_chunked_response_fixture",
     "paddler_cli_tests",
     "paddler_download_manager_tests",
@@ -320,11 +323,13 @@ paddler_balancer_desired_state_fixture = { version = "5.0", path = "paddler_bala
 paddler_blocking_thread_fixture = { version = "5.0", path = "paddler_blocking_thread_fixture" }
 paddler_bootstrap = { version = "5.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "5.0", path = "paddler_cache_dir" }
+paddler_capturing_logger = { version = "5.0", path = "paddler_capturing_logger" }
 paddler_chunked_response_fixture = { version = "5.0", path = "paddler_chunked_response_fixture" }
 paddler_cli = { version = "5.0", path = "paddler_cli" }
 paddler_client = { version = "5.0", path = "paddler_client" }
 paddler_dashboard_assets = { version = "5.0", path = "paddler_dashboard_assets" }
 paddler_download_manager = { version = "5.0", path = "paddler_download_manager" }
+paddler_error_chain = { version = "5.0", path = "paddler_error_chain" }
 paddler_frame_writer = { version = "5.0", path = "paddler_frame_writer" }
 paddler_generation_result_fixture = { version = "5.0", path = "paddler_generation_result_fixture" }
 paddler_image_decoder = { version = "5.0", path = "paddler_image_decoder" }

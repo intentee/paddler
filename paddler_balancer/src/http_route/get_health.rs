@@ -1,13 +1,11 @@
-use std::error::Error;
-
 use actix_web::Responder;
 use actix_web::web::ServiceConfig;
 use actix_web::web::get;
 
 use paddler_messaging::constants::API_PATH_HEALTH;
 
-async fn respond() -> Result<impl Responder, Box<dyn Error>> {
-    Ok("OK")
+async fn respond() -> impl Responder {
+    "OK"
 }
 
 pub fn get_health(cfg: &mut ServiceConfig) {

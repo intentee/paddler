@@ -1,3 +1,5 @@
+use std::error::Error as _;
+
 use serde_json::json;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
@@ -57,9 +59,15 @@ async fn http_client_reports_a_balancer_killed_before_responding_as_a_failed_req
             .expect("the chat completion task must not panic")
             .err()
             .as_ref()
-            .map(ToString::to_string),
-        Some(format!(
-            "HTTP request failed: error sending request for url ({chat_completions_url})"
+            .map(|request_error| (
+                request_error.to_string(),
+                request_error.source().map(ToString::to_string)
+            )),
+        Some((
+            "HTTP request failed".to_owned(),
+            Some(format!(
+                "error sending request for url ({chat_completions_url})"
+            ))
         ))
     );
 

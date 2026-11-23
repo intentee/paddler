@@ -219,11 +219,15 @@ mod tests {
     use std::sync::Arc;
 
     use futures_util::FutureExt as _;
+    use log::Level;
     use serde_json::json;
     use tokio::sync::mpsc::channel;
     use tokio::sync::mpsc::error::TryRecvError;
     use tokio_tungstenite::tungstenite::Message as WsMessage;
     use tokio_util::sync::PollSender;
+
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
 
     use super::InferenceSocketExchange;
     use crate::error::Error;
@@ -237,6 +241,8 @@ mod tests {
 
     #[test]
     fn closing_notifies_open_requests_after_one_receiver_was_dropped() {
+        CapturingLogger::install();
+
         let exchange = InferenceSocketExchange::default();
         let abandoned_request = exchange
             .register(outbound_request("abandoned"))
@@ -252,6 +258,16 @@ mod tests {
             awaited_request.try_recv(),
             Ok(Err(Error::ConnectionDropped { request_id })) if request_id == "awaited"
         ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inference_socket_exchange"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Debug,
+                message: "Receiver already dropped for request: abandoned".to_owned(),
+                target: "paddler_client::inference_socket::inference_socket_exchange".to_owned(),
+            })
+        );
     }
 
     #[test]
@@ -355,6 +371,8 @@ mod tests {
 
     #[test]
     fn failing_an_abandoned_request_forgets_it() {
+        CapturingLogger::install();
+
         let exchange = InferenceSocketExchange::default();
         let abandoned_request = exchange
             .register(outbound_request("abandoned"))
@@ -374,6 +392,16 @@ mod tests {
                 request_id: "abandoned".to_owned(),
             },
         ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inference_socket_exchange"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Debug,
+                message: "Receiver already dropped for request: abandoned".to_owned(),
+                target: "paddler_client::inference_socket::inference_socket_exchange".to_owned(),
+            })
+        );
     }
 
     #[test]
@@ -397,6 +425,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_failed_write_drops_every_awaiting_request() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let (frames_tx, frames_rx) = channel::<WsMessage>(1);
         let mut response_rx = exchange
@@ -417,5 +447,15 @@ mod tests {
             response_rx.recv().await,
             Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inference_socket_exchange"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Error,
+                message: "WebSocket write error: channel closed".to_owned(),
+                target: "paddler_client::inference_socket::inference_socket_exchange".to_owned(),
+            })
+        );
     }
 }

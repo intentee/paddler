@@ -134,6 +134,7 @@ impl Drop for Connection {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error as _;
     use std::io::ErrorKind;
 
     use tokio::io::AsyncReadExt as _;
@@ -205,13 +206,14 @@ mod tests {
             TLS_HANDSHAKE_RECORD_CONTENT_TYPE
         );
         assert_eq!(
-            connection_outcome
-                .err()
-                .map(|connect_error| connect_error.to_string()),
-            Some(
-                "WebSocket error: IO error: received corrupt message of type InvalidContentType"
-                    .to_owned()
-            )
+            connection_outcome.err().map(|connect_error| (
+                connect_error.to_string(),
+                connect_error.source().map(ToString::to_string)
+            )),
+            Some((
+                "WebSocket error".to_owned(),
+                Some("IO error: received corrupt message of type InvalidContentType".to_owned())
+            ))
         );
     }
 }

@@ -1,7 +1,4 @@
-use anyhow::Result;
-use async_trait::async_trait;
 use clap::Parser;
-use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
@@ -12,6 +9,7 @@ use paddler_bootstrap::run_service_manager::run_service_manager;
 
 use super::agent_runtime_arguments::AgentRuntimeArguments;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
+use crate::cli_error::CliError;
 
 #[derive(Parser)]
 pub struct Agent {
@@ -24,7 +22,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    async fn run_agent(self, shutdown: CancellationToken) -> Result<()> {
+    pub async fn run(self, shutdown: CancellationToken) -> Result<(), CliError> {
         let Self {
             management_addr,
             runtime,
@@ -39,13 +37,7 @@ impl Agent {
             ServiceShutdownOptions::default(),
         )
         .await
-    }
-}
-
-#[async_trait(?Send)]
-impl Handler for Agent {
-    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
-        self.run_agent(shutdown).await
+        .map_err(CliError::from)
     }
 }
 

@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
@@ -14,7 +15,7 @@ fn a_llama_runtime_reports_a_model_file_it_cannot_load() {
         )
         .err()
         .as_ref()
-        .map(ToString::to_string),
+        .map(|load_error| ErrorChain { error: load_error }.to_string()),
         Some(
             "unable to load the model from /paddler/definitely/missing/model.gguf: model file not found: /paddler/definitely/missing/model.gguf"
                 .to_owned()

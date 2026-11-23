@@ -155,13 +155,19 @@ mod tests {
     use futures_util::StreamExt as _;
     use futures_util::stream::iter;
     use futures_util::stream::pending;
+    use log::Level;
+    use serde_json::from_str;
     use serde_json::json;
     use tokio::sync::mpsc::error::TryRecvError;
     use tokio_tungstenite::tungstenite::Bytes;
+    use tokio_tungstenite::tungstenite::Error as WebSocketError;
     use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
     use paddler_messaging::decision_result::DecisionResult;
     use paddler_messaging::embedding_result::EmbeddingResult;
+    use paddler_messaging::inference_client::identified_message::IdentifiedMessage;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
     use paddler_messaging::inference_client::response::Response;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
@@ -179,6 +185,8 @@ mod tests {
 
     #[test]
     fn fails_the_request_whose_message_cannot_be_decoded() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -187,25 +195,41 @@ mod tests {
             )
             .expect("an open exchange must accept a request");
 
-        router_for(&exchange).route_text(
-            &json!({
-                "Response": {
-                    "generated_by": null,
-                    "request_id": "request-1",
-                    "response": { "GeneratedToken": { "NoSuchResult": "piece" } }
-                }
-            })
-            .to_string(),
-        );
+        let undecodable_message = json!({
+            "Response": {
+                "generated_by": null,
+                "request_id": "request-1",
+                "response": { "GeneratedToken": { "NoSuchResult": "piece" } }
+            }
+        })
+        .to_string();
+
+        router_for(&exchange).route_text(&undecodable_message);
 
         assert!(matches!(
             response_rx.try_recv(),
             Ok(Err(Error::UndecodableInferenceMessage { request_id, .. })) if request_id == "request-1"
         ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Error,
+                message: format!(
+                    "Failed to decode a message for request request-1: {}",
+                    from_str::<InferenceMessage>(&undecodable_message)
+                        .expect_err("the message must not decode")
+                ),
+                target: "paddler_client::inference_socket::inbound_message_router".to_owned(),
+            })
+        );
     }
 
     #[test]
     fn leaves_other_requests_pending_when_an_undecodable_message_names_an_unknown_request() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -224,10 +248,23 @@ mod tests {
                 .try_recv()
                 .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
         );
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Warn,
+                message: "Received an undecodable message for unknown request_id: request-2"
+                    .to_owned(),
+                target: "paddler_client::inference_socket::inbound_message_router".to_owned(),
+            })
+        );
     }
 
     #[test]
     fn leaves_requests_pending_when_an_undecodable_message_names_no_request() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -242,6 +279,22 @@ mod tests {
             response_rx
                 .try_recv()
                 .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
+        );
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Error,
+                message: format!(
+                    "Failed to decode a message that names no request: {}; {}",
+                    from_str::<InferenceMessage>("not json").expect_err("the text must not decode"),
+                    from_str::<IdentifiedMessage>("not json")
+                        .err()
+                        .expect("the text must not name a request")
+                ),
+                target: "paddler_client::inference_socket::inbound_message_router".to_owned(),
+            })
         );
     }
 
@@ -294,6 +347,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_binary_frame_drops_every_pending_request_without_waiting_for_more_frames() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -320,6 +375,50 @@ mod tests {
                 }
                 .to_string()
             )
+        );
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Error,
+                message: "Closing the inference socket after a binary message it cannot interpret"
+                    .to_owned(),
+                target: "paddler_client::inference_socket::inbound_message_router".to_owned(),
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn a_read_error_drops_every_pending_request_without_waiting_for_more_frames() {
+        CapturingLogger::install();
+
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open connection must accept a request");
+
+        InboundMessageRouter { exchange }
+            .spawn_read_task(iter([Err(WebSocketError::ConnectionClosed)]).chain(pending()))
+            .await
+            .expect("the read task must not panic");
+
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .contains(&CapturedRecord {
+                level: Level::Error,
+                message: format!("WebSocket read error: {}", WebSocketError::ConnectionClosed),
+                target: "paddler_client::inference_socket::inbound_message_router".to_owned(),
+            })
         );
     }
 

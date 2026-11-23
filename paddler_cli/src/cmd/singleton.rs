@@ -1,7 +1,4 @@
-use anyhow::Result;
-use async_trait::async_trait;
 use clap::Parser;
-use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
 
 use paddler_bootstrap::singleton_bootstrap_config::SingletonBootstrapConfig;
@@ -10,6 +7,7 @@ use paddler_bootstrap::singleton_service_bundle::SingletonServiceBundle;
 use super::agent_runtime_arguments::AgentRuntimeArguments;
 use super::balancer::Balancer;
 use super::run_announced_service_manager::run_announced_service_manager;
+use crate::cli_error::CliError;
 
 #[derive(Parser)]
 pub struct Singleton {
@@ -21,7 +19,7 @@ pub struct Singleton {
 }
 
 impl Singleton {
-    async fn run_singleton(self, shutdown: CancellationToken) -> Result<()> {
+    pub async fn run(self, shutdown: CancellationToken) -> Result<(), CliError> {
         let Self {
             agent_runtime,
             balancer,
@@ -34,12 +32,5 @@ impl Singleton {
         .await?;
 
         run_announced_service_manager(bundle.balancer.addresses, bundle, shutdown).await
-    }
-}
-
-#[async_trait(?Send)]
-impl Handler for Singleton {
-    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
-        self.run_singleton(shutdown).await
     }
 }

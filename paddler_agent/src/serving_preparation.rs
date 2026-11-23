@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
@@ -40,15 +42,21 @@ impl ServingPreparation {
         .prepare_decisions(&decisions_to_prepare)
         .await
         {
-            Ok(prepared_decisions) => PreparationOutcome::Prepared(PreparedServing {
-                agent_applicable_state,
-                prepared_decisions,
-            }),
-            Err(CapabilityStartupInterruption::Cancelled) => PreparationOutcome::Cancelled,
-            Err(CapabilityStartupInterruption::Failed(error)) => PreparationOutcome::Failed {
-                agent_applicable_state,
-                error: *error,
-            },
+            ControlFlow::Continue(prepared_decisions) => {
+                PreparationOutcome::Prepared(PreparedServing {
+                    agent_applicable_state,
+                    prepared_decisions,
+                })
+            }
+            ControlFlow::Break(CapabilityStartupInterruption::Cancelled) => {
+                PreparationOutcome::Cancelled
+            }
+            ControlFlow::Break(CapabilityStartupInterruption::Failed(error)) => {
+                PreparationOutcome::Failed {
+                    agent_applicable_state,
+                    error: *error,
+                }
+            }
         }
     }
 }

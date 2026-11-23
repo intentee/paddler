@@ -9,18 +9,19 @@ use crate::compatibility::compatibility_app_data::CompatibilityAppData;
 use crate::compatibility::typesafe_service::typesafe_decision_failure::TypeSafeDecisionFailure;
 use crate::compatibility::typesafe_service::typesafe_models::TypeSafeModels;
 use crate::constants::TYPESAFE_API_PATH_MODELS;
+use crate::decisions_serving::DecisionsServing;
 
 async fn respond(app_data: web::Data<CompatibilityAppData>) -> HttpResponse {
     match app_data
         .balancer_applicable_state_holder
-        .require_decisions()
+        .decisions_serving()
     {
-        Ok(()) => HttpResponse::Ok().json(TypeSafeModels::from(
+        DecisionsServing::Served => HttpResponse::Ok().json(TypeSafeModels::from(
             app_data
                 .agent_controller_pool
                 .model_paths_serving(DecideParams::INFERENCE_CAPABILITY),
         )),
-        Err(cluster_serves_no_decisions) => {
+        DecisionsServing::NotServed(cluster_serves_no_decisions) => {
             TypeSafeDecisionFailure::from(cluster_serves_no_decisions).into_http_response()
         }
     }

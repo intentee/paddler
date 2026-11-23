@@ -8,7 +8,7 @@ use url::ParseError;
 
 #[derive(Debug, Error)]
 pub enum DownloadError {
-    #[error("URL '{url}' is malformed: {source}")]
+    #[error("URL '{url}' is malformed")]
     InvalidUrl {
         url: String,
         #[source]
@@ -33,7 +33,7 @@ pub enum DownloadError {
     #[error("'{final_path_display}' does not name a file to download into", final_path_display = final_path.display())]
     FinalPathHasNoFileName { final_path: PathBuf },
 
-    #[error("server unreachable for URL '{url}': {source}")]
+    #[error("server unreachable for URL '{url}'")]
     DownloadServerIsUnreachable {
         url: String,
         #[source]
@@ -64,28 +64,28 @@ pub enum DownloadError {
         chunk_byte_count: u64,
     },
 
-    #[error("download interrupted while downloading URL '{url}': {source}")]
+    #[error("download interrupted while downloading URL '{url}'")]
     DownloadInterrupted {
         url: String,
         #[source]
         source: ReqwestError,
     },
 
-    #[error("I/O on '{path_display}': {source}", path_display = path.display())]
+    #[error("I/O on '{path_display}'", path_display = path.display())]
     Io {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
 
-    #[error("cache write denied at '{path_display}': {source}", path_display = path.display())]
+    #[error("cache write denied at '{path_display}'", path_display = path.display())]
     CachePermissionDenied {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
 
-    #[error("cache disk full at '{path_display}': {source}", path_display = path.display())]
+    #[error("cache disk full at '{path_display}'", path_display = path.display())]
     CacheDiskFull {
         path: PathBuf,
         #[source]

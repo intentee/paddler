@@ -9,6 +9,7 @@ use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_agent_status::agent_issue_fix::AgentIssueFix;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
@@ -160,7 +161,10 @@ impl LoadedLlamaModel {
         })
         .map_err(|source| {
             let context_creation_failure = AgentRuntimeError::ContextCreationFailed(source);
-            let error = context_creation_failure.to_string();
+            let error = ErrorChain {
+                error: &context_creation_failure,
+            }
+            .to_string();
 
             for slot_index in 0..n_seq_max {
                 slot_aggregated_status.register_pipeline_issue(AgentIssue::SlotCannotStart(

@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use anyhow::Result;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use tokio::sync::futures::Notified;
@@ -20,6 +19,7 @@ use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_counter::BufferedRequestCounter;
 use crate::dispatch_candidate::DispatchCandidate;
+use crate::dispatch_claim::DispatchClaim;
 use crate::dispatch_position::DispatchPosition;
 use crate::dispatch_requirement::DispatchRequirement;
 use crate::dispatch_waiting_line::DispatchWaitingLine;
@@ -160,7 +160,7 @@ impl AgentControllerPool {
             let candidate =
                 self.select_least_busy_with_capacity(dispatch_requirement, dispatch_position)?;
 
-            if let Ok(dispatched) = self.try_claim(candidate) {
+            if let DispatchClaim::Claimed(dispatched) = self.try_claim(candidate) {
                 return Some(dispatched);
             }
         }
@@ -190,32 +190,31 @@ impl AgentControllerPool {
         }
     }
 
-    /// # Errors
-    ///
-    /// Returns the [`DispatchCandidate`] back when another dispatch changed the slots its agent is processing since the candidate was selected, or when the slots it would claim exceed [`u64::MAX`].
+    #[must_use]
     pub fn try_claim(
         &self,
-        candidate: DispatchCandidate,
-    ) -> Result<DispatchedAgent, DispatchCandidate> {
-        if let Some(claimed_slots) = candidate
-            .snapshot
-            .checked_add(u64::from(candidate.reserved_slots.get()))
-            && candidate
-                .agent_controller
+        DispatchCandidate {
+            agent_controller,
+            reserved_slots,
+            snapshot,
+        }: DispatchCandidate,
+    ) -> DispatchClaim {
+        if let Some(claimed_slots) = snapshot.checked_add(u64::from(reserved_slots.get()))
+            && agent_controller
                 .slots_processing
-                .compare_and_swap(candidate.snapshot, claimed_slots)
+                .compare_and_swap(snapshot, claimed_slots)
         {
             self.updates.signal();
 
             let slot_guard = AgentControllerSlotGuard::new(
-                candidate.agent_controller.clone(),
+                agent_controller.clone(),
                 self.updates.clone(),
-                candidate.reserved_slots,
+                reserved_slots,
             );
 
-            Ok(DispatchedAgent::new(candidate.agent_controller, slot_guard))
+            DispatchClaim::Claimed(DispatchedAgent::new(agent_controller, slot_guard))
         } else {
-            Err(candidate)
+            DispatchClaim::Contended
         }
     }
 

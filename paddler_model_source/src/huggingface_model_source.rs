@@ -133,6 +133,7 @@ impl ResolvesModelSource for HuggingFaceModelSource {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error as _;
     use std::fs::File;
     use std::fs::create_dir_all;
     use std::fs::read;
@@ -230,13 +231,19 @@ mod tests {
             .await;
 
         assert_eq!(
-            resolution
-                .err()
-                .map(|resolution_error| resolution_error.to_string()),
-            Some(format!(
-                "Failed to download model '{}' from Hugging Face: {hub_failure} (url={})",
-                uncached_model_reference().model_path().model_path,
-                hub.url("/owner/repo/resolve/main/model.gguf")
+            resolution.err().map(|resolution_error| (
+                resolution_error.to_string(),
+                resolution_error.source().map(ToString::to_string)
+            )),
+            Some((
+                format!(
+                    "Failed to download model '{}' from Hugging Face",
+                    uncached_model_reference().model_path().model_path
+                ),
+                Some(format!(
+                    "{hub_failure} (url={})",
+                    hub.url("/owner/repo/resolve/main/model.gguf")
+                ))
             ))
         );
         assert!(
@@ -520,12 +527,16 @@ mod tests {
             .await;
 
         assert_eq!(
-            resolution
-                .err()
-                .map(|resolution_error| resolution_error.to_string()),
-            Some(format!(
-                "Failed to download model '{}' from Hugging Face: HTTP request error: error decoding response body",
-                uncached_model_reference().model_path().model_path
+            resolution.err().map(|resolution_error| (
+                resolution_error.to_string(),
+                resolution_error.source().map(ToString::to_string)
+            )),
+            Some((
+                format!(
+                    "Failed to download model '{}' from Hugging Face",
+                    uncached_model_reference().model_path().model_path
+                ),
+                Some("HTTP request error: error decoding response body".to_owned())
             ))
         );
         assert_eq!(

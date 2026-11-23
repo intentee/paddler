@@ -2,9 +2,7 @@
 
 use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::mtmd::mtmd_eval_error::MtmdEvalError;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
@@ -17,7 +15,6 @@ use paddler_agent_text_generation::media_marker::MediaMarker;
 use paddler_agent_text_generation::multimodal_prompt_ingestion::MultimodalPromptIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
-use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
@@ -28,14 +25,6 @@ use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
 const PROMPT: &str = "Describe the picture";
 const FITTED_MICRO_BATCH_TOKENS: u32 = 512;
-
-fn ingestion_failure(
-    eval_multimodal_chunks_error: EvalMultimodalChunksError,
-) -> GeneratedTokenResult {
-    GeneratedTokenResult::MultimodalIngestionFailed(
-        TextGenerationError::MultimodalIngestionFailed(eval_multimodal_chunks_error).to_string(),
-    )
-}
 
 #[test]
 fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
@@ -132,12 +121,13 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
             }),
         ],
         [
-            ingestion_failure(EvalMultimodalChunksError::ChunkOutOfBounds(1)),
-            ingestion_failure(EvalMultimodalChunksError::EvalFailed(
-                MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted {
-                    evaluated_micro_batch_tokens: FITTED_MICRO_BATCH_TOKENS - 1,
-                    fitted_micro_batch_tokens: FITTED_MICRO_BATCH_TOKENS,
-                }
+            GeneratedTokenResult::MultimodalIngestionFailed(
+                "failed to ingest multimodal prompt: chunk index 1 out of bounds during post-eval walk"
+                    .to_owned()
+            ),
+            GeneratedTokenResult::MultimodalIngestionFailed(format!(
+                "failed to ingest multimodal prompt: a chunk fitted to decodes of {FITTED_MICRO_BATCH_TOKENS} tokens cannot be evaluated in decodes of {}",
+                FITTED_MICRO_BATCH_TOKENS - 1
             )),
         ]
     );

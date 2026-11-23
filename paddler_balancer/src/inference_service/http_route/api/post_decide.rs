@@ -10,6 +10,7 @@ use paddler_messaging::request_params::decide_params::raw_decide_params::RawDeci
 use paddler_messaging::validates::Validates as _;
 
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+use crate::decisions_serving::DecisionsServing;
 use crate::inference_service::app_data::AppData;
 use crate::invalid_request_parameters_description::invalid_request_parameters_description;
 use crate::ndjson_response::ndjson_response;
@@ -19,10 +20,12 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<RawDecideParams>,
 ) -> Result<impl Responder, Error> {
-    app_data
+    if let DecisionsServing::NotServed(cluster_serves_no_decisions) = app_data
         .balancer_applicable_state_holder
-        .require_decisions()
-        .map_err(ErrorServiceUnavailable)?;
+        .decisions_serving()
+    {
+        return Err(ErrorServiceUnavailable(cluster_serves_no_decisions));
+    }
 
     let validated_params = params.into_inner().validate().map_err(|validation_error| {
         ErrorBadRequest(invalid_request_parameters_description(&validation_error))

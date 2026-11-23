@@ -9,6 +9,9 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 futures-util = { workspace = true }
 http = { workspace = true }

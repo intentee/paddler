@@ -1,6 +1,7 @@
 use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
 
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
 use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
@@ -45,7 +46,10 @@ impl From<RelayFailure> for TypeSafeDecisionFailure {
 impl From<TypeSafeTranslationError> for TypeSafeDecisionFailure {
     fn from(translation_error: TypeSafeTranslationError) -> Self {
         Self {
-            detail: translation_error.to_string(),
+            detail: ErrorChain {
+                error: &translation_error,
+            }
+            .to_string(),
             status_code: UpstreamFailure::RelayFailed.status_code(),
         }
     }

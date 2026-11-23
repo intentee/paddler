@@ -57,10 +57,14 @@ mod tests {
     use actix_web::web::Payload;
     use actix_ws::Session;
     use actix_ws::handle;
+    use log::Level;
     use tokio::spawn;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio::task::yield_now;
     use tokio_util::sync::CancellationToken;
+
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
 
     use super::write_websocket_session;
     use crate::websocket_outbound_frame::WebSocketOutboundFrame;
@@ -91,6 +95,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_writer_abandons_the_writes_its_peer_does_not_read_once_the_connection_closes() {
+        CapturingLogger::install();
+
         let OpenedWebSocketSession {
             handshake_response: _unread_handshake_response,
             session,
@@ -111,6 +117,17 @@ mod tests {
         }
 
         writer.await.unwrap();
+
+        assert!(
+            CapturingLogger::records_for("paddler_balancer::write_websocket_session")
+                .contains(&CapturedRecord {
+                level: Level::Debug,
+                message:
+                    "Abandoning the WebSocket session writes because the peer is not reading them"
+                        .to_owned(),
+                target: "paddler_balancer::write_websocket_session".to_owned(),
+            })
+        );
     }
 
     #[tokio::test]

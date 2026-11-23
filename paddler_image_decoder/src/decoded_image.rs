@@ -207,9 +207,12 @@ mod tests {
     use image::Rgb32FImage;
     use image::RgbImage;
     use image::RgbaImage;
+    use log::Level;
     use resvg::tiny_skia::IntSize;
     use resvg::usvg::Error as SvgError;
 
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
     use paddler_messaging::image_url::ImageUrl;
 
     use crate::decoded_image::DecodedImage;
@@ -447,6 +450,8 @@ mod tests {
 
     #[test]
     fn rasterizes_small_svg() {
+        CapturingLogger::install();
+
         let svg_data = br#"<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
             <rect width="50" height="50" fill="red"/>
         </svg>"#;
@@ -456,6 +461,15 @@ mod tests {
         assert_eq!(decoded_image.width, 50);
         assert_eq!(decoded_image.height, 50);
         assert_eq!(decoded_image.rgb_pixels.first_chunk(), Some(&[255, 0, 0]));
+        assert!(
+            CapturingLogger::records_for("paddler_image_decoder::decoded_image").contains(
+                &CapturedRecord {
+                    level: Level::Info,
+                    message: "Rasterizing SVG (max_dimension: 1024)".to_owned(),
+                    target: "paddler_image_decoder::decoded_image".to_owned(),
+                }
+            )
+        );
     }
 
     #[test]

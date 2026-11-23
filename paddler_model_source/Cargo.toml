@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 hf-hub = { workspace = true }
 percent-encoding = { workspace = true }

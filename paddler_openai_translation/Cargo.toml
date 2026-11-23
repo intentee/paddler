@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 nanoid = { workspace = true }
 paddler_inference_parameters = { workspace = true }

@@ -11,6 +11,7 @@ use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_llama_context_settings::DecisionLlamaContextSettings;
+use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_embeddings::embedding_llama_context_settings::EmbeddingLlamaContextSettings;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
@@ -78,12 +79,12 @@ impl LlamaRuntime {
 
     /// # Errors
     ///
-    /// Returns [`AgentRuntimeError::LlamaContextAlreadyResident`] when an embedding context already occupies the VRAM, and [`AgentRuntimeError::ContextCreationFailed`] when llama.cpp cannot create the context.
+    /// Returns [`EmbeddingError::AgentRuntime`] when llama.cpp cannot create the embedding context or an embedding context already occupies the VRAM.
     pub fn create_embedding_llama_context(
         &self,
         n_seq_max: u32,
         pooling_type: PoolingType,
-    ) -> Result<ResidentLlamaContext<'_>, AgentRuntimeError> {
+    ) -> Result<ResidentLlamaContext<'_>, EmbeddingError> {
         EmbeddingLlamaContextSettings {
             llama_context_settings: self.llama_context_settings(n_seq_max),
             pooling_type,

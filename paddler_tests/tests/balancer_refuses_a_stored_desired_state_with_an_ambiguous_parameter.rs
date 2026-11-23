@@ -8,6 +8,7 @@ use serde_json::to_string;
 use serde_json::to_value;
 use tokio::fs::write;
 
+use paddler_balancer::balancer_error::BalancerError;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_state_database::state_database_error::StateDatabaseError;
@@ -53,7 +54,7 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
     assert_eq!(
         bootstrap_error.map(discriminant),
         Some(discriminant(&BootstrapError::StateDatabaseReadFailed {
-            source: StateDatabaseError::FilePathEmpty
+            source: BalancerError::StateDatabase(StateDatabaseError::FilePathEmpty)
         })),
         "{start_error:?}"
     );

@@ -12,7 +12,6 @@ use actix_web::web::Data;
 use actix_web::web::Payload;
 use actix_web::web::ServiceConfig;
 use actix_web::web::get;
-use anyhow::Result;
 use log::debug;
 use log::error;
 use serde_json::Error as SerdeJsonError;

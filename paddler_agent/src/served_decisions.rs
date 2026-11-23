@@ -1,6 +1,5 @@
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_request_preparer::DecisionRequestPreparer;
-use paddler_agent_decision::reports_decision_outcome::ReportsDecisionOutcome as _;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::scheduler_handle::SchedulerHandle;
 use paddler_agent_runtime::shuts_down::ShutsDown;
@@ -20,7 +19,7 @@ impl ServedDecisions {
     ) {
         match self {
             Self::Disabled => {
-                DecisionError::DecisionsNotServed.report(agent_name, &request.response_tx);
+                DecisionError::report_decisions_not_served(agent_name, &request.response_tx);
             }
             Self::Enabled(scheduler_handle) => scheduler_handle.request_preparer.prepare(request),
         }

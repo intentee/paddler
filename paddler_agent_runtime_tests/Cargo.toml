@@ -10,6 +10,9 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [[test]]
 name = "integration"
 path = "tests/main.rs"
@@ -21,6 +24,8 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 llama-cpp-bindings = { workspace = true }
+log = { workspace = true }
+paddler_capturing_logger = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_tests = { workspace = true }
 tempfile = { workspace = true }

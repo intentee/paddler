@@ -16,12 +16,14 @@ fn resolve_control_token<TVocabulary: DelimiterVocabulary>(
             delimiter: delimiter.to_owned(),
         },
     };
-    let tokens = vocabulary.tokenize_delimiter(delimiter).map_err(|source| {
-        DecisionError::DelimiterTokenizationFailed {
-            delimiter: delimiter.to_owned(),
-            source,
-        }
-    })?;
+    let tokens = vocabulary
+        .tokenize_delimiter(delimiter)
+        .map_err(|tokenization_error| {
+            DecisionError::for_delimiter_tokenization_error(
+                delimiter.to_owned(),
+                tokenization_error,
+            )
+        })?;
     let control_token = match tokens.as_slice() {
         [token] => vocabulary
             .token_attributes(*token)
@@ -49,7 +51,7 @@ pub struct DecisionDelimiterTokens {
 impl DecisionDelimiterTokens {
     /// # Errors
     ///
-    /// Returns [`DecisionError::DelimiterTokenizationFailed`] when a delimiter cannot be tokenized, [`DecisionError::DelimiterAttributesUnreadable`] when the attributes of its token cannot be read, and [`DecisionError::PointerHeadIncompatibleWithModel`] when a delimiter is not a single control token of the vocabulary.
+    /// Returns [`DecisionError::DelimiterContainsNul`], [`DecisionError::DelimiterLengthUnrepresentable`] or [`DecisionError::DelimiterTokenizationFailed`] when a delimiter cannot be tokenized, [`DecisionError::DelimiterAttributesUnreadable`] when the attributes of its token cannot be read, and [`DecisionError::PointerHeadIncompatibleWithModel`] when a delimiter is not a single control token of the vocabulary.
     pub fn resolve<TVocabulary: DelimiterVocabulary>(
         vocabulary: &TVocabulary,
         PointerHeadDelimiters {

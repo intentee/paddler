@@ -44,9 +44,11 @@ impl EmbeddingBatchPreparer {
                 .loaded_llama_model
                 .model
                 .str_to_token(&input.content, AddBos::Always, ParseSpecialTokens::Always)
-                .map_err(|source| EmbeddingError::InputTokenizationFailed {
-                    source_document_id: input.id.clone(),
-                    source,
+                .map_err(|tokenization_error| {
+                    EmbeddingError::for_input_tokenization_error(
+                        input.id.clone(),
+                        tokenization_error,
+                    )
                 })?;
 
             let document_tokens = tokens.len();

@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 jsonschema = { workspace = true }
 paddler_messaging = { workspace = true }

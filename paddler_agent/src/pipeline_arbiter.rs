@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
+use paddler_error_chain::error_chain::ErrorChain;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
@@ -101,7 +102,10 @@ impl PipelineArbiter {
 
     fn conclude_preparation(&mut self, preparation_outcome: PreparationOutcome) {
         if let PreparationOutcome::Failed { error, .. } = &preparation_outcome {
-            error!("Failed to prepare the reconciled state: {error}");
+            error!(
+                "Failed to prepare the reconciled state: {}",
+                ErrorChain { error }
+            );
         }
 
         if let SupersedingState::SupersededBy(superseding_applicable_state) =
@@ -135,7 +139,10 @@ impl PipelineArbiter {
         }: FinishedServingStartup,
     ) {
         if let ReplacementOutcome::Failed { error, .. } = &outcome {
-            error!("Failed to serve the reconciled state: {error}");
+            error!(
+                "Failed to serve the reconciled state: {}",
+                ErrorChain { error }
+            );
         }
 
         if let SupersedingState::SupersededBy(superseding_applicable_state) =

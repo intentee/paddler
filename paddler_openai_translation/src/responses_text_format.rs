@@ -26,10 +26,15 @@ where
     from_fn(|| format_elements.next_element::<TElement>().transpose()).collect()
 }
 
+enum ResponsesTextFormatVisitOutcome {
+    Accepted(ResponsesTextFormat),
+    Refused(ResponsesTextFormatRefusal),
+}
+
 struct ResponsesTextFormatVisitor;
 
 impl<'de> Visitor<'de> for ResponsesTextFormatVisitor {
-    type Value = Result<ResponsesTextFormat, ResponsesTextFormatRefusal>;
+    type Value = ResponsesTextFormatVisitOutcome;
 
     fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
         formatter.write_str("internally tagged enum ResponsesTextFormat")
@@ -48,26 +53,36 @@ impl<'de> Visitor<'de> for ResponsesTextFormatVisitor {
                 let leftover_elements = remaining_elements::<IgnoredAny, _>(format_elements)?;
 
                 Ok(if leftover_elements.is_empty() {
-                    Ok(ResponsesTextFormat::Text)
+                    ResponsesTextFormatVisitOutcome::Accepted(ResponsesTextFormat::Text)
                 } else {
-                    Err(ResponsesTextFormatRefusal::ElementsLeftOver {
-                        expected_elements: 0,
-                        received_elements: leftover_elements.len(),
-                    })
+                    ResponsesTextFormatVisitOutcome::Refused(
+                        ResponsesTextFormatRefusal::ElementsLeftOver {
+                            expected_elements: 0,
+                            received_elements: leftover_elements.len(),
+                        },
+                    )
                 })
             }
             Some(ResponsesTextFormatType::JsonSchema) => {
                 let schema_elements = remaining_elements::<Box<RawValue>, _>(format_elements)?;
 
                 Ok(match <[Box<RawValue>; 1]>::try_from(schema_elements) {
-                    Ok([schema]) => Ok(ResponsesTextFormat::JsonSchema { schema }),
-                    Err(schema_elements) if schema_elements.is_empty() => {
-                        Err(ResponsesTextFormatRefusal::SchemaElementMissing)
+                    Ok([schema]) => {
+                        ResponsesTextFormatVisitOutcome::Accepted(ResponsesTextFormat::JsonSchema {
+                            schema,
+                        })
                     }
-                    Err(schema_elements) => Err(ResponsesTextFormatRefusal::ElementsLeftOver {
-                        expected_elements: 1,
-                        received_elements: schema_elements.len(),
-                    }),
+                    Err(schema_elements) if schema_elements.is_empty() => {
+                        ResponsesTextFormatVisitOutcome::Refused(
+                            ResponsesTextFormatRefusal::SchemaElementMissing,
+                        )
+                    }
+                    Err(schema_elements) => ResponsesTextFormatVisitOutcome::Refused(
+                        ResponsesTextFormatRefusal::ElementsLeftOver {
+                            expected_elements: 1,
+                            received_elements: schema_elements.len(),
+                        },
+                    ),
                 })
             }
         }
@@ -104,16 +119,24 @@ impl<'de> Visitor<'de> for ResponsesTextFormatVisitor {
 
         match format_type {
             None => Err(TMapAccess::Error::missing_field("type")),
-            Some(ResponsesTextFormatType::Text) => Ok(Ok(ResponsesTextFormat::Text)),
+            Some(ResponsesTextFormatType::Text) => Ok(ResponsesTextFormatVisitOutcome::Accepted(
+                ResponsesTextFormat::Text,
+            )),
             Some(ResponsesTextFormatType::JsonSchema) => Ok(match schema_occurrences {
                 ResponsesTextFormatSchemaOccurrences::Absent => {
-                    Err(ResponsesTextFormatRefusal::SchemaMissing)
+                    ResponsesTextFormatVisitOutcome::Refused(
+                        ResponsesTextFormatRefusal::SchemaMissing,
+                    )
                 }
                 ResponsesTextFormatSchemaOccurrences::Once(schema) => {
-                    Ok(ResponsesTextFormat::JsonSchema { schema })
+                    ResponsesTextFormatVisitOutcome::Accepted(ResponsesTextFormat::JsonSchema {
+                        schema,
+                    })
                 }
                 ResponsesTextFormatSchemaOccurrences::Repeated => {
-                    Err(ResponsesTextFormatRefusal::SchemaRepeated)
+                    ResponsesTextFormatVisitOutcome::Refused(
+                        ResponsesTextFormatRefusal::SchemaRepeated,
+                    )
                 }
             }),
         }
@@ -130,9 +153,14 @@ impl<'de> Deserialize<'de> for ResponsesTextFormat {
     where
         TDeserializer: Deserializer<'de>,
     {
-        deserializer
-            .deserialize_any(ResponsesTextFormatVisitor)?
-            .map_err(ResponsesTextFormatRefusal::into_deserialization_error)
+        match deserializer.deserialize_any(ResponsesTextFormatVisitor)? {
+            ResponsesTextFormatVisitOutcome::Accepted(responses_text_format) => {
+                Ok(responses_text_format)
+            }
+            ResponsesTextFormatVisitOutcome::Refused(responses_text_format_refusal) => {
+                Err(responses_text_format_refusal.into_deserialization_error())
+            }
+        }
     }
 }
 

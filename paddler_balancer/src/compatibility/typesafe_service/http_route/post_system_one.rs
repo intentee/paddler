@@ -3,6 +3,7 @@ use actix_web::http::StatusCode;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 use paddler_typesafe_translation::system_one_response_layout::SystemOneResponseLayout;
@@ -18,6 +19,7 @@ use crate::compatibility::typesafe_service::typesafe_decision_failure::TypeSafeD
 use crate::compatibility::typesafe_service::typesafe_error_body::TypeSafeErrorBody;
 use crate::compatibility::typesafe_service::typesafe_json_config::typesafe_json_config;
 use crate::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use crate::decisions_serving::DecisionsServing;
 
 async fn system_one_http_response<TParams>(
     response_layout: &SystemOneResponseLayout,
@@ -68,9 +70,9 @@ async fn respond(
     app_data: web::Data<CompatibilityAppData>,
     system_one_request: web::Json<SystemOneRequest>,
 ) -> HttpResponse {
-    if let Err(cluster_serves_no_decisions) = app_data
+    if let DecisionsServing::NotServed(cluster_serves_no_decisions) = app_data
         .balancer_applicable_state_holder
-        .require_decisions()
+        .decisions_serving()
     {
         return TypeSafeDecisionFailure::from(cluster_serves_no_decisions).into_http_response();
     }
@@ -81,7 +83,10 @@ async fn respond(
             response_layout,
         }) => system_one_http_response(&response_layout, app_data.agent_relay(decide_params)).await,
         Err(translation_error) => TypeSafeErrorBody {
-            detail: translation_error.to_string(),
+            detail: ErrorChain {
+                error: &translation_error,
+            }
+            .to_string(),
         }
         .into_http_response(StatusCode::UNPROCESSABLE_ENTITY),
     }

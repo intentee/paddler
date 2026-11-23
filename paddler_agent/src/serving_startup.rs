@@ -4,6 +4,7 @@ use std::mem;
 use log::error;
 
 use paddler_agent_runtime::shuts_down::ShutsDown;
+use paddler_error_chain::error_chain::ErrorChain;
 
 use crate::finished_serving_startup::FinishedServingStartup;
 use crate::preparation_outcome::PreparationOutcome;
@@ -55,7 +56,10 @@ impl ShutsDown for ServingStartup {
             Self::Preparing(StartupPhase { outcome, .. }) => match outcome.await {
                 PreparationOutcome::Cancelled | PreparationOutcome::Prepared(_) => {}
                 PreparationOutcome::Failed { error, .. } => {
-                    error!("Failed to prepare the serving that the shutdown stopped: {error}");
+                    error!(
+                        "Failed to prepare the serving that the shutdown stopped: {}",
+                        ErrorChain { error: &error }
+                    );
                 }
             },
             Self::Replacing(StartupPhase { outcome, .. }) => {

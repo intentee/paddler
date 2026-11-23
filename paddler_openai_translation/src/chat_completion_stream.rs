@@ -6,9 +6,9 @@ use crate::chat_completion_chunk_choice::ChatCompletionChunkChoice;
 use crate::chat_completion_chunk_payload::ChatCompletionChunkPayload;
 use crate::chat_completion_finish_reason::chat_completion_finish_reason;
 use crate::chat_completion_header::ChatCompletionHeader;
+use crate::chat_completion_stream_emission::ChatCompletionStreamEmission;
 use crate::chat_completion_stream_params::ChatCompletionStreamParams;
 use crate::generated_output_part::GeneratedOutputPart;
-use crate::generation_failure::GenerationFailure;
 use crate::generation_outcome::GenerationOutcome;
 use crate::generation_progress::GenerationProgress;
 
@@ -36,42 +36,43 @@ impl ChatCompletionStream {
         }
     }
 
-    /// # Errors
-    ///
-    /// Returns the [`GenerationFailure`] of [`GenerationProgress::Failed`] when the generation progress reports a failure.
     pub fn advance(
         &mut self,
         request_id: &str,
         generation_progress: GenerationProgress,
-    ) -> Result<Vec<ChatCompletionChunk>, GenerationFailure> {
+    ) -> ChatCompletionStreamEmission {
         match generation_progress {
             GenerationProgress::Produced(GeneratedOutputPart::Content(text)) => {
-                Ok(vec![self.chunk(
+                ChatCompletionStreamEmission::Chunks(vec![self.chunk(
                     request_id,
                     ChatCompletionChunkPayload::Choice(ChatCompletionChunkChoice::Content(text)),
                 )])
             }
             GenerationProgress::Produced(GeneratedOutputPart::Reasoning(_))
-            | GenerationProgress::ToolCallTokenProduced => Ok(Vec::new()),
-            GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(parsed_calls)) => {
-                Ok(self.tool_calls(request_id, parsed_calls))
+            | GenerationProgress::ToolCallTokenProduced => {
+                ChatCompletionStreamEmission::Chunks(Vec::new())
             }
-            GenerationProgress::Failed(generation_failure) => Err(generation_failure),
+            GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(parsed_calls)) => {
+                ChatCompletionStreamEmission::Chunks(self.tool_calls(request_id, parsed_calls))
+            }
+            GenerationProgress::Failed(generation_failure) => {
+                ChatCompletionStreamEmission::Failure(generation_failure)
+            }
         }
     }
 
-    /// # Errors
-    ///
-    /// Returns the [`GenerationFailure`] of [`GenerationOutcome::Failed`] when the generation ended with a failure.
+    #[must_use]
     pub fn conclude(
         &self,
         request_id: &str,
         generation_outcome: GenerationOutcome,
-    ) -> Result<Vec<ChatCompletionChunk>, GenerationFailure> {
+    ) -> ChatCompletionStreamEmission {
         match generation_outcome {
-            GenerationOutcome::Failed(generation_failure) => Err(generation_failure),
+            GenerationOutcome::Failed(generation_failure) => {
+                ChatCompletionStreamEmission::Failure(generation_failure)
+            }
             GenerationOutcome::Finished(generation_summary) => {
-                Ok(self.finish(request_id, &generation_summary))
+                ChatCompletionStreamEmission::Chunks(self.finish(request_id, &generation_summary))
             }
         }
     }
@@ -138,8 +139,8 @@ mod tests {
     use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::ChatCompletionStream;
-    use crate::chat_completion_chunk::ChatCompletionChunk;
     use crate::chat_completion_header::ChatCompletionHeader;
+    use crate::chat_completion_stream_emission::ChatCompletionStreamEmission;
     use crate::chat_completion_stream_params::ChatCompletionStreamParams;
     use crate::generated_output_part::GeneratedOutputPart;
     use crate::generation_failure::GenerationFailure;
@@ -159,13 +160,18 @@ mod tests {
     }
 
     fn serialized_chunks(
-        chat_completion_chunks: Result<Vec<ChatCompletionChunk>, GenerationFailure>,
+        chat_completion_stream_emission: ChatCompletionStreamEmission,
     ) -> Vec<String> {
-        chat_completion_chunks
-            .unwrap()
-            .iter()
-            .map(|chat_completion_chunk| to_string(chat_completion_chunk).unwrap())
-            .collect()
+        match chat_completion_stream_emission {
+            ChatCompletionStreamEmission::Chunks(chat_completion_chunks) => {
+                Some(chat_completion_chunks)
+            }
+            ChatCompletionStreamEmission::Failure(_) => None,
+        }
+        .expect("the stream must emit chunks")
+        .iter()
+        .map(|chat_completion_chunk| to_string(chat_completion_chunk).unwrap())
+        .collect()
     }
 
     fn tool_call(
@@ -368,23 +374,19 @@ mod tests {
         };
         let mut chat_completion_stream = chat_completion_stream(false);
 
-        assert_eq!(
-            chat_completion_stream
-                .advance(
-                    "test-request",
-                    GenerationProgress::Failed(generation_failure())
-                )
-                .err(),
-            Some(generation_failure())
-        );
-        assert_eq!(
-            chat_completion_stream
-                .conclude(
-                    "test-request",
-                    GenerationOutcome::Failed(generation_failure())
-                )
-                .err(),
-            Some(generation_failure())
-        );
+        assert!(matches!(
+            chat_completion_stream.advance(
+                "test-request",
+                GenerationProgress::Failed(generation_failure())
+            ),
+            ChatCompletionStreamEmission::Failure(failure) if failure == generation_failure()
+        ));
+        assert!(matches!(
+            chat_completion_stream.conclude(
+                "test-request",
+                GenerationOutcome::Failed(generation_failure())
+            ),
+            ChatCompletionStreamEmission::Failure(failure) if failure == generation_failure()
+        ));
     }
 }

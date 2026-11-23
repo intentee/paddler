@@ -8,6 +8,7 @@ use seccompiler::SeccompCmpOp;
 use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
 
+use paddler_cli::cli_error::CliError;
 use paddler_cli::run;
 use paddler_cli_tests::refused_syscall::RefusedSyscall;
 use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
@@ -37,12 +38,14 @@ fn the_cli_reports_a_shutdown_signal_it_cannot_listen_for() {
 
     let cli_error = run().expect_err("a CLI that cannot listen for SIGTERM must not start");
 
-    assert_eq!(cli_error.to_string(), "failed to listen for SIGTERM");
-    assert_eq!(
-        cli_error
-            .root_cause()
-            .downcast_ref::<io::Error>()
-            .and_then(io::Error::raw_os_error),
-        Some(EPERM)
-    );
+    assert!(matches!(
+        &cli_error,
+        CliError::ShutdownSignalsUnregistrable(registration_failure)
+            if registration_failure.to_string() == "failed to listen for SIGTERM"
+                && registration_failure
+                    .root_cause()
+                    .downcast_ref::<io::Error>()
+                    .and_then(io::Error::raw_os_error)
+                    == Some(EPERM)
+    ));
 }

@@ -44,7 +44,7 @@ pub struct DecisionPipeline {
 impl DecisionPipeline {
     /// # Errors
     ///
-    /// Returns [`DecisionError::PointerHeadIncompatibleWithModel`] when the hidden size or a delimiter of the pointer head does not fit the model, [`DecisionError::DelimiterTokenizationFailed`] or [`DecisionError::DelimiterAttributesUnreadable`] when a delimiter cannot be resolved against the vocabulary, and [`DecisionError::AgentRuntime`] when the decision context cannot be created or warmed up.
+    /// Returns [`DecisionError::PointerHeadIncompatibleWithModel`] when the hidden size or a delimiter of the pointer head does not fit the model, [`DecisionError::DelimiterContainsNul`], [`DecisionError::DelimiterLengthUnrepresentable`], [`DecisionError::DelimiterTokenizationFailed`] or [`DecisionError::DelimiterAttributesUnreadable`] when a delimiter cannot be resolved against the vocabulary, and [`DecisionError::AgentRuntime`] when the decision context cannot be created or warmed up.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,

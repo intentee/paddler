@@ -14,7 +14,6 @@ use actix_web::web::Path;
 use actix_web::web::Payload;
 use actix_web::web::ServiceConfig;
 use actix_web::web::get;
-use anyhow::Result;
 use parking_lot::RwLock;
 use serde_json::Error as SerdeJsonError;
 use tokio::sync::mpsc::UnboundedSender;

@@ -13,6 +13,8 @@ mod agent_shuts_down_cleanly_while_its_balancer_is_unresponsive;
 mod an_agent_reconnects_when_the_balancer_stops_answering_pings;
 #[cfg(target_os = "linux")]
 mod an_http_service_reports_a_listener_it_cannot_make_nonblocking;
+#[cfg(target_os = "linux")]
+mod an_http_service_reports_a_server_it_cannot_start_serving;
 mod balancer_answers_gateway_timeout_when_a_paused_agent_never_answers;
 mod balancer_dispatches_requests_only_to_agents_that_serve;
 mod balancer_distributes_embedding_batch_across_agents;

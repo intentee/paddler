@@ -3,6 +3,7 @@ use std::fs;
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer::balancer_error::BalancerError;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
@@ -33,7 +34,10 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() {
     assert!(matches!(
         start_error,
         BootstrapError::StateDatabaseReadFailed {
-            source: StateDatabaseError::FileContentsInvalid { path, .. }
+            source: BalancerError::StateDatabase(StateDatabaseError::FileContentsInvalid {
+                path,
+                ..
+            })
         } if path == corrupt_state_database.path()
     ));
 }

@@ -9,6 +9,9 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+doctest = false
+
 [[bin]]
 name = "paddler"
 path = "src/main.rs"
@@ -20,14 +23,15 @@ path = "tests/main.rs"
 [dependencies]
 actix-web = { workspace = true }
 anyhow = { workspace = true }
-async-trait = { workspace = true }
 clap = { workspace = true }
 command_handler = { workspace = true }
 env_logger = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
+paddler_error_chain = { workspace = true }
 paddler_model_source = { workspace = true }
 paddler_state_database = { workspace = true }
+thiserror = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
 

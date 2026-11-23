@@ -8,6 +8,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
+use crate::decisions_serving::DecisionsServing;
 
 pub struct BalancerApplicableStateHolder {
     balancer_applicable_state_rx: watch::Receiver<Arc<BalancerApplicableState>>,
@@ -20,6 +21,21 @@ impl BalancerApplicableStateHolder {
     ) -> Self {
         Self {
             balancer_applicable_state_rx,
+        }
+    }
+
+    #[must_use]
+    pub fn decisions_serving(&self) -> DecisionsServing {
+        match self
+            .balancer_applicable_state_rx
+            .borrow()
+            .agent_desired_state
+            .decisions
+        {
+            AgentDecisionsSettings::NotServed => {
+                DecisionsServing::NotServed(ClusterServesNoDecisions)
+            }
+            AgentDecisionsSettings::Served(_) => DecisionsServing::Served,
         }
     }
 
@@ -44,21 +60,6 @@ impl BalancerApplicableStateHolder {
             .clone()
     }
 
-    /// # Errors
-    ///
-    /// Returns [`ClusterServesNoDecisions`] when the applicable desired state serves no decisions.
-    pub fn require_decisions(&self) -> Result<(), ClusterServesNoDecisions> {
-        match self
-            .balancer_applicable_state_rx
-            .borrow()
-            .agent_desired_state
-            .decisions
-        {
-            AgentDecisionsSettings::NotServed => Err(ClusterServesNoDecisions),
-            AgentDecisionsSettings::Served(_) => Ok(()),
-        }
-    }
-
     #[must_use]
     pub fn subscribe(&self) -> watch::Receiver<Arc<BalancerApplicableState>> {
         self.balancer_applicable_state_rx.clone()
@@ -78,6 +79,7 @@ mod tests {
     use super::BalancerApplicableStateHolder;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
+    use crate::decisions_serving::DecisionsServing;
 
     fn holder_of(pointer_head: AgentDesiredModel) -> BalancerApplicableStateHolder {
         let (_balancer_applicable_state_tx, balancer_applicable_state_rx) = watch::channel(
@@ -93,16 +95,16 @@ mod tests {
     #[test]
     fn grants_decisions_while_a_pointer_head_is_configured() {
         assert_eq!(
-            holder_of(AgentDesiredModel::Uri("pointer_head.gguf".to_owned())).require_decisions(),
-            Ok(())
+            holder_of(AgentDesiredModel::Uri("pointer_head.gguf".to_owned())).decisions_serving(),
+            DecisionsServing::Served
         );
     }
 
     #[test]
     fn refuses_decisions_while_no_pointer_head_is_configured() {
         assert_eq!(
-            holder_of(AgentDesiredModel::None).require_decisions(),
-            Err(ClusterServesNoDecisions)
+            holder_of(AgentDesiredModel::None).decisions_serving(),
+            DecisionsServing::NotServed(ClusterServesNoDecisions)
         );
     }
 }

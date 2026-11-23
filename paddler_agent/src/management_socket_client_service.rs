@@ -21,6 +21,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_frame_writer::frame_writing_end::FrameWritingEnd;
 use paddler_frame_writer::write_frames_until_connection_closes::write_frames_until_connection_closes;
 use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
@@ -32,6 +33,7 @@ use paddler_messaging::ping_turn::PingTurn;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
+use crate::agent_error::AgentError;
 use crate::balancer_message_context::BalancerMessageContext;
 use crate::last_announced_agent_status::LastAnnouncedAgentStatus;
 use crate::management_connection_end::ManagementConnectionEnd;
@@ -48,7 +50,7 @@ pub struct ManagementSocketClientService {
 impl ManagementSocketClientService {
     async fn connect_once_slots_are_idle(
         &self,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, AgentError> {
         self.balancer_message_context
             .slot_aggregated_status
             .wait_until_no_slots_are_processing()
@@ -56,15 +58,19 @@ impl ManagementSocketClientService {
 
         info!("Connecting to management server at {}", self.socket_url);
 
-        let (ws_stream, _response) =
-            connect_async_with_config(self.socket_url.clone(), None, true).await?;
+        let (ws_stream, _response) = connect_async_with_config(self.socket_url.clone(), None, true)
+            .await
+            .map_err(|source| AgentError::ManagementSocketUnreachable {
+                socket_url: self.socket_url.clone(),
+                source: Box::new(source),
+            })?;
 
         info!("Connected to management server");
 
         Ok(ws_stream)
     }
 
-    async fn keep_connection_alive(&self, shutdown: CancellationToken) -> Result<()> {
+    async fn keep_connection_alive(&self, shutdown: CancellationToken) -> Result<(), AgentError> {
         if let Some(connect_outcome) = shutdown
             .run_until_cancelled(self.connect_once_slots_are_idle())
             .await
@@ -194,18 +200,23 @@ impl ManagementSocketClientService {
     async fn reconnect_to_the_balancer_until_shutdown(
         self: Box<Self>,
         shutdown: CancellationToken,
-    ) -> Result<()> {
+    ) {
         let mut ticker = interval(BALANCER_RECONNECT_INTERVAL);
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
             select! {
-                () = shutdown.cancelled() => break Ok(()),
+                () = shutdown.cancelled() => break,
                 _ = ticker.tick() => {
                     match self.keep_connection_alive(shutdown.clone()).await {
-                        Err(err) => {
-                            error!("Failed to keep the connection alive: {err:?}");
+                        Err(connection_error) => {
+                            error!(
+                                "Failed to keep the connection alive: {}",
+                                ErrorChain {
+                                    error: &connection_error
+                                }
+                            );
                         }
                         Ok(()) => {
                             info!("Management server connection closed");
@@ -225,6 +236,8 @@ impl Service for ManagementSocketClientService {
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         self.reconnect_to_the_balancer_until_shutdown(shutdown)
-            .await
+            .await;
+
+        Ok(())
     }
 }

@@ -21,6 +21,7 @@ use paddler_agent_runtime::scheduler_request_preparer::SchedulerRequestPreparer;
 use paddler_agent_runtime::start_scheduler_thread::start_scheduler_thread;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
 use paddler_agent_status::agent_issue_fix::AgentIssueFix;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
@@ -90,7 +91,10 @@ impl TextGenerationPipeline {
             Err(preparation_error) => {
                 slot_aggregated_status.register_pipeline_issue(
                     AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-                        error: preparation_error.to_string(),
+                        error: ErrorChain {
+                            error: &preparation_error,
+                        }
+                        .to_string(),
                         model_path: model_issue_path,
                         template_content: chat_template.content,
                     }),

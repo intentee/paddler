@@ -14,6 +14,7 @@ use trzcina::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::balancer_error::BalancerError;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cors_allowed_hosts_with_web_admin_panel::cors_allowed_hosts_with_web_admin_panel;
 use crate::create_cors_middleware::create_cors_middleware;
@@ -38,7 +39,10 @@ pub struct InferenceService {
 }
 
 impl InferenceService {
-    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn serve_until_shutdown(
+        self: Box<Self>,
+        shutdown: CancellationToken,
+    ) -> Result<(), BalancerError> {
         let service_name = self.name();
         let cors_allowed_hosts_arc = cors_allowed_hosts_with_web_admin_panel(
             &self.configuration.cors_allowed_hosts,
@@ -81,6 +85,6 @@ impl Service for InferenceService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.serve_until_shutdown(shutdown).await
+        Ok(self.serve_until_shutdown(shutdown).await?)
     }
 }

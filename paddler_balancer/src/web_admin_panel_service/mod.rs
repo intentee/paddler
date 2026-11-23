@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
+use crate::balancer_error::BalancerError;
 use crate::http_listener::HttpListener;
 use crate::http_service_runner::HttpServiceRunner;
 use crate::web_admin_panel_service::app_data::AppData;
@@ -24,7 +25,10 @@ pub struct WebAdminPanelService {
 }
 
 impl WebAdminPanelService {
-    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn serve_until_shutdown(
+        self: Box<Self>,
+        shutdown: CancellationToken,
+    ) -> Result<(), BalancerError> {
         let service_name = self.name();
         let app_data: Data<AppData> = Data::new(AppData {
             template_data: self.template_data,
@@ -54,7 +58,7 @@ impl Service for WebAdminPanelService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.serve_until_shutdown(shutdown).await
+        Ok(self.serve_until_shutdown(shutdown).await?)
     }
 }
 

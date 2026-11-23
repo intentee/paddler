@@ -1,7 +1,7 @@
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
-use crate::desired_state_replacement_error::DesiredStateReplacementError;
+use crate::balancer_error::BalancerError;
 
 #[derive(Clone, Debug)]
 pub struct BalancerApplicableState {
@@ -26,17 +26,17 @@ impl BalancerApplicableState {
 
     /// # Errors
     ///
-    /// Returns [`DesiredStateReplacementError::VersionsExhausted`] when this state is at the last representable version, so no version can follow it.
+    /// Returns [`BalancerError::VersionsExhausted`] when this state is at the last representable version, so no version can follow it.
     pub fn superseded_by(
         &self,
         balancer_desired_state: BalancerDesiredState,
-    ) -> Result<Self, DesiredStateReplacementError> {
+    ) -> Result<Self, BalancerError> {
         self.version
             .checked_add(1)
             .map(|superseding_version| {
                 Self::at_version(balancer_desired_state, superseding_version)
             })
-            .ok_or(DesiredStateReplacementError::VersionsExhausted {
+            .ok_or(BalancerError::VersionsExhausted {
                 version: self.version,
             })
     }
@@ -47,14 +47,14 @@ mod tests {
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     use super::BalancerApplicableState;
-    use crate::desired_state_replacement_error::DesiredStateReplacementError;
+    use crate::balancer_error::BalancerError;
 
     #[test]
     fn a_state_at_the_last_representable_version_cannot_be_superseded() {
         assert!(matches!(
             BalancerApplicableState::at_version(BalancerDesiredState::default(), u64::MAX)
                 .superseded_by(BalancerDesiredState::default()),
-            Err(DesiredStateReplacementError::VersionsExhausted { version }) if version == u64::MAX
+            Err(BalancerError::VersionsExhausted { version }) if version == u64::MAX
         ));
     }
 }

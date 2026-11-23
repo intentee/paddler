@@ -10,9 +10,8 @@ use esbuild_metafile::esbuild_metafile::EsbuildMetafile;
 
 use crate::dashboard_assets::DashboardAssets;
 use crate::dashboard_assets_error::DashboardAssetsError;
+use crate::dashboard_assets_html_file_name;
 use crate::web_admin_panel_feature::WebAdminPanelFeature;
-
-const DASHBOARD_ASSETS_HTML_FILE_NAME: &str = "dashboard_assets.html";
 
 pub struct DashboardAssetsBuild {
     pub metafile_path: PathBuf,
@@ -53,18 +52,17 @@ impl DashboardAssetsBuild {
                 .as_ref()
                 .ok_or(DashboardAssetsError::OutDirMissing)?,
         )
-        .join(DASHBOARD_ASSETS_HTML_FILE_NAME);
+        .join(dashboard_assets_html_file_name!());
 
         write(&html_path, html).map_err(|source| DashboardAssetsError::HtmlUnwritable {
             path: html_path.clone(),
             source,
         })?;
 
-        write!(
+        writeln!(
             cargo_instructions,
-            "cargo::rerun-if-changed={}\ncargo::rustc-env=PADDLER_DASHBOARD_ASSETS_HTML={}\n",
-            self.metafile_path.display(),
-            html_path.display()
+            "cargo::rerun-if-changed={}",
+            self.metafile_path.display()
         )
         .map_err(DashboardAssetsError::CargoInstructionsUnwritable)
     }
@@ -89,6 +87,7 @@ mod tests {
     use super::DashboardAssetsBuild;
     use crate::dashboard_assets::DashboardAssets;
     use crate::dashboard_assets_error::DashboardAssetsError;
+    use crate::dashboard_assets_html_file_name;
     use crate::web_admin_panel_feature::WebAdminPanelFeature;
 
     const DASHBOARD_METAFILE: &str = include_str!("../fixtures/dashboard_metafile.json");
@@ -127,14 +126,19 @@ mod tests {
         .unwrap();
 
         assert_eq!(cargo_instructions, Vec::<u8>::new());
-        assert!(!out_dir.path().join("dashboard_assets.html").exists());
+        assert!(
+            !out_dir
+                .path()
+                .join(dashboard_assets_html_file_name!())
+                .exists()
+        );
     }
 
     #[test]
-    fn writes_the_dashboard_assets_and_points_cargo_at_them() {
+    fn writes_the_dashboard_assets_and_reruns_when_the_metafile_changes() {
         let out_dir = TempDir::new().unwrap();
         let mut cargo_instructions = Vec::new();
-        let html_path = out_dir.path().join("dashboard_assets.html");
+        let html_path = out_dir.path().join(dashboard_assets_html_file_name!());
 
         build_into(out_dir.path(), dashboard_metafile_path())
             .run(&mut cargo_instructions)
@@ -149,9 +153,8 @@ mod tests {
         assert_eq!(
             String::from_utf8(cargo_instructions).unwrap(),
             format!(
-                "cargo::rerun-if-changed={}\ncargo::rustc-env=PADDLER_DASHBOARD_ASSETS_HTML={}\n",
-                dashboard_metafile_path().display(),
-                html_path.display()
+                "cargo::rerun-if-changed={}\n",
+                dashboard_metafile_path().display()
             )
         );
     }
@@ -216,7 +219,7 @@ mod tests {
         assert!(matches!(
             build_into(&missing_out_dir, dashboard_metafile_path()).run(Vec::new()),
             Err(DashboardAssetsError::HtmlUnwritable { path, source })
-                if path == missing_out_dir.join("dashboard_assets.html")
+                if path == missing_out_dir.join(dashboard_assets_html_file_name!())
                     && source.kind() == ErrorKind::NotFound
         ));
     }

@@ -1,5 +1,6 @@
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
@@ -25,7 +26,12 @@ impl ToolCallEvent<'_> {
                 GeneratedTokenResult::ToolCallValidationFailed(
                     validation_errors
                         .into_iter()
-                        .map(|validation_error| validation_error.to_string())
+                        .map(|validation_error| {
+                            ErrorChain {
+                                error: &validation_error,
+                            }
+                            .to_string()
+                        })
                         .collect(),
                 )
             }

@@ -9,7 +9,6 @@ use actix_web::web::Payload;
 use actix_ws::AggregatedMessage;
 use actix_ws::ProtocolError;
 use actix_ws::handle;
-use anyhow::Result;
 use futures_util::StreamExt as _;
 use log::debug;
 use log::error;

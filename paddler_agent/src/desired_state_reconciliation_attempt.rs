@@ -97,9 +97,12 @@ impl DesiredStateReconciliationAttempt {
 mod tests {
     use std::fs::File;
     use std::fs::read_dir;
+    use std::io;
     use std::os::fd::AsRawFd as _;
     use std::sync::Arc;
 
+    use log::Level;
+    use nix::errno::Errno;
     use nix::sys::resource::Resource;
     use nix::sys::resource::getrlimit;
     use nix::sys::resource::setrlimit;
@@ -108,6 +111,8 @@ mod tests {
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_cache_dir::cache_dir::CacheDir;
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
     use paddler_download_manager::download_manager::DownloadManager;
     use paddler_local_http_fixture::fixture_response::FixtureResponse;
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
@@ -125,6 +130,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_reconciliation_that_cannot_create_its_runtime_stays_pending() {
+        CapturingLogger::install();
+
         let (soft_descriptor_limit, hard_descriptor_limit) =
             getrlimit(Resource::RLIMIT_NOFILE).unwrap();
         let lowest_free_descriptor = File::open("/dev/null").unwrap().as_raw_fd();
@@ -160,6 +167,17 @@ mod tests {
         assert_eq!(
             desired_state_reconciliation,
             DesiredStateReconciliation::Pending(Box::default())
+        );
+        assert!(
+            CapturingLogger::records_for("paddler_agent::desired_state_reconciliation_attempt")
+                .contains(&CapturedRecord {
+                    level: Level::Error,
+                    message: format!(
+                        "Unable to create the runtime that reconciles the desired state: {}",
+                        io::Error::from(Errno::EMFILE)
+                    ),
+                    target: "paddler_agent::desired_state_reconciliation_attempt".to_owned(),
+                })
         );
     }
 

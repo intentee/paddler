@@ -1,3 +1,4 @@
+use std::ops::ControlFlow;
 use std::time::Duration;
 
 use tokio::select;
@@ -82,8 +83,8 @@ where
                 awaiting_agent_relay,
                 settlement_guard,
             } => match awaiting_agent_relay.dispatch(settlement_guard).await {
-                Ok(dispatched_agent_relay) => dispatched_agent_relay,
-                Err(relay_failure) => {
+                ControlFlow::Continue(dispatched_agent_relay) => dispatched_agent_relay,
+                ControlFlow::Break(relay_failure) => {
                     return AgentRelayStep::Concluded(AgentRelayConclusion::Failed(relay_failure));
                 }
             },

@@ -10,6 +10,9 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [[test]]
 name = "integration"
 path = "tests/main.rs"
@@ -36,6 +39,10 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
+
+[dev-dependencies]
+log = { workspace = true }
+paddler_capturing_logger = { workspace = true }
 
 [lints]
 workspace = true

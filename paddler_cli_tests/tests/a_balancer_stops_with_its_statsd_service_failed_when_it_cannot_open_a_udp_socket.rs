@@ -14,6 +14,7 @@ use trzcina::ServiceShutdownError;
 use trzcina::ServiceShutdownOutcome;
 use trzcina::ServiceShutdownOutcomeWithServiceName;
 
+use paddler_balancer::balancer_error::BalancerError;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
@@ -78,7 +79,8 @@ async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_u
             ServiceShutdownError::new(vec![ServiceShutdownOutcomeWithServiceName {
                 name: "balancer::statsd_service",
                 outcome: ServiceShutdownOutcome::Errored(
-                    io::Error::from_raw_os_error(EPERM).into()
+                    BalancerError::StatsdSocketUnbindable(io::Error::from_raw_os_error(EPERM))
+                        .into()
                 ),
             }])
             .to_string()

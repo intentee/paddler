@@ -1,6 +1,13 @@
+#[cfg(feature = "web_admin_panel")]
+use paddler_dashboard_assets::dashboard_assets_html_file_name;
+
 pub const AGENT_ID_ROUTE_SEGMENT: &str = "{agent_id}";
 #[cfg(feature = "web_admin_panel")]
-pub const DASHBOARD_ASSETS_HTML: &str = include_str!(env!("PADDLER_DASHBOARD_ASSETS_HTML"));
+pub const DASHBOARD_ASSETS_HTML: &str = include_str!(concat!(
+    env!("OUT_DIR"),
+    "/",
+    dashboard_assets_html_file_name!()
+));
 pub const MAX_WEBSOCKET_MESSAGE_SIZE: usize = 50 * 1024 * 1024;
 pub const OPENAI_API_PATH_CHAT_COMPLETIONS: &str = "/v1/chat/completions";
 pub const OPENAI_API_PATH_RESPONSES: &str = "/v1/responses";

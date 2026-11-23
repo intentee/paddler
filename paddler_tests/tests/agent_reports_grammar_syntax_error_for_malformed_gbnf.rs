@@ -2,12 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::error::grammar_error::GrammarError;
-use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_runtime::rejection_description::rejection_description;
-use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -49,12 +45,8 @@ async fn agent_reports_grammar_syntax_error_for_malformed_gbnf() {
         assert_eq!(
             token_results,
             vec![GeneratedTokenResult::GrammarSyntaxError(
-                rejection_description(
-                    Some("test-agent-0"),
-                    &TextGenerationError::GrammarInvalid(GrammarError::GrammarRejected(
-                        GbnfValidationError::SyntaxError
-                    ))
-                )
+                "test-agent-0: invalid grammar: the grammar was rejected by the GBNF parser: grammar has a syntax error and could not be parsed"
+                    .to_owned()
             )]
         );
     }

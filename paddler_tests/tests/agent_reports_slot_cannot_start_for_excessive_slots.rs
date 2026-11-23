@@ -5,6 +5,7 @@ use std::mem::discriminant;
 use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
@@ -42,8 +43,12 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots() {
     .expect("a single-agent cluster must start");
 
     let expected_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
-        error: AgentRuntimeError::ContextCreationFailed(LlamaContextLoadError::Unconstructible)
-            .to_string(),
+        error: ErrorChain {
+            error: &AgentRuntimeError::ContextCreationFailed(
+                LlamaContextLoadError::Unconstructible,
+            ),
+        }
+        .to_string(),
         inference_capability: InferenceCapability::Embeddings,
         slot_index: 0,
     });

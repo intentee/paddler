@@ -1,3 +1,7 @@
+use log::Level;
+
+use paddler_capturing_logger::captured_record::CapturedRecord;
+use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
 use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
@@ -7,6 +11,8 @@ use paddler_tests::constants::ANSWERED_REQUEST_ID;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_keeps_a_management_connection_whose_balancer_reports_another_version() {
+    CapturingLogger::install();
+
     assert_eq!(
         agent_answer_after_a_notification(AgentJsonRpcNotification::Version(VersionParams {
             version: "0.0.0-another-version".to_owned(),
@@ -18,5 +24,16 @@ async fn agent_keeps_a_management_connection_whose_balancer_reports_another_vers
             request_id: ANSWERED_REQUEST_ID.to_owned(),
             response: AgentJsonRpcResponse::ModelMetadata(None),
         }
+    );
+
+    assert!(
+        CapturingLogger::records_for("paddler_agent::balancer_message_context").contains(&CapturedRecord {
+            level: Level::Warn,
+            message: format!(
+                "Version mismatch: server version is 0.0.0-another-version, client version is {}",
+                env!("CARGO_PKG_VERSION")
+            ),
+            target: "paddler_agent::balancer_message_context".to_owned(),
+        })
     );
 }

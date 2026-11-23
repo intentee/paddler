@@ -8,12 +8,11 @@ use tokio::sync::watch;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_spawn_resuming_panic::spawn_resuming_panic::spawn_resuming_panic;
 use paddler_state_database::state_database::StateDatabase;
-use paddler_state_database::state_database_error::StateDatabaseError;
 use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use crate::desired_state_replacement_error::DesiredStateReplacementError;
+use crate::balancer_error::BalancerError;
 
 pub struct BalancerDesiredStateStore {
     balancer_applicable_state_tx: watch::Sender<Arc<BalancerApplicableState>>,
@@ -24,8 +23,8 @@ pub struct BalancerDesiredStateStore {
 impl BalancerDesiredStateStore {
     /// # Errors
     ///
-    /// Returns the [`StateDatabaseError`] of the state database when it cannot read the stored balancer desired state.
-    pub async fn load(state_database: Arc<StateDatabase>) -> Result<Self, StateDatabaseError> {
+    /// Returns [`BalancerError::StateDatabase`] when the state database cannot read the stored balancer desired state.
+    pub async fn load(state_database: Arc<StateDatabase>) -> Result<Self, BalancerError> {
         let balancer_desired_state = match state_database.read_balancer_desired_state().await? {
             StoredBalancerDesiredState::NothingStored => BalancerDesiredState::default(),
             StoredBalancerDesiredState::Stored(stored_desired_state) => *stored_desired_state,
@@ -48,11 +47,11 @@ impl BalancerDesiredStateStore {
 
     /// # Errors
     ///
-    /// Returns [`DesiredStateReplacementError::VersionsExhausted`] when the applicable state is at the last representable version, and [`DesiredStateReplacementError::StateDatabase`] when the state database cannot store the replacing balancer desired state.
+    /// Returns [`BalancerError::VersionsExhausted`] when the applicable state is at the last representable version, and [`BalancerError::StateDatabase`] when the state database cannot store the replacing balancer desired state.
     pub async fn replace(
         &self,
         balancer_desired_state: BalancerDesiredState,
-    ) -> Result<(), DesiredStateReplacementError> {
+    ) -> Result<(), BalancerError> {
         let replacement_guard = self.replacement_lock.clone().lock_owned().await;
         let balancer_applicable_state_tx = self.balancer_applicable_state_tx.clone();
         let state_database = self.state_database.clone();

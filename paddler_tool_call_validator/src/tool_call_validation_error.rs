@@ -17,7 +17,7 @@ pub enum ToolCallValidationError {
         raw_arguments: String,
         parse_failure: InvalidArgumentsJson,
     },
-    #[error("tool {tool_name:?} parameters are not a valid JSON Schema: {source}")]
+    #[error("tool {tool_name:?} parameters are not a valid JSON Schema")]
     InvalidSchema {
         tool_name: String,
         #[source]

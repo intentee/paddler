@@ -7,7 +7,6 @@ use serde_json::from_value;
 
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::DecideParams;
-use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
 
 use crate::render_json_content::render_json_content;
 use crate::system_one_answer_layout::SystemOneAnswerLayout;
@@ -118,7 +117,7 @@ pub struct SystemOneRequest {
 impl SystemOneRequest {
     /// # Errors
     ///
-    /// Returns [`TypeSafeTranslationError::QuestionMalformed`] when a question is not a valid choice, noul or score question, [`TypeSafeTranslationError::ChoiceCriteriaOutOfRange`] or [`TypeSafeTranslationError::ScoreCriteriaOutOfRange`] when a choice or score question has no criteria or more than 255 of them, and [`TypeSafeTranslationError::DecisionInvalid`] when the request has no questions.
+    /// Returns [`TypeSafeTranslationError::QuestionMalformed`] when a question is not a valid choice, noul or score question, [`TypeSafeTranslationError::ChoiceCriteriaOutOfRange`] or [`TypeSafeTranslationError::ScoreCriteriaOutOfRange`] when a choice or score question has no criteria or more than 255 of them, and [`TypeSafeTranslationError::DecisionWithoutQuestions`] when the request has no questions.
     pub fn translate(self) -> Result<TranslatedSystemOneRequest, TypeSafeTranslationError> {
         let mut answer_layouts = Vec::with_capacity(self.questions.len());
         let mut questions = Vec::with_capacity(self.questions.len());
@@ -140,12 +139,9 @@ impl SystemOneRequest {
         }
 
         let mut leading_questions = questions;
-        let last_question =
-            leading_questions
-                .pop()
-                .ok_or(TypeSafeTranslationError::DecisionInvalid {
-                    source: RequestParamsValidationError::DecisionWithoutQuestions,
-                })?;
+        let last_question = leading_questions
+            .pop()
+            .ok_or(TypeSafeTranslationError::DecisionWithoutQuestions)?;
         let decide_params = DecideParams {
             last_question,
             leading_questions,

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use log::Level;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service as _;
@@ -9,6 +10,8 @@ use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
 use paddler_agent::reconciliation_service::ReconciliationService;
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_cache_dir::cache_dir::CacheDir;
+use paddler_capturing_logger::captured_record::CapturedRecord;
+use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
@@ -18,6 +21,8 @@ use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
 #[tokio::test]
 async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes() {
+    CapturingLogger::install();
+
     let (agent_desired_state_tx, agent_desired_state_rx) =
         watch::channel(AgentDesiredState::default());
 
@@ -47,4 +52,15 @@ async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes(
     .run(CancellationToken::new())
     .await
     .expect("the reconciliation service must stop cleanly once nothing can send it desired states");
+
+    assert!(
+        CapturingLogger::records_for("paddler_agent::reconciliation_service").contains(
+            &CapturedRecord {
+                level: Level::Error,
+                message: "Agent desired state channel closed, stopping reconciliation service."
+                    .to_owned(),
+                target: "paddler_agent::reconciliation_service".to_owned(),
+            }
+        )
+    );
 }

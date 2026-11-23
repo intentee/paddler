@@ -2,10 +2,7 @@ use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use anyhow::Result;
-use async_trait::async_trait;
 use clap::Parser;
-use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
 
 use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
@@ -29,6 +26,7 @@ use paddler_state_database::state_database_type::StateDatabaseType;
 use super::run_announced_service_manager::run_announced_service_manager;
 use super::value_parser::parse_duration::parse_duration;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
+use crate::cli_error::CliError;
 
 #[derive(Parser)]
 pub struct Balancer {
@@ -171,16 +169,9 @@ impl Balancer {
         }
     }
 
-    async fn run_balancer(self, shutdown: CancellationToken) -> Result<()> {
+    pub async fn run(self, shutdown: CancellationToken) -> Result<(), CliError> {
         let bundle = BalancerServiceBundle::new(self.bootstrap_config()).await?;
 
         run_announced_service_manager(bundle.addresses, bundle, shutdown).await
-    }
-}
-
-#[async_trait(?Send)]
-impl Handler for Balancer {
-    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
-        self.run_balancer(shutdown).await
     }
 }

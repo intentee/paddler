@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 base64 = { workspace = true }
 image = { workspace = true }
@@ -16,6 +19,9 @@ num-traits = { workspace = true }
 paddler_messaging = { workspace = true }
 resvg = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+paddler_capturing_logger = { workspace = true }
 
 [lints]
 workspace = true

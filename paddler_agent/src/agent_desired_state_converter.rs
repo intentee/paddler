@@ -15,10 +15,10 @@ use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_messaging::served_decision_settings::ServedDecisionSettings;
 use paddler_model_source::desired_model_resolution::DesiredModelResolution;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-use paddler_model_source::model_source_error::ModelSourceError;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_desired_state_conversion::AgentDesiredStateConversion;
+use crate::agent_error::AgentError;
 use crate::applicable_decisions::ApplicableDecisions;
 use crate::desired_model_file::DesiredModelFile;
 use crate::inference_capabilities::InferenceCapabilities;
@@ -33,7 +33,7 @@ pub struct AgentDesiredStateConverter {
 impl AgentDesiredStateConverter {
     /// # Errors
     ///
-    /// Returns [`ModelSourceError::LocalFileMissing`] when the local file of the model, its multimodal projection or its pointer head does not exist, and any other [`ModelSourceError`] of [`DesiredModelResolver::resolve_uri`] when one of their URIs cannot be resolved to a file.
+    /// Returns [`AgentError::LocalFileMissing`] when the local file of the model, its multimodal projection or its pointer head does not exist, and [`AgentError::DesiredModelFileUnresolvable`] when one of their URIs cannot be resolved to a file.
     pub async fn convert(
         &self,
         AgentDesiredState {
@@ -52,7 +52,7 @@ impl AgentDesiredStateConverter {
                     sampling_parameters,
                 },
         }: &AgentDesiredState,
-    ) -> Result<AgentDesiredStateConversion, ModelSourceError> {
+    ) -> Result<AgentDesiredStateConversion, AgentError> {
         let ControlFlow::Continue(model_path) = self
             .resolve_model_file(model, DesiredModelFile::Model)
             .await?
@@ -101,7 +101,7 @@ impl AgentDesiredStateConverter {
     async fn resolve_decisions(
         &self,
         decisions: &AgentDecisionsSettings,
-    ) -> Result<ControlFlow<(), ApplicableDecisions>, ModelSourceError> {
+    ) -> Result<ControlFlow<(), ApplicableDecisions>, AgentError> {
         match decisions {
             AgentDecisionsSettings::NotServed => {
                 Ok(ControlFlow::Continue(ApplicableDecisions::Disabled))
@@ -124,7 +124,7 @@ impl AgentDesiredStateConverter {
         &self,
         desired_model: &AgentDesiredModel,
         desired_model_file: DesiredModelFile,
-    ) -> Result<ControlFlow<(), Option<PathBuf>>, ModelSourceError> {
+    ) -> Result<ControlFlow<(), Option<PathBuf>>, AgentError> {
         match desired_model {
             AgentDesiredModel::None => Ok(ControlFlow::Continue(None)),
             AgentDesiredModel::Uri(uri) => Ok(
@@ -140,7 +140,7 @@ impl AgentDesiredStateConverter {
         &self,
         uri: &str,
         desired_model_file: DesiredModelFile,
-    ) -> Result<ControlFlow<(), PathBuf>, ModelSourceError> {
+    ) -> Result<ControlFlow<(), PathBuf>, AgentError> {
         match self
             .desired_model_resolver
             .resolve_uri(
@@ -159,7 +159,7 @@ impl AgentDesiredStateConverter {
             DesiredModelResolution::LocalFileMissing(path) => {
                 desired_model_file.report_missing(&path, &self.slot_aggregated_status);
 
-                Err(ModelSourceError::LocalFileMissing { path })
+                Err(AgentError::LocalFileMissing { path })
             }
         }
     }
@@ -198,11 +198,11 @@ mod tests {
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_model_source::model_source::ModelSource;
-    use paddler_model_source::model_source_error::ModelSourceError;
 
     use crate::agent_applicable_state::AgentApplicableState;
     use crate::agent_desired_state_conversion::AgentDesiredStateConversion;
     use crate::agent_desired_state_converter::AgentDesiredStateConverter;
+    use crate::agent_error::AgentError;
     use crate::applicable_decisions::ApplicableDecisions;
     use crate::inference_capabilities::InferenceCapabilities;
     use crate::model_serving_settings::ModelServingSettings;
@@ -342,7 +342,7 @@ mod tests {
         let outcome = converter.convert(&desired).await;
 
         assert!(
-            matches!(&outcome, Err(ModelSourceError::LocalFileMissing { path }) if *path == missing_path),
+            matches!(&outcome, Err(AgentError::LocalFileMissing { path }) if *path == missing_path),
             "AgentDesiredStateConverter must Err when the model's local path is missing"
         );
         assert!(
@@ -437,7 +437,7 @@ mod tests {
         let outcome = converter.convert(&desired).await;
 
         assert!(
-            matches!(&outcome, Err(ModelSourceError::LocalFileMissing { path }) if *path == missing_path),
+            matches!(&outcome, Err(AgentError::LocalFileMissing { path }) if *path == missing_path),
             "AgentDesiredStateConverter must Err when the projection's local path is missing"
         );
         assert!(
@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(
             outcome.err().as_ref().map(ToString::to_string),
             Some(
-                ModelSourceError::LocalFileMissing {
+                AgentError::LocalFileMissing {
                     path: missing_path.clone(),
                 }
                 .to_string()

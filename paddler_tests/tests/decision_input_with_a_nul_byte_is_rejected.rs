@@ -2,11 +2,8 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_decision::decision_error::DecisionError;
-use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
@@ -84,9 +81,8 @@ async fn decision_input_with_a_nul_byte_is_rejected() {
         assert_eq!(collected.answers, Vec::<DecisionAnswer>::new());
         assert_eq!(
             collected.terminal_result,
-            DecisionResult::InputTokenizationFailed(rejection_description(
-                Some("test-agent-0"),
-                &DecisionError::InputTokenizationFailed(StringToTokenError::NulError(nul_error))
+            DecisionResult::InputTokenizationFailed(format!(
+                "test-agent-0: failed to tokenize the decision input: {nul_error}"
             ))
         );
     }

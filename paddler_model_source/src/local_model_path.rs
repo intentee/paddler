@@ -39,7 +39,7 @@ impl ResolvesModelSource for LocalModelPath {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use std::fs::metadata;
     use std::sync::Arc;

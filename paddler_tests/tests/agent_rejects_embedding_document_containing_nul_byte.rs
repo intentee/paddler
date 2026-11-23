@@ -1,12 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::ffi::CString;
-
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_embeddings::embedding_error::EmbeddingError;
-use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
@@ -42,20 +37,12 @@ async fn agent_rejects_embedding_document_containing_nul_byte() {
         .await
         .expect("the embedding batch must be accepted");
 
-    let nul_error = CString::new(DOCUMENT_CONTENT_WITH_NUL_BYTE)
-        .expect_err("the document content must contain a nul byte");
-
     assert!(collected.embeddings.is_empty());
     assert_eq!(
         collected.failures,
         vec![EmbeddingResult::InputTokenizationFailed(
-            rejection_description(
-                Some("test-agent"),
-                &EmbeddingError::InputTokenizationFailed {
-                    source_document_id: DOCUMENT_ID.to_owned(),
-                    source: StringToTokenError::NulError(nul_error),
-                }
-            )
+            "test-agent: failed to tokenize embedding input \"nul-document\": nul byte found in provided data at position: 6"
+                .to_owned()
         )]
     );
 
