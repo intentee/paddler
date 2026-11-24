@@ -62,8 +62,15 @@ async fn agent_returns_rms_normalized_embeddings_when_requested() {
             .collect::<Vec<_>>(),
         vec![Embedding {
             vector: EmbeddingVector::from(
-                normalize_embedding(unnormalized_embedding.vector.to_vec(), &RMS_NORMALIZATION)
-                    .expect("an embedding of the served model must fit RMS normalization")
+                normalize_embedding(
+                    unnormalized_embedding
+                        .vector
+                        .values()
+                        .expect("an embedding must hold numbers")
+                        .to_vec(),
+                    &RMS_NORMALIZATION
+                )
+                .expect("an embedding of the served model must fit RMS normalization")
             ),
             normalization_method: RMS_NORMALIZATION,
             ..unnormalized_embedding

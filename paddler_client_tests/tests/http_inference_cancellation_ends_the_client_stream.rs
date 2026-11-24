@@ -3,9 +3,9 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_client_tests::raw_prompt_about_the_capital_of_france::raw_prompt_about_the_capital_of_france;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_inference_cancellation_ends_the_client_stream() {
@@ -19,11 +19,9 @@ async fn http_inference_cancellation_ends_the_client_stream() {
         .client_inference
         .post_continue_from_raw_prompt(
             cancellation_token.clone(),
-            &ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: NonZeroU32::new(16).unwrap(),
-                raw_prompt: "The capital of France is".to_owned(),
-            },
+            &raw_prompt_about_the_capital_of_france(
+                NonZeroU32::new(16).expect("sixteen tokens must be a positive count"),
+            ),
         )
         .await
         .expect("the inference request must be accepted");

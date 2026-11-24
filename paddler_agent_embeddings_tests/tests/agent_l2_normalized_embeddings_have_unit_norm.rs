@@ -52,6 +52,8 @@ async fn agent_l2_normalized_embeddings_have_unit_norm() {
     let l2_norm: f32 = produced
         .embedding
         .vector
+        .values()
+        .expect("an embedding must hold numbers")
         .iter()
         .map(|value| value * value)
         .sum::<f32>()

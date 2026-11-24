@@ -61,10 +61,20 @@ async fn agent_embeds_every_document_of_a_batch_larger_than_its_slot_count() {
         .expect("the batch must produce an embedding")
         .embedding
         .vector
+        .values()
+        .expect("an embedding must hold numbers")
         .len();
 
     for produced in &collected.embeddings {
-        assert_eq!(produced.embedding.vector.len(), first_dimension);
+        assert_eq!(
+            produced
+                .embedding
+                .vector
+                .values()
+                .expect("an embedding must hold numbers")
+                .len(),
+            first_dimension
+        );
     }
 
     cluster

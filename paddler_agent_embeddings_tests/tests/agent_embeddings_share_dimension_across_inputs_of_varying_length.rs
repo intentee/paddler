@@ -51,6 +51,8 @@ async fn agent_embeddings_share_dimension_across_inputs_of_varying_length() {
         .expect("the batch must produce an embedding")
         .embedding
         .vector
+        .values()
+        .expect("an embedding must hold numbers")
         .len();
 
     assert!(first_dimension > 0, "embedding dimension must be positive");
@@ -59,7 +61,14 @@ async fn agent_embeddings_share_dimension_across_inputs_of_varying_length() {
         collected
             .embeddings
             .iter()
-            .map(|produced| produced.embedding.vector.len())
+            .map(|produced| {
+                produced
+                    .embedding
+                    .vector
+                    .values()
+                    .expect("an embedding must hold numbers")
+                    .len()
+            })
             .collect::<Vec<_>>(),
         vec![first_dimension; collected.embeddings.len()],
         "all embeddings must share dimension"

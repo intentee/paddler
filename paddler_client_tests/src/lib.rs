@@ -1,1 +1,1 @@
-
+pub mod raw_prompt_about_the_capital_of_france;

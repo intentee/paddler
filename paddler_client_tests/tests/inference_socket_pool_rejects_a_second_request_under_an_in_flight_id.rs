@@ -9,7 +9,7 @@ use paddler_messaging::inference_server::message::Message as InferenceServerMess
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_client_tests::raw_prompt_about_the_capital_of_france::raw_prompt_about_the_capital_of_france;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::cluster::Cluster;
 
@@ -18,11 +18,9 @@ const IN_FLIGHT_REQUEST_ID: &str = "in-flight-request-id";
 fn raw_prompt_message() -> InferenceServerMessage<ValidatedParametersSchema> {
     InferenceServerMessage::Request(RequestEnvelope {
         id: IN_FLIGHT_REQUEST_ID.to_owned(),
-        request: InferenceServerRequest::ContinueFromRawPrompt(ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: NonZeroU32::MIN,
-            raw_prompt: "The capital of France is".to_owned(),
-        }),
+        request: InferenceServerRequest::ContinueFromRawPrompt(
+            raw_prompt_about_the_capital_of_france(NonZeroU32::MIN),
+        ),
     })
 }
 
