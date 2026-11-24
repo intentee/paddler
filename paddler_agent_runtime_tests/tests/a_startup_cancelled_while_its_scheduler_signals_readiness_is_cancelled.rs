@@ -1,3 +1,5 @@
+#![cfg(feature = "tests_that_use_llms")]
+
 use std::future::Future as _;
 use std::future::poll_fn;
 use std::mem::discriminant;
@@ -9,18 +11,22 @@ use std::thread::spawn;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_runtime::await_scheduler_startup::await_scheduler_startup;
 use paddler_agent_runtime::scheduler_ready::SchedulerReady;
 use paddler_agent_runtime::send_startup_signal::send_startup_signal;
 use paddler_agent_runtime::startup_signal_delivery::StartupSignalDelivery;
-use paddler_agent_runtime_tests::number_request_preparer::NumberRequestPreparer;
+use paddler_agent_runtime_tests::embedding_request_preparer_under_test::EmbeddingRequestPreparerUnderTest;
 use paddler_agent_runtime_tests::reports_ready_request_preparer::ReportsReadyRequestPreparer as _;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn a_startup_cancelled_while_its_scheduler_signals_readiness_is_cancelled() {
-    let NumberRequestPreparer {
-        request_preparer, ..
-    } = NumberRequestPreparer::default();
+    let EmbeddingRequestPreparerUnderTest {
+        llama_runtime: _llama_runtime,
+        request_preparer,
+        ..
+    } = EmbeddingRequestPreparerUnderTest::load()
+        .expect("the embedding request preparer must load its model");
     let (scheduler_startup_tx, scheduler_startup_rx) = unbounded_channel();
     let (readiness_requested_tx, readiness_requested_rx) = channel();
     let (readiness_signalled_tx, readiness_signalled_rx) = channel();
@@ -31,7 +37,7 @@ async fn a_startup_cancelled_while_its_scheduler_signals_readiness_is_cancelled(
         readiness_signalled_tx
             .send(send_startup_signal(
                 &scheduler_startup_tx,
-                Ok::<_, String>(SchedulerReady { request_preparer }),
+                Ok::<_, EmbeddingError>(SchedulerReady { request_preparer }),
             ))
             .expect("the test must wait for the readiness signal");
     });

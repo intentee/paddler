@@ -5,8 +5,7 @@ use std::num::NonZeroU16;
 use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
-use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
-use paddler_agent_embeddings_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
+use paddler_agent_embeddings_tests::admitted_embedding_requests::AdmittedEmbeddingRequests;
 use paddler_agent_embeddings_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 use paddler_inference_parameters::pooling_type::PoolingType;
 
@@ -41,7 +40,7 @@ fn an_embedding_batch_evaluates_every_document_token_exactly_once() {
         .iter()
         .map(|EmbeddingInputTokenized { tokens, .. }| tokens.len())
         .sum();
-    let ActiveEmbeddingRequestFixture {
+    let AdmittedEmbeddingRequests {
         mut admitted_requests,
         generate_embedding_stop_tx: _generate_embedding_stop_tx,
         generated_embedding_rx: _generated_embedding_rx,
@@ -53,11 +52,8 @@ fn an_embedding_batch_evaluates_every_document_token_exactly_once() {
     let tokens_evaluated_before_the_documents = llama_context.evaluated_tokens();
 
     while !admitted_requests.is_empty() {
-        admitted_requests = nomic_embedding_batch_processing.embed_next_batch_in(
-            &mut llama_context,
-            EmbeddingNormalization,
-            admitted_requests,
-        );
+        admitted_requests = nomic_embedding_batch_processing
+            .embed_next_batch_in(&mut llama_context, admitted_requests);
     }
 
     assert_eq!(

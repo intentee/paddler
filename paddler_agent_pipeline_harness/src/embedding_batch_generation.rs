@@ -6,20 +6,21 @@ use tokio::sync::mpsc;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_agent_status::slot_guard::SlotGuard;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_request_params_fixture::numbered_embedding_documents::numbered_embedding_documents;
 
-pub struct EmbeddingDocumentsFixture {
+pub struct EmbeddingBatchGeneration {
     pub agent_request: AgentRequest<GenerateEmbeddingBatchParams, EmbeddingResult>,
     pub generate_embedding_stop_tx: mpsc::UnboundedSender<()>,
     pub generated_embedding_rx: mpsc::UnboundedReceiver<EmbeddingResult>,
 }
 
-impl EmbeddingDocumentsFixture {
-    pub fn embedded_one_at_a_time(
-        document_count: usize,
+impl EmbeddingBatchGeneration {
+    #[must_use]
+    pub fn new(
+        input_batch: Vec<EmbeddingInputDocument>,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Self {
         let (generated_embedding_tx, generated_embedding_rx) = mpsc::unbounded_channel();
@@ -28,7 +29,7 @@ impl EmbeddingDocumentsFixture {
         Self {
             agent_request: AgentRequest {
                 params: GenerateEmbeddingBatchParams {
-                    input_batch: numbered_embedding_documents(document_count),
+                    input_batch,
                     normalization_method: EmbeddingNormalizationMethod::None,
                 },
                 response_tx: generated_embedding_tx,

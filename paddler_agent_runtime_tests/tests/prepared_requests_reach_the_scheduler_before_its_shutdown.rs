@@ -1,28 +1,34 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use paddler_agent_embeddings::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
+use paddler_agent_pipeline_harness::embedding_batch_generation::EmbeddingBatchGeneration;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
-use paddler_agent_runtime_tests::drained_scheduler_messages::drained_scheduler_messages;
-use paddler_agent_runtime_tests::number_command::NumberCommand;
-use paddler_agent_runtime_tests::number_request_preparer::NumberRequestPreparer;
+use paddler_agent_runtime_tests::embedding_request_preparer_under_test::EmbeddingRequestPreparerUnderTest;
+use paddler_request_params_fixture::numbered_embedding_documents::numbered_embedding_documents;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prepared_requests_reach_the_scheduler_before_its_shutdown() {
-    let NumberRequestPreparer {
-        request_preparer,
-        scheduler_message_rx,
-        ..
-    } = NumberRequestPreparer::default();
+    let embedding_request_preparer = EmbeddingRequestPreparerUnderTest::load()
+        .expect("the embedding request preparer must load its model");
+    let EmbeddingBatchGeneration {
+        agent_request,
+        generate_embedding_stop_tx: _generate_embedding_stop_tx,
+        generated_embedding_rx: _generated_embedding_rx,
+    } = embedding_request_preparer.embedding_batch(numbered_embedding_documents(1));
 
-    request_preparer.prepare(2);
-    request_preparer
+    embedding_request_preparer
+        .request_preparer
+        .prepare(agent_request);
+    embedding_request_preparer
+        .request_preparer
         .stop_scheduler_after_pending_preparations()
         .await;
 
-    let received: Vec<Option<u32>> = drained_scheduler_messages(scheduler_message_rx)
-        .into_iter()
-        .map(|scheduler_message| match scheduler_message {
-            SchedulerMessage::Command(NumberCommand { value, .. }) => Some(value),
-            SchedulerMessage::Shutdown => None,
-        })
-        .collect();
-
-    assert_eq!(received, vec![Some(2), None]);
+    assert!(matches!(
+        embedding_request_preparer.drained_scheduler_messages().as_slice(),
+        [
+            SchedulerMessage::Command(PreparedEmbeddingBatchRequest { inputs, .. }),
+            SchedulerMessage::Shutdown,
+        ] if inputs.len() == 1
+    ));
 }

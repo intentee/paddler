@@ -10,14 +10,13 @@ use paddler_agent_embeddings::embedding_batch_processor::EmbeddingBatchProcessor
 use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
 use paddler_agent_embeddings::embedding_scheduler_context::EmbeddingSchedulerContext;
-use paddler_agent_embeddings::normalizes_embedding::NormalizesEmbedding;
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::resident_llama_context::ResidentLlamaContext;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
-use crate::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
+use crate::admitted_embedding_requests::AdmittedEmbeddingRequests;
 
 pub struct NomicEmbeddingBatchProcessing {
     pub llama_runtime: LlamaRuntime,
@@ -48,8 +47,8 @@ impl NomicEmbeddingBatchProcessing {
     }
 
     #[must_use]
-    pub fn admit(&self, inputs: Vec<EmbeddingInputTokenized>) -> ActiveEmbeddingRequestFixture {
-        ActiveEmbeddingRequestFixture::new(
+    pub fn admit(&self, inputs: Vec<EmbeddingInputTokenized>) -> AdmittedEmbeddingRequests {
+        AdmittedEmbeddingRequests::new(
             inputs,
             self.llama_runtime
                 .inference_runtime_context
@@ -62,20 +61,17 @@ impl NomicEmbeddingBatchProcessing {
     /// # Errors
     ///
     /// Returns the [`EmbeddingError`] of [`Self::embedding_llama_context`] when the embedding context cannot be created.
-    pub fn embed_next_batch<TNormalization: NormalizesEmbedding>(
+    pub fn embed_next_batch(
         &self,
-        normalization: TNormalization,
         active_requests: Vec<ActiveEmbeddingRequest>,
     ) -> Result<Vec<ActiveEmbeddingRequest>, EmbeddingError> {
-        self.embedding_llama_context().map(|mut llama_context| {
-            self.embed_next_batch_in(&mut llama_context, normalization, active_requests)
-        })
+        self.embedding_llama_context()
+            .map(|mut llama_context| self.embed_next_batch_in(&mut llama_context, active_requests))
     }
 
-    pub fn embed_next_batch_in<TNormalization: NormalizesEmbedding>(
+    pub fn embed_next_batch_in(
         &self,
         llama_context: &mut LlamaContext<'_>,
-        normalization: TNormalization,
         active_requests: Vec<ActiveEmbeddingRequest>,
     ) -> Vec<ActiveEmbeddingRequest> {
         let mut batch = LlamaBatch::new(llama_context.limits());
@@ -83,7 +79,6 @@ impl NomicEmbeddingBatchProcessing {
         EmbeddingBatchProcessor {
             batch: &mut batch,
             llama_context,
-            normalization,
             scheduler_context: &EmbeddingSchedulerContext {
                 agent_name: None,
                 pooling_type: self.pooling_type.clone(),

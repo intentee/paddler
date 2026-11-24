@@ -2,10 +2,11 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_embeddings_tests::embedding_documents_fixture::EmbeddingDocumentsFixture;
+use paddler_agent_pipeline_harness::embedding_batch_generation::EmbeddingBatchGeneration;
 use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_messaging::embedding_result::EmbeddingResult;
+use paddler_request_params_fixture::numbered_embedding_documents::numbered_embedding_documents;
 
 const DOCUMENT_COUNT: usize = 64;
 
@@ -19,12 +20,12 @@ async fn an_embedding_request_accepted_before_its_scheduler_stops_is_finished() 
         .await
         .expect("the model must load")
         .expect("text generation and embeddings must start");
-    let EmbeddingDocumentsFixture {
+    let EmbeddingBatchGeneration {
         agent_request,
         generate_embedding_stop_tx: _generate_embedding_stop_tx,
         generated_embedding_rx,
-    } = EmbeddingDocumentsFixture::embedded_one_at_a_time(
-        DOCUMENT_COUNT,
+    } = EmbeddingBatchGeneration::new(
+        numbered_embedding_documents(DOCUMENT_COUNT),
         llama_runtime
             .inference_runtime_context
             .slot_aggregated_status
@@ -37,8 +38,7 @@ async fn an_embedding_request_accepted_before_its_scheduler_stops_is_finished() 
         .forward(None, agent_request);
     served_model.shut_down().await;
 
-    let embedding_results =
-        EmbeddingDocumentsFixture::collect_results(generated_embedding_rx).await;
+    let embedding_results = EmbeddingBatchGeneration::collect_results(generated_embedding_rx).await;
 
     assert_eq!(embedding_results.len(), DOCUMENT_COUNT + 1);
     assert_eq!(embedding_results.last(), Some(&EmbeddingResult::Done));

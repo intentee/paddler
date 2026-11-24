@@ -11,13 +11,13 @@ use paddler_agent_status::slot_guard::SlotGuard;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 
-pub struct ActiveEmbeddingRequestFixture {
+pub struct AdmittedEmbeddingRequests {
     pub admitted_requests: Vec<ActiveEmbeddingRequest>,
     pub generate_embedding_stop_tx: mpsc::UnboundedSender<()>,
     pub generated_embedding_rx: mpsc::UnboundedReceiver<EmbeddingResult>,
 }
 
-impl ActiveEmbeddingRequestFixture {
+impl AdmittedEmbeddingRequests {
     #[must_use]
     pub fn new(
         inputs: Vec<EmbeddingInputTokenized>,

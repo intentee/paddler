@@ -13,25 +13,19 @@ use crate::active_embedding_request::ActiveEmbeddingRequest;
 use crate::batched_embedding_input::BatchedEmbeddingInput;
 use crate::embedding_error::EmbeddingError;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
-use crate::embedding_normalization::EmbeddingNormalization;
 use crate::embedding_request_continuation::EmbeddingRequestContinuation;
 use crate::embedding_request_step::EmbeddingRequestStep;
 use crate::embedding_scheduler_context::EmbeddingSchedulerContext;
 use crate::next_embedding_batch::next_embedding_batch;
-use crate::normalizes_embedding::NormalizesEmbedding;
+use crate::normalization::normalize_embedding::normalize_embedding;
 
-pub struct EmbeddingBatchProcessor<
-    'scheduler,
-    'model,
-    TNormalization: NormalizesEmbedding = EmbeddingNormalization,
-> {
+pub struct EmbeddingBatchProcessor<'scheduler, 'model> {
     pub batch: &'scheduler mut LlamaBatch,
     pub llama_context: &'scheduler mut LlamaContext<'model>,
-    pub normalization: TNormalization,
     pub scheduler_context: &'scheduler EmbeddingSchedulerContext,
 }
 
-impl<TNormalization: NormalizesEmbedding> EmbeddingBatchProcessor<'_, '_, TNormalization> {
+impl EmbeddingBatchProcessor<'_, '_> {
     #[must_use]
     pub fn embed_next_batch(
         &mut self,
@@ -177,19 +171,15 @@ impl<TNormalization: NormalizesEmbedding> EmbeddingBatchProcessor<'_, '_, TNorma
         sequence_id: i32,
         normalization_method: &EmbeddingNormalizationMethod,
     ) -> Result<Embedding, EmbeddingError> {
-        let embedding = self
-            .llama_context
+        self.llama_context
             .embeddings_seq_ith(sequence_id)
-            .map_err(EmbeddingError::EmbeddingsUnavailable)?;
-
-        Ok(Embedding {
-            vector: EmbeddingVector::from(
-                self.normalization
-                    .normalize(embedding.to_vec(), normalization_method)?,
-            ),
-            normalization_method: normalization_method.clone(),
-            pooling_type: self.scheduler_context.pooling_type.clone(),
-            source_document_id: id.clone(),
-        })
+            .map_err(EmbeddingError::EmbeddingsUnavailable)
+            .and_then(|embedding| normalize_embedding(embedding.to_vec(), normalization_method))
+            .map(|normalized_embedding| Embedding {
+                vector: EmbeddingVector::from(normalized_embedding),
+                normalization_method: normalization_method.clone(),
+                pooling_type: self.scheduler_context.pooling_type.clone(),
+                source_document_id: id.clone(),
+            })
     }
 }

@@ -1,6 +1,3 @@
-pub mod active_embedding_request_fixture;
-pub mod constants;
-pub mod embedding_documents_fixture;
+pub mod admitted_embedding_requests;
 pub mod nomic_document_embedding_with;
 pub mod nomic_embedding_batch_processing;
-pub mod normalization_of_an_embedding_too_long_for_rms_norm;

@@ -34,12 +34,12 @@ paddler_cluster_harness = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_model_card_fixture = { workspace = true }
-paddler_request_params_fixture = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
 llama-cpp-model = { workspace = true }
+paddler_request_params_fixture = { workspace = true }
 
 [lints]
 workspace = true
