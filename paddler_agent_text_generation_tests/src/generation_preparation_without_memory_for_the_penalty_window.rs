@@ -23,9 +23,8 @@ use paddler_balancer_desired_state_fixture::first_message_content_chat_template:
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
-
-use crate::refused_syscall::RefusedSyscall;
-use crate::refused_syscalls::RefusedSyscalls;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 const PENALTY_WINDOW_OF_FOUR_GIBIBYTES_OF_TOKENS: i32 = 1 << 30;
 const SMALLEST_REFUSED_MAPPING_LENGTH: u64 = 1 << 32;

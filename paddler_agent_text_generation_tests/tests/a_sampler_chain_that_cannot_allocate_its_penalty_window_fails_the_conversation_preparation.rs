@@ -6,7 +6,7 @@ use llama_cpp_sampler::sampler_error::SamplerError;
 
 use paddler_agent_pipeline_harness::conversation_generation::ConversationGeneration;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_cli_tests::generation_preparation_without_memory_for_the_penalty_window::GenerationPreparationWithoutMemoryForThePenaltyWindow;
+use paddler_agent_text_generation_tests::generation_preparation_without_memory_for_the_penalty_window::GenerationPreparationWithoutMemoryForThePenaltyWindow;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;

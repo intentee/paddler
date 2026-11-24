@@ -10,8 +10,8 @@ use seccompiler::SeccompRule;
 
 use paddler_cli::cli_error::CliError;
 use paddler_cli::run;
-use paddler_cli_tests::refused_syscall::RefusedSyscall;
-use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 #[test]
 fn the_cli_reports_a_shutdown_signal_it_cannot_listen_for() {

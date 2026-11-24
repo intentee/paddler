@@ -1,4 +1,6 @@
 mod a_balancer_starts_from_the_stored_desired_state_through_reconciliation;
+#[cfg(target_os = "linux")]
+mod a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_udp_socket;
 mod a_balancer_without_an_agent_able_to_decide_refuses_decisions_as_unavailable;
 mod a_decision_leaving_the_waiting_line_lets_the_completion_behind_it_dispatch;
 mod a_decision_waits_until_an_agent_loads_its_decision_model;
@@ -6,6 +8,10 @@ mod a_decision_with_leading_questions_waits_for_two_free_slots;
 mod a_put_desired_state_is_answered_once_its_own_version_is_applied;
 mod a_waiting_decision_is_not_overtaken_by_later_completions;
 mod an_embedding_batch_runs_on_the_slots_its_agent_has_free;
+#[cfg(target_os = "linux")]
+mod an_http_service_reports_a_listener_it_cannot_make_nonblocking;
+#[cfg(target_os = "linux")]
+mod an_http_service_reports_a_server_it_cannot_start_serving;
 mod balancer_closes_an_agent_socket_that_answers_before_it_registers;
 mod balancer_closes_an_agent_socket_that_sends_a_reserved_opcode_frame_as_a_protocol_violation;
 mod balancer_closes_an_agent_socket_that_sends_an_undeserializable_message;
@@ -46,6 +52,13 @@ mod balancer_shutdown_does_not_wait_for_an_open_sse_subscriber;
 mod balancer_stops_a_generation_whose_client_half_closes_before_max_tokens;
 mod half_closed_conversation_client_releases_the_buffered_request;
 mod half_closed_embedding_batch_client_releases_the_buffered_request;
+#[cfg(target_os = "linux")]
+mod http_listener_reports_a_bound_address_it_cannot_read;
+#[cfg(target_os = "linux")]
+mod http_listener_reports_a_reuse_address_option_it_cannot_set;
+#[cfg(target_os = "linux")]
+mod http_listener_reports_a_socket_it_cannot_listen_on;
+mod http_listener_reports_a_socket_it_cannot_open;
 mod inference_socket_answers_a_ping_with_a_pong;
 mod inference_socket_answers_an_undeserializable_request_with_an_error;
 mod inference_socket_burst_cancellation_serves_every_buffered_request;

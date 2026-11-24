@@ -3,18 +3,18 @@ use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
 use libc::EPERM;
-use libc::SYS_listen;
+use libc::SYS_getsockname;
 
 use paddler_balancer::http_listener::HttpListener;
-use paddler_cli_tests::refused_syscall::RefusedSyscall;
-use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 #[test]
-fn http_listener_reports_a_socket_it_cannot_listen_on() {
+fn http_listener_reports_a_bound_address_it_cannot_read() {
     RefusedSyscalls {
         errno: EPERM,
         refused_syscalls: vec![RefusedSyscall {
-            syscall: SYS_listen,
+            syscall: SYS_getsockname,
             rules: Vec::new(),
         }],
     }

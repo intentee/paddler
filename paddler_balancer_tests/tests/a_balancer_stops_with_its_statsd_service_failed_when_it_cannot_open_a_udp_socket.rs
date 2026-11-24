@@ -17,11 +17,11 @@ use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
-use paddler_cli_tests::refused_syscall::RefusedSyscall;
-use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 use paddler_cluster_harness::constants::LONGER_THAN_ANY_TEST_RUN;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_udp_socket() {

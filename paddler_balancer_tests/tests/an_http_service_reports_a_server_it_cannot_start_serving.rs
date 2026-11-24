@@ -9,8 +9,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_balancer::balancer_error::BalancerError;
 use paddler_balancer::http_listener::HttpListener;
 use paddler_balancer::http_service_runner::HttpServiceRunner;
-use paddler_cli_tests::refused_syscall::RefusedSyscall;
-use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 const SERVICE_NAME: &str = "balancer::service_that_cannot_start_serving";
 

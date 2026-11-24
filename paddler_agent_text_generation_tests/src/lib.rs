@@ -4,6 +4,8 @@ pub mod constants;
 pub mod first_byte_of_the_first_message_chat_template;
 pub mod first_message_content_request_preparer;
 pub mod gbnf_literal;
+#[cfg(all(feature = "tests_that_use_llms", target_os = "linux"))]
+pub mod generation_preparation_without_memory_for_the_penalty_window;
 pub mod get_weather_tool;
 pub mod grammar_refusing_the_greedy_selection;
 pub mod image_description_conversation;

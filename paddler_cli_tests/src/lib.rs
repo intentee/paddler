@@ -4,18 +4,12 @@ pub mod cluster_with_a_missing_agent_binary;
 pub mod connect_subprocess_balancer;
 pub mod constants;
 pub mod ephemeral_balancer_arguments;
-#[cfg(all(feature = "tests_that_use_llms", target_os = "linux"))]
-pub mod generation_preparation_without_memory_for_the_penalty_window;
 pub mod paddler_command;
 pub mod pausable_agent;
 pub mod pausable_agent_cluster;
 pub mod pausable_agent_cluster_params;
 pub mod pausable_agent_params;
 pub mod read_balancer_addresses;
-#[cfg(target_os = "linux")]
-pub mod refused_syscall;
-#[cfg(target_os = "linux")]
-pub mod refused_syscalls;
 pub mod restart_balancer;
 pub mod running_balancer_subprocess;
 pub mod signal_as_already_reaped;

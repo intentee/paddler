@@ -4,12 +4,12 @@ use nix::errno::Errno;
 use nix::sys::signal::Signal;
 
 use paddler_cli_tests::constants::UNREACHABLE_MANAGEMENT_ADDR;
-use paddler_cli_tests::refused_syscall::RefusedSyscall;
-use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 use paddler_cli_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
 use paddler_cluster_harness::managed_process::ManagedProcess;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 const SLOTS_THE_AGENT_REJECTS_ON_ITS_OWN: u16 = 0;
 

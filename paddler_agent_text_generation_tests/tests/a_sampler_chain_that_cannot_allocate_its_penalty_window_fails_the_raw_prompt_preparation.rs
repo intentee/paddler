@@ -4,7 +4,7 @@ use llama_cpp_sampler::sampler_error::SamplerError;
 
 use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_cli_tests::generation_preparation_without_memory_for_the_penalty_window::GenerationPreparationWithoutMemoryForThePenaltyWindow;
+use paddler_agent_text_generation_tests::generation_preparation_without_memory_for_the_penalty_window::GenerationPreparationWithoutMemoryForThePenaltyWindow;
 
 #[test]
 fn a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_raw_prompt_preparation() {

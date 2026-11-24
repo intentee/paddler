@@ -3894,6 +3894,7 @@ version = "5.0.0"
 dependencies = [
  "anyhow",
  "futures-util",
+ "libc",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "llama-cpp-chat",
@@ -3914,8 +3915,10 @@ dependencies = [
  "paddler_model_card_fixture",
  "paddler_model_source",
  "paddler_openai_translation",
+ "paddler_refused_syscalls",
  "paddler_request_params_fixture",
  "paddler_tool_call_validator",
+ "seccompiler",
  "serde_json",
  "tempfile",
  "tokio",
@@ -4050,8 +4053,11 @@ dependencies = [
 name = "paddler_balancer_tests"
 version = "5.0.0"
 dependencies = [
+ "actix-web",
  "anyhow",
  "futures-util",
+ "libc",
+ "nix",
  "paddler_balancer",
  "paddler_balancer_desired_state_fixture",
  "paddler_balancer_state_database",
@@ -4062,12 +4068,15 @@ dependencies = [
  "paddler_messaging",
  "paddler_model_card_fixture",
  "paddler_model_source",
+ "paddler_refused_syscalls",
  "paddler_request_params_fixture",
  "reqwest",
+ "seccompiler",
  "serde_json",
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+ "trzcina",
 ]
 
 [[package]]
@@ -4210,13 +4219,8 @@ dependencies = [
  "async-trait",
  "futures-util",
  "libc",
- "llama-cpp-model",
- "llama-cpp-sampler",
  "nix",
- "paddler_agent_pipeline_harness",
- "paddler_agent_text_generation",
  "paddler_balancer",
- "paddler_balancer_desired_state_fixture",
  "paddler_balancer_openai_service",
  "paddler_balancer_typesafe_service",
  "paddler_bootstrap",
@@ -4228,6 +4232,7 @@ dependencies = [
  "paddler_messaging",
  "paddler_model_card_fixture",
  "paddler_openai_schema_validator",
+ "paddler_refused_syscalls",
  "reqwest",
  "seccompiler",
  "serde_json",
@@ -4500,6 +4505,14 @@ version = "5.0.0"
 dependencies = [
  "parking_lot 0.13.0",
  "tokio",
+]
+
+[[package]]
+name = "paddler_refused_syscalls"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "seccompiler",
 ]
 
 [[package]]

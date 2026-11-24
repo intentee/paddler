@@ -1,20 +1,10 @@
 mod a_balancer_drops_an_agent_that_stops_answering_pings;
 #[cfg(target_os = "linux")]
-mod a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_udp_socket;
-#[cfg(target_os = "linux")]
-mod a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_conversation_preparation;
-#[cfg(target_os = "linux")]
-mod a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_raw_prompt_preparation;
-#[cfg(target_os = "linux")]
 mod agent_exits_with_failure_when_it_cannot_set_up_its_model_downloader;
 mod agent_reconnects_to_its_balancer_after_the_balancer_is_killed;
 mod agent_reconnects_to_its_balancer_after_the_balancer_restarts;
 mod agent_shuts_down_cleanly_while_its_balancer_is_unresponsive;
 mod an_agent_reconnects_when_the_balancer_stops_answering_pings;
-#[cfg(target_os = "linux")]
-mod an_http_service_reports_a_listener_it_cannot_make_nonblocking;
-#[cfg(target_os = "linux")]
-mod an_http_service_reports_a_server_it_cannot_start_serving;
 mod balancer_answers_gateway_timeout_when_a_paused_agent_never_answers;
 mod balancer_dispatches_requests_only_to_agents_that_serve;
 mod balancer_distributes_embedding_batch_across_agents;
@@ -37,13 +27,6 @@ mod balancer_spreads_an_embedding_burst_across_every_agent;
 mod balancer_web_admin_panel_shows_its_command_line_configuration;
 mod balancer_without_compatibility_flags_announces_no_compatibility_addresses;
 mod http_client_reports_a_balancer_killed_before_responding_as_a_failed_request;
-#[cfg(target_os = "linux")]
-mod http_listener_reports_a_bound_address_it_cannot_read;
-#[cfg(target_os = "linux")]
-mod http_listener_reports_a_reuse_address_option_it_cannot_set;
-#[cfg(target_os = "linux")]
-mod http_listener_reports_a_socket_it_cannot_listen_on;
-mod http_listener_reports_a_socket_it_cannot_open;
 mod inference_socket_connection_drops_pending_requests_when_the_balancer_is_killed;
 mod management_metrics_count_only_the_slots_of_serving_agents;
 mod management_metrics_endpoint_sums_the_slots_of_registered_agents;

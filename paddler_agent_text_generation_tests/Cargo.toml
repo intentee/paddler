@@ -54,5 +54,10 @@ tokio-util = { workspace = true }
 futures-util = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = { workspace = true }
+paddler_refused_syscalls = { workspace = true }
+seccompiler = { workspace = true }
+
 [lints]
 workspace = true

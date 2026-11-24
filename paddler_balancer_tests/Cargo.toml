@@ -32,6 +32,8 @@ serde_json = { workspace = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
+actix-web = { workspace = true }
+nix = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_balancer_desired_state_fixture = { workspace = true }
 paddler_balancer_state_database = { workspace = true }
@@ -43,6 +45,12 @@ paddler_request_params_fixture = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
+trzcina = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+libc = { workspace = true }
+paddler_refused_syscalls = { workspace = true }
+seccompiler = { workspace = true }
 
 [lints]
 workspace = true

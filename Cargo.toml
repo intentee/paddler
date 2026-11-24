@@ -48,6 +48,7 @@ members = [
     "paddler_openai_translation",
     "paddler_openai_translation_tests",
     "paddler_outbox",
+    "paddler_refused_syscalls",
     "paddler_request_params_fixture",
     "paddler_request_registry",
     "paddler_sha256_hex",
@@ -94,6 +95,7 @@ test_crates = [
     "paddler_model_card_fixture",
     "paddler_openai_schema_validator",
     "paddler_openai_translation_tests",
+    "paddler_refused_syscalls",
     "paddler_request_params_fixture",
     "paddler_tcp_buffer_limits",
     "paddler_typesafe_translation_tests",
@@ -349,7 +351,6 @@ llama-cpp-gguf = [
     "paddler_agent_runtime_tests",
     "paddler_agent_tests",
     "paddler_agent_text_generation_tests",
-    "paddler_cli_tests",
 ]
 llama-cpp-log-decoder = [
     "paddler_agent",
@@ -651,6 +652,7 @@ paddler_model_source = { version = "5.0", path = "paddler_model_source" }
 paddler_openai_schema_validator = { version = "5.0", path = "paddler_openai_schema_validator" }
 paddler_openai_translation = { version = "5.0", path = "paddler_openai_translation" }
 paddler_outbox = { version = "5.0", path = "paddler_outbox" }
+paddler_refused_syscalls = { version = "5.0", path = "paddler_refused_syscalls" }
 paddler_request_params_fixture = { version = "5.0", path = "paddler_request_params_fixture" }
 paddler_request_registry = { version = "5.0", path = "paddler_request_registry" }
 paddler_sha256_hex = { version = "5.0", path = "paddler_sha256_hex" }
