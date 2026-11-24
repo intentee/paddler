@@ -4,6 +4,7 @@ use paddler_messaging::token_usage::TokenUsage;
 
 use crate::arguments_to_tool_call_string::arguments_to_tool_call_string;
 use crate::completes_generation::CompletesGeneration;
+use crate::encoded_once_text::EncodedOnceText;
 use crate::generated_output::GeneratedOutput;
 use crate::responses_output_item::ResponsesOutputItem;
 use crate::responses_output_item_kind::ResponsesOutputItemKind;
@@ -88,14 +89,14 @@ impl CompletesGeneration for ResponsesResponseHeader {
         if !reasoning.is_empty() {
             output.push(ResponsesOutputItem::completed_reasoning(
                 ResponsesOutputItemKind::Reasoning.item_id(),
-                reasoning,
+                EncodedOnceText::new(reasoning),
             ));
         }
 
         if !content.is_empty() || tool_calls.is_empty() {
             output.push(ResponsesOutputItem::completed_message(
                 ResponsesOutputItemKind::Message.item_id(),
-                content,
+                EncodedOnceText::new(content),
             ));
         }
 
@@ -125,6 +126,7 @@ mod tests {
 
     use super::ResponsesResponseHeader;
     use crate::completes_generation::CompletesGeneration as _;
+    use crate::encoded_once_text::EncodedOnceText;
     use crate::generated_output::GeneratedOutput;
     use crate::generated_output_part::GeneratedOutputPart;
     use crate::responses_output_item::ResponsesOutputItem;
@@ -198,7 +200,7 @@ mod tests {
         let response = to_value(header().finished(
             vec![ResponsesOutputItem::completed_message(
                 "msg_0".to_owned(),
-                "hello".to_owned(),
+                EncodedOnceText::new("hello".to_owned()),
             )],
             &TokenUsage {
                 prompt: 3,

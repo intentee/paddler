@@ -22,6 +22,7 @@ pub mod completes_generation;
 pub mod constants;
 pub mod content_part_event;
 pub mod conversation_tool_call_from_arguments;
+pub mod encoded_once_text;
 pub mod function_call_arguments_delta_event;
 pub mod function_call_arguments_done_event;
 pub mod function_definition;

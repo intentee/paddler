@@ -6,6 +6,7 @@ use paddler_messaging::generation_summary::GenerationSummary;
 
 use crate::arguments_to_tool_call_string::arguments_to_tool_call_string;
 use crate::content_part_event::ContentPartEvent;
+use crate::encoded_once_text::EncodedOnceText;
 use crate::function_call_arguments_delta_event::FunctionCallArgumentsDeltaEvent;
 use crate::function_call_arguments_done_event::FunctionCallArgumentsDoneEvent;
 use crate::generated_output_part::GeneratedOutputPart;
@@ -127,6 +128,8 @@ impl ResponsesStream {
         let item = match take(&mut self.open) {
             OpenItem::Nothing => return,
             OpenItem::Reasoning { item_id, text } => {
+                let text = EncodedOnceText::new(text);
+
                 events.push(ResponsesStreamEvent::ReasoningTextDone(TextDoneEvent {
                     item_id: item_id.clone(),
                     output_index,
@@ -137,6 +140,8 @@ impl ResponsesStream {
                 ResponsesOutputItem::completed_reasoning(item_id, text)
             }
             OpenItem::Message { item_id, text } => {
+                let text = EncodedOnceText::new(text);
+
                 events.push(ResponsesStreamEvent::OutputTextDone(TextDoneEvent {
                     item_id: item_id.clone(),
                     output_index,
@@ -207,7 +212,7 @@ impl ResponsesStream {
                 item_id: item_id.clone(),
                 output_index: self.output_index(),
                 content_index: 0,
-                part: ResponsesContentPart::output_text(String::new()),
+                part: ResponsesContentPart::output_text(EncodedOnceText::new(String::new())),
             }));
             self.open = OpenItem::Message {
                 item_id: item_id.clone(),

@@ -3,6 +3,7 @@ use serde::Serialize;
 use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
+use crate::encoded_once_text::EncodedOnceText;
 use crate::responses_content_part::ResponsesContentPart;
 use crate::responses_item_status::ResponsesItemStatus;
 use crate::responses_reasoning_part::ResponsesReasoningPart;
@@ -50,7 +51,7 @@ impl ResponsesOutputItem {
     }
 
     #[must_use]
-    pub fn completed_message(id: String, text: String) -> Self {
+    pub fn completed_message(id: String, text: EncodedOnceText) -> Self {
         Self::Message {
             content: vec![ResponsesContentPart::output_text(text)],
             id,
@@ -60,7 +61,7 @@ impl ResponsesOutputItem {
     }
 
     #[must_use]
-    pub fn completed_reasoning(id: String, text: String) -> Self {
+    pub fn completed_reasoning(id: String, text: EncodedOnceText) -> Self {
         Self::Reasoning {
             content: vec![ResponsesReasoningPart::ReasoningText { text }],
             id,
