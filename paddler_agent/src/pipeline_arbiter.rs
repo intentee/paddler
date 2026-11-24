@@ -86,8 +86,7 @@ impl PipelineArbiter {
             return;
         }
 
-        self.settle_replacement(agent_applicable_state, &outcome);
-        self.model_serving = outcome.into_model_serving();
+        self.settle_replacement(agent_applicable_state, outcome);
     }
 
     pub fn forward(&self, request: PipelineRequest) {
@@ -159,16 +158,20 @@ impl PipelineArbiter {
     fn settle_replacement(
         &mut self,
         agent_applicable_state: AgentApplicableState,
-        outcome: &ReplacementOutcome,
+        outcome: ReplacementOutcome,
     ) {
-        match outcome {
-            ReplacementOutcome::Cancelled { .. } => {}
-            ReplacementOutcome::Failed { .. } => {
-                self.inference_runtime_context
-                    .slot_aggregated_status
-                    .retry_pipeline();
-                self.replace(agent_applicable_state, RetryDelay::AfterRetryInterval);
-            }
+        if let ReplacementOutcome::Failed { .. } = outcome {
+            self.model_serving = outcome.into_model_serving();
+            self.inference_runtime_context
+                .slot_aggregated_status
+                .retry_pipeline();
+            self.replace(agent_applicable_state, RetryDelay::AfterRetryInterval);
+
+            return;
+        }
+
+        match &outcome {
+            ReplacementOutcome::Cancelled { .. } | ReplacementOutcome::Failed { .. } => {}
             ReplacementOutcome::NothingToServe => {
                 self.inference_runtime_context
                     .slot_aggregated_status
@@ -180,6 +183,8 @@ impl PipelineArbiter {
                 self.resume_serving(served_model, agent_applicable_state);
             }
         }
+
+        self.model_serving = outcome.into_model_serving();
     }
 
     fn start_pipeline(&mut self, agent_applicable_state: AgentApplicableState) {
