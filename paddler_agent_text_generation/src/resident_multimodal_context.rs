@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::path::Path;
 
 use llama_cpp_mtmd::mtmd_context::MtmdContext;
@@ -55,13 +54,5 @@ impl ResidentMultimodalContext {
             multimodal_context,
             vram_occupancy,
         })
-    }
-}
-
-impl Deref for ResidentMultimodalContext {
-    type Target = MtmdContext;
-
-    fn deref(&self) -> &MtmdContext {
-        &self.multimodal_context
     }
 }

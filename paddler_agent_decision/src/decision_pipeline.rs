@@ -73,12 +73,7 @@ impl DecisionPipeline {
             &*self.loaded_llama_model.model.llama_model,
             &KEV_DECISION_DELIMITERS,
         )
-        .map_err(|resolution_error| match resolution_error {
-            DecisionError::DelimiterIsNotAControlToken { .. } => {
-                self.register_malformed_decision_model(resolution_error)
-            }
-            unresolvable => unresolvable,
-        })
+        .map_err(|resolution_error| self.register_malformed_decision_model(resolution_error))
     }
 
     fn resolve_option_scorer(&self) -> Result<KevOptionScorer, DecisionError> {

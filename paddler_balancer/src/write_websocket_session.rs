@@ -61,11 +61,14 @@ mod tests {
     use actix_ws::Closed;
     use actix_ws::Session;
     use actix_ws::handle;
+    use log::Level;
     use tokio::spawn;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio::task::yield_now;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
     use paddler_frame_writer::frame_writing_end::FrameWritingEnd;
 
     use super::write_websocket_session;
@@ -97,6 +100,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_writer_abandons_the_writes_its_peer_does_not_read_once_the_connection_closes() {
+        CapturingLogger::install();
+
         let OpenedWebSocketSession {
             handshake_response: _unread_handshake_response,
             session,
@@ -122,6 +127,11 @@ mod tests {
             writer.await.expect("the writer task must not panic"),
             FrameWritingEnd::ConnectionClosed
         ));
+        assert!(
+            CapturingLogger::records_for("paddler_balancer::write_websocket_session")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Debug)
+        );
     }
 
     #[tokio::test]

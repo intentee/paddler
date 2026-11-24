@@ -1,7 +1,10 @@
+use log::Level;
 use serde_json::to_string;
 use tokio_tungstenite::tungstenite::Message;
 
 use paddler_agent_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
+use paddler_capturing_logger::captured_record::CapturedRecord;
+use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
@@ -9,6 +12,8 @@ use paddler_tcp_buffer_limits::tcp_buffer_limits_file::TcpBufferLimitsFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_whose_balancer_stops_reading_reconnects() {
+    CapturingLogger::install();
+
     let largest_send_buffer = TcpBufferLimitsFile::of_kernel_send_buffers()
         .largest_buffer()
         .expect("the kernel must report its TCP send buffer limits");
@@ -40,4 +45,10 @@ async fn an_agent_whose_balancer_stops_reading_reconnects() {
         .accept_agent()
         .await
         .expect("the agent must reconnect once its balancer stops reading its answers");
+
+    assert!(
+        CapturingLogger::records_for("paddler_agent::management_socket_client_service")
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Info)
+    );
 }

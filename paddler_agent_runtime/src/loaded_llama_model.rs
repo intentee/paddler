@@ -121,21 +121,21 @@ impl LoadedLlamaModel {
             })
         })?;
         let model_metadata = read_model_metadata(&model)?;
-        let decision_type = model
-            .decision_type()
-            .map_err(AgentRuntimeError::ModelDecisionTypeUnreadable)?;
 
-        Ok(Self {
-            decision_type,
-            inference_parallelism,
-            llama_model_settings,
-            model: Arc::new(ResidentLlamaModel {
-                llama_model: Arc::new(model),
-                llama_backend,
-                vram_occupancy,
-            }),
-            model_metadata: Arc::new(model_metadata),
-        })
+        model
+            .decision_type()
+            .map_err(AgentRuntimeError::ModelDecisionTypeUnreadable)
+            .map(|decision_type| Self {
+                decision_type,
+                inference_parallelism,
+                llama_model_settings,
+                model: Arc::new(ResidentLlamaModel {
+                    llama_model: Arc::new(model),
+                    llama_backend,
+                    vram_occupancy,
+                }),
+                model_metadata: Arc::new(model_metadata),
+            })
     }
 
     /// # Errors

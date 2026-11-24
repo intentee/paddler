@@ -95,12 +95,7 @@ impl<'batch> BatchPass<'batch> {
         requests: &[ContinuousBatchActiveRequest<'_>],
     ) -> Result<(), ContextError> {
         let batch_size = self.batch.limits().batch as usize;
-        let mut ingesting_token_count = self
-            .contributions
-            .ingesting
-            .iter()
-            .map(|IngestingContribution { chunk_size, .. }| *chunk_size)
-            .sum::<usize>();
+        let mut ingesting_token_count: usize = 0;
 
         for (request_index, request) in requests.iter().enumerate() {
             if !matches!(

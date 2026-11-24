@@ -221,18 +221,22 @@ mod tests {
     }
 
     #[test]
-    fn a_model_lacking_the_temperature_of_a_question_type_cannot_score_options() {
-        let mut model_metadata = kev_metadata("1.0");
+    fn a_model_lacking_the_temperature_of_any_question_type_cannot_score_options() {
+        for missing_temperature_key in [
+            "qwen35.decision.temperature.choice",
+            "qwen35.decision.temperature.noul",
+            "qwen35.decision.temperature.score",
+        ] {
+            let mut model_metadata = kev_metadata("1.0");
 
-        model_metadata
-            .metadata
-            .remove("qwen35.decision.temperature.score");
+            model_metadata.metadata.remove(missing_temperature_key);
 
-        assert!(matches!(
-            KevOptionScorer::of(&model_metadata, 4),
-            Err(DecisionError::KevTemperatureMissing { key })
-                if key == "qwen35.decision.temperature.score"
-        ));
+            assert!(matches!(
+                KevOptionScorer::of(&model_metadata, 4),
+                Err(DecisionError::KevTemperatureMissing { key })
+                    if key == missing_temperature_key
+            ));
+        }
     }
 
     #[test]
