@@ -6,6 +6,7 @@ use serde_json::from_str;
 use serde_json::from_value;
 use serde_json::to_value;
 
+use paddler_file_fixture::fixture_path::fixture_path;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
@@ -33,11 +34,8 @@ struct TypeSafeReference {
 #[test]
 fn translation_matches_the_kev_typesafe_reference() {
     let references: Vec<TypeSafeReference> = from_str(
-        &read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../fixtures/typesafe_reference.json"
-        ))
-        .expect("the TypeSafe reference must be readable"),
+        &read_to_string(fixture_path("typesafe_reference.json"))
+            .expect("the TypeSafe reference must be readable"),
     )
     .expect("the TypeSafe reference must parse");
 

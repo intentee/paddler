@@ -1,12 +1,12 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::reports_health::ReportsHealth as _;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_health_endpoint_returns_ok() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("failed to start subprocess cluster");
 

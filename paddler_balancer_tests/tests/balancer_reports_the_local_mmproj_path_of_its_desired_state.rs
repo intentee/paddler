@@ -2,15 +2,15 @@ use std::path::Path;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::desired_state_with_multimodal_projection::desired_state_with_multimodal_projection;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::ModelCard;
-use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::model_card::ModelCard;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::desired_state_with_multimodal_projection::desired_state_with_multimodal_projection;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_the_local_mmproj_path_of_its_desired_state() {
@@ -27,7 +27,7 @@ async fn balancer_reports_the_local_mmproj_path_of_its_desired_state() {
             .expect("the multimodal projection path must be absolute"),
     );
 
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         desired_state: ClusterDesiredState::Apply(Box::new(desired_state.clone())),
         ..ClusterParams::without_agents()
     })

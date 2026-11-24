@@ -5,10 +5,10 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_decisions_also_serves_completions() {

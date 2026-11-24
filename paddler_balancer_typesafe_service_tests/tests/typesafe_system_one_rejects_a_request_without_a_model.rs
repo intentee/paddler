@@ -1,12 +1,12 @@
 use reqwest::StatusCode;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_rejects_a_request_without_a_model() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
 

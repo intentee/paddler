@@ -4,14 +4,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use tempfile::TempDir;
 
+use paddler_agent_pipeline_harness::write_patched_gguf::write_patched_gguf;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::constants::EMBEDDED_CHAT_TEMPLATE_KEY;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_model_source::model_source_error::ModelSourceError;
-
-use crate::qwen3_desired_state::qwen3_desired_state;
-use crate::write_patched_gguf::write_patched_gguf;
 
 pub struct Qwen3WithoutAChatTemplate {
     model_directory: TempDir,

@@ -3,27 +3,30 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
-use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_document_tokenized_to_nothing_details::EmbeddingDocumentTokenizedToNothingDetails;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_a_document_that_tokenizes_to_nothing_and_embeds_the_rest() {
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: vec![AgentConfig::single(1)],
-        embedding_parameters: EmbeddingParameters {
-            pooling_type: PoolingType::Last,
-            ..EmbeddingParameters::default()
-        },
-        model_card: smolvlm2_256m(),
-        ..EmbeddingClusterParams::default()
-    })
+    let cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: vec![AgentConfig::single(1)],
+            embedding_parameters: EmbeddingParameters {
+                pooling_type: PoolingType::Last,
+                ..EmbeddingParameters::default()
+            },
+            model_card: smolvlm2_256m(),
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
 

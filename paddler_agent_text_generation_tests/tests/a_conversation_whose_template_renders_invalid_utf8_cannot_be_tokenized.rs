@@ -5,19 +5,19 @@ use std::num::NonZeroU32;
 use llama_cpp_chat::chat_error::ChatError;
 use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::conversation_generation::ConversationGeneration;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_agent_text_generation_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
+use paddler_agent_text_generation_tests::first_byte_of_the_first_message_chat_template::first_byte_of_the_first_message_chat_template;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
-use paddler_tests::conversation_generation::ConversationGeneration;
-use paddler_tests::first_byte_of_the_first_message_chat_template::first_byte_of_the_first_message_chat_template;
-use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 const MESSAGE_STARTING_WITH_A_TWO_BYTE_CHARACTER: &str = "é";
 

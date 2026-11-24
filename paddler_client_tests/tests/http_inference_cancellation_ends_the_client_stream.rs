@@ -3,13 +3,13 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_inference_cancellation_ends_the_client_stream() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("the cluster must start");
 

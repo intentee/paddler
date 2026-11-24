@@ -2,11 +2,11 @@ use std::collections::BTreeSet;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_drops_the_issues_of_a_replaced_desired_state() {

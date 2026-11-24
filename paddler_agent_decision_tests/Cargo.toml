@@ -1,0 +1,53 @@
+[package]
+name = "paddler_agent_decision_tests"
+autotests = false
+authors.workspace = true
+description = "Tests of the Paddler agent decision pipeline"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[features]
+cuda = ["paddler_cluster_harness/cuda"]
+metal = ["paddler_cluster_harness/metal"]
+tests_that_use_llms = []
+
+[dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-model = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_agent_decision = { workspace = true }
+paddler_agent_pipeline_harness = { workspace = true }
+paddler_agent_runtime = { workspace = true }
+paddler_agent_status = { workspace = true }
+paddler_cluster_harness = { workspace = true }
+paddler_file_fixture = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_model_card_fixture = { workspace = true }
+paddler_request_params_fixture = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-context-memory = { workspace = true }
+log = { workspace = true }
+paddler_balancer_desired_state_fixture = { workspace = true }
+paddler_capturing_logger = { workspace = true }
+paddler_inference_parameters = { workspace = true }
+
+[lints]
+workspace = true

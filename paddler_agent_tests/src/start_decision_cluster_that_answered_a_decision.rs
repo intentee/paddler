@@ -7,10 +7,9 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::collected_decision_results::CollectedDecisionResults;
-
-use crate::decision_cluster_params::DecisionClusterParams;
-use crate::decision_done_discriminant::decision_done_discriminant;
-use crate::sample_decision::sample_decision;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 async fn answer_the_sample_decision(cluster: Cluster) -> Result<Cluster> {
     cluster

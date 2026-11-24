@@ -7,8 +7,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::inference_stream_error_codes::inference_stream_error_codes;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_cluster_harness::unending_generation::unending_generation;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_ends_an_in_flight_generation_with_a_shutdown_error() {

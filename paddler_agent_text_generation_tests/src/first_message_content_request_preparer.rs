@@ -2,13 +2,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::generation_request_preparer::GenerationRequestPreparer;
 use paddler_agent_text_generation::image_input::ImageInput;
+use paddler_balancer_desired_state_fixture::first_message_content_chat_template::first_message_content_chat_template;
 
 use crate::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
-use crate::first_message_content_chat_template::first_message_content_chat_template;
-use crate::llama_runtime::LlamaRuntime;
 
 pub struct FirstMessageContentRequestPreparer<'runtime> {
     pub llama_runtime: &'runtime LlamaRuntime,

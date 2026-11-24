@@ -3,18 +3,18 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::start_cluster::start_cluster;
 
 const BAD_REQUEST: u16 = 400;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_tool_call_parsing_without_tools() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("the cluster must start");
 

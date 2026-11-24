@@ -5,23 +5,26 @@ use std::num::NonZeroUsize;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::numbered_embedding_documents::numbered_embedding_documents;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use paddler_request_params_fixture::numbered_embedding_documents::numbered_embedding_documents;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_one_request_id_across_a_chunked_embedding_batch() {
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: vec![AgentConfig::single(2)],
-        embedding_parameters: EmbeddingParameters {
-            embedding_batch_size: NonZeroUsize::MIN,
-            ..EmbeddingParameters::default()
-        },
-        ..EmbeddingClusterParams::default()
-    })
+    let cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: vec![AgentConfig::single(2)],
+            embedding_parameters: EmbeddingParameters {
+                embedding_batch_size: NonZeroUsize::MIN,
+                ..EmbeddingParameters::default()
+            },
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
 

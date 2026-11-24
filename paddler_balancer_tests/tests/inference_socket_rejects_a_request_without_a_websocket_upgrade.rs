@@ -1,13 +1,13 @@
 use reqwest::StatusCode;
 use reqwest::get;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_rejects_a_request_without_a_websocket_upgrade() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
 

@@ -1,13 +1,13 @@
 use std::mem::discriminant;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn raw_inference_socket_reports_a_socket_closed_before_any_answer() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer serving text generation and embeddings must start");
     let mut raw_inference_socket =

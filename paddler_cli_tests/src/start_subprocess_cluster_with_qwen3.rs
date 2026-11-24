@@ -4,7 +4,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 use crate::start_subprocess_cluster::start_subprocess_cluster;
 

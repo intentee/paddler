@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_messaging::model_metadata::ModelMetadata;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const ANSWERING_AGENT_ID: &str = "answering";
 const INJECTING_AGENT_ID: &str = "injecting";
@@ -24,8 +24,8 @@ fn model_metadata_named(name: &str) -> ModelMetadata {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_agent_cannot_answer_a_request_dispatched_to_another_agent() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+async fn balancer_ignores_an_answer_from_an_agent_the_request_was_not_dispatched_to() {
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
     let management_addr = cluster.balancer.addresses.management;

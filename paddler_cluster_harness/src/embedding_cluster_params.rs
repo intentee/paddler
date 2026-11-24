@@ -4,13 +4,13 @@ use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::model_card::ModelCard;
+use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 use crate::agent_config::AgentConfig;
 use crate::cluster_desired_state::ClusterDesiredState;
 use crate::cluster_params::ClusterParams;
 use crate::constants::LONGER_THAN_ANY_TEST_RUN;
-use crate::model_card::ModelCard;
-use crate::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 pub struct EmbeddingClusterParams {
     pub agents: Vec<AgentConfig>,

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use paddler_opencode_tests::opencode_test_project::OpenCodeTestProject;
+use paddler_balancer_openai_service_tests::opencode_test_project::OpenCodeTestProject;
 
 #[tokio::test]
 async fn run_opencode_captures_output_of_a_finished_process() {

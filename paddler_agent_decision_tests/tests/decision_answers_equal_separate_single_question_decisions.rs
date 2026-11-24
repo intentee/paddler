@@ -2,9 +2,9 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_answers_equal_separate_single_question_decisions() {

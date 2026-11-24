@@ -10,15 +10,13 @@ use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::collected_embedding_results::CollectedEmbeddingResults;
 use paddler_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
-use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_vector::EmbeddingVector;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-
-use crate::start_cluster::start_cluster;
+use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 async fn embed_the_document(cluster: Cluster) -> Result<Vec<EmbeddingVector>> {
     cluster
@@ -58,7 +56,7 @@ async fn embed_the_document(cluster: Cluster) -> Result<Vec<EmbeddingVector>> {
 pub async fn nomic_document_embedding_with(
     embedding_parameters: EmbeddingParameters,
 ) -> Result<Vec<EmbeddingVector>> {
-    start_cluster(ClusterParams {
+    Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         desired_state: ClusterDesiredState::Apply(Box::new(
             nomic_embed_text_v1_5()

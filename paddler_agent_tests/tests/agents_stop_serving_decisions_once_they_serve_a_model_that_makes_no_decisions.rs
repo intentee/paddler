@@ -2,9 +2,9 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_agent_tests::start_decision_cluster_that_answered_a_decision::start_decision_cluster_that_answered_a_decision;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
-use paddler_tests::start_decision_cluster_that_answered_a_decision::start_decision_cluster_that_answered_a_decision;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agents_stop_serving_decisions_once_they_serve_a_model_that_makes_no_decisions() {

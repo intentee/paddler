@@ -8,7 +8,7 @@ use crate::start_cluster_with_qwen3_5_and_context_size::start_cluster_with_qwen3
 
 /// # Errors
 ///
-/// Returns the error of [`start_cluster`] when the cluster serving Qwen3.5 cannot start.
+/// Returns the error of [`Cluster::start_in_process`] when the cluster serving Qwen3.5 cannot start.
 pub async fn start_cluster_with_qwen3_5(
     agents: Vec<AgentConfig>,
     with_mmproj: bool,

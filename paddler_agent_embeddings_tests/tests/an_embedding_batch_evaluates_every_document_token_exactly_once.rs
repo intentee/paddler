@@ -6,9 +6,9 @@ use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
 use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
+use paddler_agent_embeddings_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
+use paddler_agent_embeddings_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 use paddler_inference_parameters::pooling_type::PoolingType;
-use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
-use paddler_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
 
 const REQUEST_SEQUENCES: NonZeroU16 = NonZeroU16::new(2).unwrap();
 

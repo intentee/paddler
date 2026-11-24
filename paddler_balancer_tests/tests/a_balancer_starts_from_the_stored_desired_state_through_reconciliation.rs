@@ -1,12 +1,12 @@
 use paddler_balancer_state_database::state_database_file::StateDatabaseFile;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_cluster::start_cluster;
 
 const STORED_MODEL_URI: &str = "a stored uri that does not parse";
 
@@ -23,7 +23,7 @@ async fn a_balancer_starts_from_the_stored_desired_state_through_reconciliation(
         .await
         .expect("the desired state must be stored before the balancer starts");
 
-    let mut cluster = start_cluster(ClusterParams {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         desired_state: ClusterDesiredState::KeepStored,
         state_database_url: database.url.clone(),

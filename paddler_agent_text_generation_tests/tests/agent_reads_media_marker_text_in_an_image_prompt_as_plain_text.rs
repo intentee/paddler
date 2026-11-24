@@ -2,14 +2,14 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
+use paddler_agent_text_generation_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
+use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
+use paddler_file_fixture::constants::LLAMAS_JPEG;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::gbnf_literal::gbnf_literal;
-use paddler_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
-use paddler_tests::single_image_question::SingleImageQuestion;
-use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
 const ANSWER: &str = "two llamas";
 const QUESTION_QUOTING_THE_LLAMA_CPP_DEFAULT_MEDIA_MARKER: &str =
@@ -27,7 +27,7 @@ async fn agent_reads_media_marker_text_in_an_image_prompt_as_plain_text() {
             &ContinueFromConversationHistoryParams {
                 grammar: Some(gbnf_literal(ANSWER)),
                 ..SingleImageQuestion {
-                    image_data_uri: load_test_image_data_uri().expect("the test image must load"),
+                    image_data_uri: LLAMAS_JPEG.data_uri().expect("the test image must load"),
                     max_tokens: max_tokens_for_forced_text(ANSWER),
                     question: QUESTION_QUOTING_THE_LLAMA_CPP_DEFAULT_MEDIA_MARKER,
                 }

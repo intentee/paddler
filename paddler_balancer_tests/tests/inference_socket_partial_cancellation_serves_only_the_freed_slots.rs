@@ -5,15 +5,15 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::start_cluster::start_cluster;
 
 const WAITING_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(32).unwrap();
 const CANCELLED_REQUEST_COUNT: usize = 2;
@@ -46,7 +46,7 @@ async fn cancel_and_await_their_end(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
-    let mut cluster = start_cluster(ClusterParams {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig::single(SLOT_COUNT)],
         desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         wait_for_slots_ready: true,

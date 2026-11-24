@@ -4,9 +4,9 @@ use futures_util::future::join_all;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const CONCURRENT_DECISIONS: usize = 5;
 

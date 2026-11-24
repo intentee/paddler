@@ -5,9 +5,9 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
 use paddler_agent::pipeline_arbiter::PipelineArbiter;
 use paddler_agent::pipeline_arbiter_params::PipelineArbiterParams;
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 
 pub struct ArbiterUnderTest {
     pub inference_runtime_context: InferenceRuntimeContext,

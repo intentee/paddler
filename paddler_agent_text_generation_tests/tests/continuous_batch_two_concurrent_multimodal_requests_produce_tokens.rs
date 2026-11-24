@@ -5,13 +5,13 @@ use std::num::NonZeroU32;
 use tokio::join;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
+use paddler_agent_text_generation_tests::image_description_conversation::image_description_conversation;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
+use paddler_file_fixture::constants::LLAMAS_JPEG;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::gbnf_literal::gbnf_literal;
-use paddler_tests::image_description_conversation::image_description_conversation;
-use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
 const FIRST_ANSWER: &str = "The first picture.";
 const SECOND_ANSWER: &str = "The second picture.";
@@ -22,7 +22,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() {
         .await
         .expect("the cluster must start");
 
-    let image_data_uri = load_test_image_data_uri().expect("the test image must load");
+    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
 
     let first_params = ContinueFromConversationHistoryParams {
         add_generation_prompt: true,

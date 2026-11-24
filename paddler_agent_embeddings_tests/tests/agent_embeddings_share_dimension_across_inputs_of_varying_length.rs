@@ -3,19 +3,22 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_embeddings_share_dimension_across_inputs_of_varying_length() {
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: vec![AgentConfig::single(1)],
+    let cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: vec![AgentConfig::single(1)],
 
-        ..EmbeddingClusterParams::default()
-    })
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
 

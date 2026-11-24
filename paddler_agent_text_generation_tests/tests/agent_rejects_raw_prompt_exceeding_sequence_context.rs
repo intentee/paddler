@@ -4,7 +4,9 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
@@ -13,16 +15,14 @@ use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParamete
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::oversized_text::oversized_text;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_request_params_fixture::oversized_text::oversized_text;
 
 const SEQUENCE_CONTEXT_SIZE: u32 = 256;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_raw_prompt_exceeding_sequence_context() {
     let desired_state = qwen3_desired_state();
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig::single(1)],
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model_runtime_parameters: ModelRuntimeParameters {

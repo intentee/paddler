@@ -11,7 +11,8 @@ PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings 
 PADDLER_SOURCES := $(shell find $(addsuffix /src,$(PADDLER_CRATES)) -name '*.rs') $(wildcard $(addsuffix /build.rs,$(PADDLER_CRATES))) $(wildcard $(addsuffix /build/*.rs,$(PADDLER_CRATES))) $(addsuffix /Cargo.toml,$(PADDLER_CRATES)) Cargo.toml Cargo.lock
 FRONTEND_SOURCES := $(shell find resources paddler_client_javascript/src -type f) paddler_client_javascript/package.json $(wildcard jarmuz/*.mjs)
 JS_CLIENT_SOURCES := $(shell find paddler_client_javascript/src -type f) paddler_client_javascript/package.json paddler_client_javascript/tsconfig.json
-RUN_WITH_TEST_CLUSTER_SOURCES := $(shell find paddler_tests/src paddler_cluster_harness/src -name '*.rs') paddler_tests/Cargo.toml paddler_cluster_harness/Cargo.toml
+RUN_WITH_TEST_CLUSTER_CRATES := paddler_balancer_desired_state_fixture paddler_cluster_harness paddler_local_http_fixture paddler_model_card_fixture
+RUN_WITH_TEST_CLUSTER_SOURCES := $(shell find $(addsuffix /src,$(RUN_WITH_TEST_CLUSTER_CRATES)) -name '*.rs') $(addsuffix /Cargo.toml,$(RUN_WITH_TEST_CLUSTER_CRATES))
 LLVM_COV_THIRD_PARTY_SOURCES := /\.cargo/(registry|git)/|/\.rustup/toolchains/|^/rustc/|^/nix/store/|^$(CURDIR)/target/
 
 TEST_DEVICE ?= cpu
@@ -42,20 +43,20 @@ node_modules: package-lock.json
 package-lock.json: package.json paddler_client_javascript/package.json
 	npm install --package-lock-only
 
+paddler_balancer_openai_service_python_tests/.venv: paddler_balancer_openai_service_python_tests/poetry.lock
+	POETRY_VIRTUALENVS_IN_PROJECT=true poetry -C paddler_balancer_openai_service_python_tests install
+	touch $@
+
+paddler_balancer_typesafe_service_python_tests/.venv: paddler_balancer_typesafe_service_python_tests/poetry.lock
+	POETRY_VIRTUALENVS_IN_PROJECT=true poetry -C paddler_balancer_typesafe_service_python_tests install
+	touch $@
+
 paddler_client_javascript/dist: $(JS_CLIENT_SOURCES) node_modules
 	npm --workspace @intentee/paddler-client run build
 	touch $@
 
-paddler_openai_client_python_test/.venv: paddler_openai_client_python_test/poetry.lock
-	POETRY_VIRTUALENVS_IN_PROJECT=true poetry -C paddler_openai_client_python_test install
-	touch $@
-
-paddler_typesafe_client_python_test/.venv: paddler_typesafe_client_python_test/poetry.lock
-	POETRY_VIRTUALENVS_IN_PROJECT=true poetry -C paddler_typesafe_client_python_test install
-	touch $@
-
 $(RUN_WITH_TEST_CLUSTER_BINARY): $(PADDLER_SOURCES) $(RUN_WITH_TEST_CLUSTER_SOURCES)
-	cargo build -p paddler_tests --bin run_with_test_cluster --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	cargo build -p paddler_cluster_harness --bin run_with_test_cluster --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 target/cuda/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
@@ -75,8 +76,8 @@ target/metal/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features web_admin_panel
 
-target/test-model-cards.stamp: $(wildcard paddler_cluster_harness/src/model_card/*.rs) paddler_cluster_harness/tests/every_model_card_resolves_from_the_hugging_face_cache.rs
-	cargo test -p paddler_cluster_harness --features tests_that_use_llms --test every_model_card_resolves_from_the_hugging_face_cache
+target/test-model-cards.stamp: $(wildcard paddler_model_card_fixture/src/*.rs) paddler_model_card_fixture/tests/every_model_card_resolves_from_the_hugging_face_cache.rs
+	cargo test -p paddler_model_card_fixture --features tests_that_use_llms --test every_model_card_resolves_from_the_hugging_face_cache
 	touch $@
 
 target/vulkan/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
@@ -110,12 +111,12 @@ heisenberg.check: esbuild-meta.json
 		--workspace "$(CURDIR)"
 
 .PHONY: lint.openai.python
-lint.openai.python: paddler_openai_client_python_test/.venv
-	poetry -C paddler_openai_client_python_test run mypy .
+lint.openai.python: paddler_balancer_openai_service_python_tests/.venv
+	poetry -C paddler_balancer_openai_service_python_tests run mypy .
 
 .PHONY: lint.typesafe.python
-lint.typesafe.python: paddler_typesafe_client_python_test/.venv
-	poetry -C paddler_typesafe_client_python_test run mypy .
+lint.typesafe.python: paddler_balancer_typesafe_service_python_tests/.venv
+	poetry -C paddler_balancer_typesafe_service_python_tests run mypy .
 
 .PHONY: test
 test: test.client.js test.unit test.integration
@@ -155,19 +156,19 @@ test.coverage-clean:
 
 .PHONY: test.integration
 test.integration: target/test-model-cards.stamp
-	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run --workspace --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.integration.opencode
 test.integration.opencode: target/test-model-cards.stamp
-	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_opencode_tests --features tests_that_use_llms,tests_that_use_opencode$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_balancer_openai_service_tests --features tests_that_use_llms,tests_that_use_opencode$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR) -E 'test(=opencode_completes_tool_enabled_chat_request::opencode_completes_tool_enabled_chat_request)'
 
 .PHONY: test.openai.python.llm
-test.openai.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_openai_client_python_test/.venv target/test-model-cards.stamp
-	$(RUN_WITH_TEST_CLUSTER_BINARY) qwen3-0-6b -- poetry -C paddler_openai_client_python_test run pytest
+test.openai.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_balancer_openai_service_python_tests/.venv target/test-model-cards.stamp
+	$(RUN_WITH_TEST_CLUSTER_BINARY) qwen3-0-6b -- poetry -C paddler_balancer_openai_service_python_tests run pytest
 
 .PHONY: test.typesafe.python.llm
-test.typesafe.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_typesafe_client_python_test/.venv target/test-model-cards.stamp
-	$(RUN_WITH_TEST_CLUSTER_BINARY) kev-0-8b -- poetry -C paddler_typesafe_client_python_test run pytest
+test.typesafe.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_balancer_typesafe_service_python_tests/.venv target/test-model-cards.stamp
+	$(RUN_WITH_TEST_CLUSTER_BINARY) kev-0-8b -- poetry -C paddler_balancer_typesafe_service_python_tests run pytest
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json

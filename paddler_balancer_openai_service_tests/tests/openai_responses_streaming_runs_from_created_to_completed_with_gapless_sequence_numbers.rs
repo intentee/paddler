@@ -1,11 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_balancer_openai_service_tests::streamed_greeting_responses_request::streamed_greeting_responses_request;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::streamed_greeting_responses_request::streamed_greeting_responses_request;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn openai_responses_stream_runs_from_created_to_completed_with_gapless_sequence_numbers() {
+async fn openai_responses_streaming_runs_from_created_to_completed_with_gapless_sequence_numbers() {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
         .await
         .expect("the cluster must start");

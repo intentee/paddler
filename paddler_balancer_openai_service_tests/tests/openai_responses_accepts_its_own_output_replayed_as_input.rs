@@ -4,7 +4,7 @@ use serde_json::Value;
 use serde_json::json;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_accepts_its_own_output_replayed_as_input() {

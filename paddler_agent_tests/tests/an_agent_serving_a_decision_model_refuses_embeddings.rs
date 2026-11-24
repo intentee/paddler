@@ -3,14 +3,14 @@
 use tokio::sync::mpsc;
 
 use paddler_agent::pipeline_request::PipelineRequest;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_runtime::agent_request::AgentRequest;
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_a_decision_model_refuses_embeddings() {

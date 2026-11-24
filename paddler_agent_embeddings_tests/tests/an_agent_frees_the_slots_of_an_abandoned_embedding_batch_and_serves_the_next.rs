@@ -4,12 +4,12 @@ use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::numbered_embedding_documents::numbered_embedding_documents;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use paddler_request_params_fixture::numbered_embedding_documents::numbered_embedding_documents;
 
 const SLOTS: u16 = 4;
 
@@ -24,11 +24,14 @@ fn embedding_batch(document_count: usize) -> GenerateEmbeddingBatchParams {
 async fn an_agent_frees_the_slots_of_an_abandoned_embedding_batch_and_serves_the_next() {
     let embedding_parameters = EmbeddingParameters::default();
     let documents_in_one_chunk = embedding_parameters.embedding_batch_size.get();
-    let mut cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: vec![AgentConfig::single(SLOTS)],
-        embedding_parameters,
-        ..EmbeddingClusterParams::default()
-    })
+    let mut cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: vec![AgentConfig::single(SLOTS)],
+            embedding_parameters,
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
     let agent_id = cluster

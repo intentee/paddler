@@ -10,15 +10,15 @@ use tokio_util::sync::CancellationToken;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster_harness::is_unending_generation_text::is_unending_generation_text;
-use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_cluster_harness::unending_generation::unending_generation;
+use paddler_file_fixture::constants::LLAMAS_JPEG;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn generating_request_keeps_every_token_when_multimodal_request_is_admitted() {
@@ -49,8 +49,7 @@ async fn generating_request_keeps_every_token_when_multimodal_request_is_admitte
                         content: ConversationMessageContent::Parts(vec![
                             ConversationMessageContentPart::ImageUrl {
                                 image_url: ImageUrl {
-                                    url: load_test_image_data_uri()
-                                        .expect("the test image must load"),
+                                    url: LLAMAS_JPEG.data_uri().expect("the test image must load"),
                                 },
                             },
                             ConversationMessageContentPart::Text {

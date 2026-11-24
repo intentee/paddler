@@ -2,7 +2,6 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_reports_an_awaited_agent_that_leaves_the_pool() {
@@ -12,7 +11,7 @@ async fn cluster_harness_reports_an_awaited_agent_that_leaves_the_pool() {
         mut agents_watcher,
         balancer,
         ..
-    } = start_cluster(ClusterParams {
+    } = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         ..ClusterParams::default()

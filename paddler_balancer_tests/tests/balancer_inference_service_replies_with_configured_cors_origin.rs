@@ -1,12 +1,12 @@
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::send_cors_preflight::send_cors_preflight;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster_harness::send_cors_preflight::send_cors_preflight;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_inference_service_replies_with_configured_cors_origin() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
         ..ClusterParams::without_agents()
     })

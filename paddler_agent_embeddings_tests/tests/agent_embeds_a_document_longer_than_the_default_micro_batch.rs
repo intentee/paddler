@@ -5,27 +5,30 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 const NOMIC_TRAINING_CONTEXT_SIZE: u32 = 2048;
 const SENTENCES_EXCEEDING_THE_DEFAULT_MICRO_BATCH: usize = 100;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_embeds_a_document_longer_than_the_default_micro_batch() {
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: vec![AgentConfig::single(1)],
-        model_runtime_parameters: ModelRuntimeParameters {
-            context_size: NonZeroU32::try_from(NOMIC_TRAINING_CONTEXT_SIZE)
-                .expect("the value must fit its target type"),
-            ..ModelRuntimeParameters::default()
-        },
-        ..EmbeddingClusterParams::default()
-    })
+    let cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: vec![AgentConfig::single(1)],
+            model_runtime_parameters: ModelRuntimeParameters {
+                context_size: NonZeroU32::try_from(NOMIC_TRAINING_CONTEXT_SIZE)
+                    .expect("the value must fit its target type"),
+                ..ModelRuntimeParameters::default()
+            },
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
 

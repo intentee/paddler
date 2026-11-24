@@ -3,20 +3,20 @@ use std::path::Path;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_cluster::start_cluster;
 
 const AGENT_NAME: &str = "agent-without-its-model";
 const MISSING_MODEL_PATH: &str = "/nonexistent/model.gguf";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_reports_an_agent_that_reports_issues_while_starting() {
-    let startup_error = start_cluster(ClusterParams {
+    let startup_error = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig {
             name: AGENT_NAME.to_owned(),
             slot_count: 1,

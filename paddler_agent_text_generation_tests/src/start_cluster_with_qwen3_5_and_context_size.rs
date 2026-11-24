@@ -6,17 +6,15 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use paddler_cluster_harness::model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
-use crate::start_cluster::start_cluster;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_model_card_fixture::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 
 /// # Errors
 ///
-/// Returns the error of [`start_cluster`] when the cluster serving Qwen3.5 with the given context size cannot start.
+/// Returns the error of [`Cluster::start_in_process`] when the cluster serving Qwen3.5 with the given context size cannot start.
 pub async fn start_cluster_with_qwen3_5_and_context_size(
     agents: Vec<AgentConfig>,
     with_mmproj: bool,
@@ -28,7 +26,7 @@ pub async fn start_cluster_with_qwen3_5_and_context_size(
         qwen3_5_0_8b().into_desired_state()
     };
 
-    start_cluster(ClusterParams {
+    Cluster::start_in_process(ClusterParams {
         agents,
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model_runtime_parameters: ModelRuntimeParameters {

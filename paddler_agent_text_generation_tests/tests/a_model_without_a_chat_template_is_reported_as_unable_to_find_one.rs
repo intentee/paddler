@@ -2,15 +2,15 @@
 
 use std::mem::discriminant;
 
-use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() {
+async fn a_model_without_a_chat_template_is_reported_as_unable_to_find_one() {
     let model_card = nomic_embed_text_v1_5();
     let expected_issue = AgentIssue::UnableToFindChatTemplate(ModelPath::from(
         model_card

@@ -5,13 +5,13 @@ use std::mem::discriminant;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_waits_until_an_agent_loads_its_decision_model() {

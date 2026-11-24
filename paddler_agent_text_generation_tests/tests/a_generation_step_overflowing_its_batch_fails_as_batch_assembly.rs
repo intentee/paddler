@@ -7,22 +7,22 @@ use llama_cpp_context::llama_batch::LlamaBatch;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::conversation_generation::ConversationGeneration;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
-use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
-use paddler_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
+use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
+use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
+use paddler_agent_text_generation_tests::last_generated_token_result::last_generated_token_result;
+use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
+use paddler_file_fixture::constants::LLAMAS_JPEG;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::conversation_generation::ConversationGeneration;
-use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use paddler_tests::gbnf_literal::gbnf_literal;
-use paddler_tests::last_generated_token_result::last_generated_token_result;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::single_image_question::SingleImageQuestion;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
+use paddler_model_card_fixture::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 
 const ANSWER: &str = "two llamas";
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(16).unwrap();
@@ -57,7 +57,7 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
                 .expect("the multimodal projection must be in the Hugging Face cache"),
         )
         .expect("the multimodal projection must load");
-    let image_data_uri = load_test_image_data_uri().expect("the test image must load");
+    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
     let image_question = || {
         ConversationGeneration::new(
             ContinueFromConversationHistoryParams {

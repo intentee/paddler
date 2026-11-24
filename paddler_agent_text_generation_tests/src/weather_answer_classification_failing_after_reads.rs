@@ -7,16 +7,16 @@ use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPositions;
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_classification::TokenClassification;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
-use crate::agent_inference_runtime_context::agent_inference_runtime_context;
-use crate::llama_runtime::LlamaRuntime;
-use crate::prompt_sampling_positions::PromptSamplingPositions;
 use crate::ready_to_sample_request::ReadyToSampleRequest;
 use crate::weather_chat_session::weather_chat_session;
 

@@ -4,6 +4,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
 use paddler_client::format_api_url::format_api_url;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
@@ -11,7 +12,6 @@ use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::start_cluster::start_cluster;
 
 fn is_cancelled_request_to(
     request_error: Option<&ClusterHarnessError>,
@@ -26,7 +26,7 @@ fn is_cancelled_request_to(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_reports_streamed_requests_cancelled_before_they_are_sent() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
     let inference_base_url = &cluster.balancer.inference_base_url;

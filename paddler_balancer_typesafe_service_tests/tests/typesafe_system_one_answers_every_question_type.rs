@@ -4,8 +4,8 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use serde_json::json;
 
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::system_one_request::system_one_request;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
 
 const ROUNDED_PROBABILITY_SUM_TOLERANCE: f64 = 0.002;
 

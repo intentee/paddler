@@ -2,15 +2,15 @@
 
 use std::collections::BTreeSet;
 
-use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
+use paddler_agent_pipeline_harness::model_declaring_decision_metadata::ModelDeclaringDecisionMetadata;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_tests::model_declaring_decision_metadata::ModelDeclaringDecisionMetadata;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_a_decision_model_of_an_unsupported_type() {

@@ -4,19 +4,19 @@ use llama_cpp_model::llama_logit_bias::LlamaLogitBias;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_agent_text_generation_tests::constants::QWEN3_0_6B_UNUSED_PADDING_TOKEN;
+use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::token_usage::TokenUsage;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::constants::QWEN3_0_6B_UNUSED_PADDING_TOKEN;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 const PROMPT: &str = "Paddler balances";
 

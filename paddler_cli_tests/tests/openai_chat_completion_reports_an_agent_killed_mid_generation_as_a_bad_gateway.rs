@@ -8,9 +8,9 @@ use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::minimal_openai_chat_completion::minimal_openai_chat_completion;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
-use paddler_tests::minimal_openai_chat_completion::minimal_openai_chat_completion;
 
 const TEXT_GENERATION_SLOTS: u16 = 1;
 

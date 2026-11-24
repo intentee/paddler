@@ -1,16 +1,16 @@
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_the_url_model_of_its_desired_state() {
     let configured_url = "https://example.invalid/persisted-model.gguf".to_owned();
 
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model: AgentDesiredModel::Uri(configured_url.clone()),
             ..BalancerDesiredState::default()

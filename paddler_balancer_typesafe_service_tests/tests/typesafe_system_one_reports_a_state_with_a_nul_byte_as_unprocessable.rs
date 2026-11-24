@@ -3,9 +3,9 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::with_nul_byte::with_nul_byte;
+use paddler_request_params_fixture::with_nul_byte::with_nul_byte;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_a_state_with_a_nul_byte_as_unprocessable() {

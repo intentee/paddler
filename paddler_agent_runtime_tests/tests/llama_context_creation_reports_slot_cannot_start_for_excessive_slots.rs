@@ -1,23 +1,23 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::ModelCard;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_capability::InferenceCapability;
+use paddler_model_card_fixture::model_card::ModelCard;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_reports_slot_cannot_start_for_excessive_slots() {
+async fn llama_context_creation_reports_slot_cannot_start_for_excessive_slots() {
     let ModelCard { reference } = qwen3_0_6b();
-    let mut cluster = start_cluster(ClusterParams {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 257,

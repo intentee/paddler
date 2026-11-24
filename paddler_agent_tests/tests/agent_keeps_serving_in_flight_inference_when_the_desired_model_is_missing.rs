@@ -11,11 +11,11 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster_harness::is_unending_generation_text::is_unending_generation_text;
+use paddler_cluster_harness::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generation_finish::GenerationFinish;
-use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 
 const CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION: NonZeroU32 = NonZeroU32::new(256).unwrap();
 

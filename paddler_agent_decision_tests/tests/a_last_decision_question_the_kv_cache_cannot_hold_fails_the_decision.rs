@@ -6,7 +6,7 @@ use llama_cpp_context::context_error::ContextError;
 
 use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_error::DecisionError;
-use paddler_tests::kev_decision_in_a_kv_cache::KevDecisionInAKvCache;
+use paddler_agent_decision_tests::kev_decision_in_a_kv_cache::KevDecisionInAKvCache;
 
 const CACHE_CELLS: NonZeroU32 = NonZeroU32::new(256).unwrap();
 const STATE_TOKENS_FILLING_THE_CACHE_BESIDE_THE_DELIMITER: usize = 255;

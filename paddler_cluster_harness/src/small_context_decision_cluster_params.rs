@@ -1,8 +1,8 @@
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_inference_parameters::batch_size::BatchSize;
 
 use crate::constants::SMALL_DECISION_CONTEXT_SIZE;
 use crate::decision_cluster_params::DecisionClusterParams;
-use crate::decision_desired_state::DecisionDesiredState;
 
 #[must_use]
 pub fn small_context_decision_cluster_params() -> DecisionClusterParams {

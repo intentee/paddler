@@ -1,14 +1,14 @@
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_tests::conversation_with_a_tool_requiring_an_undeclared_property::conversation_with_a_tool_requiring_an_undeclared_property;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
-use paddler_tests::conversation_with_a_tool_requiring_an_undeclared_property::conversation_with_a_tool_requiring_an_undeclared_property;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn inference_socket_rejects_tool_whose_required_field_is_not_a_property() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+async fn inference_socket_rejects_a_tool_that_requires_an_undeclared_property() {
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
 

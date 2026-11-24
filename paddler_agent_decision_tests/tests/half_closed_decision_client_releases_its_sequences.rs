@@ -5,15 +5,15 @@ use std::mem::discriminant;
 use serde_json::to_value;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_messaging::constants::API_PATH_DECIDE;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const SMALL_BATCH_TOKENS: u32 = 32;
 const STATE_REPETITIONS_SPANNING_MANY_DECODES: usize = 120;

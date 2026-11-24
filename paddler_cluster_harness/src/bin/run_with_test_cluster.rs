@@ -10,8 +10,7 @@ use tokio::process::Command;
 
 use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_cluster_harness::cluster::Cluster;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::test_cluster_preset::TestClusterPreset;
+use paddler_cluster_harness::test_cluster_preset::TestClusterPreset;
 
 fn http_url(addr: SocketAddr) -> String {
     format!("http://{addr}")
@@ -82,7 +81,7 @@ async fn main() -> Result<ExitCode> {
         program,
         arguments,
     } = RunWithTestClusterArguments::parse();
-    let command_status: Result<ExitStatus> = start_cluster(preset.cluster_params())
+    let command_status: Result<ExitStatus> = Cluster::start_in_process(preset.cluster_params())
         .and_then(|cluster| run_against_cluster(cluster, program, arguments))
         .await;
 

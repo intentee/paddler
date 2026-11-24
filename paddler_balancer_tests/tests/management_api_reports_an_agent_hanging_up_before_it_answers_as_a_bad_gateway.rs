@@ -2,18 +2,18 @@ use reqwest::Client;
 use reqwest::StatusCode;
 use tokio::spawn;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const AGENT_ID: &str = "hanging-up";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_api_reports_an_agent_hanging_up_before_it_answers_as_a_bad_gateway() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
     let mut hanging_up_agent = UntrustedManagementAgent::connect_registered(

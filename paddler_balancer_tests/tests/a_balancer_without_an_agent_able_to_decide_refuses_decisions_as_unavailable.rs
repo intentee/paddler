@@ -1,14 +1,14 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_cluster_without_an_agent_able_to_decide_refuses_decisions_as_unavailable() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+async fn a_balancer_without_an_agent_able_to_decide_refuses_decisions_as_unavailable() {
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
 

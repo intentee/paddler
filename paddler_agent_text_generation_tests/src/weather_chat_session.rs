@@ -11,8 +11,8 @@ use serde_json::Value;
 
 use paddler_agent_text_generation::chat_template_tool::ChatTemplateTool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
 
-use crate::constants::WEATHER_TOOL_QUESTION;
 use crate::get_weather_tool::get_weather_tool;
 
 /// # Errors

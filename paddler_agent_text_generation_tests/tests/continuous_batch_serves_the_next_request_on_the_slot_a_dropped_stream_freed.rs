@@ -6,9 +6,9 @@ use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_serves_the_next_request_on_the_slot_a_dropped_stream_freed() {

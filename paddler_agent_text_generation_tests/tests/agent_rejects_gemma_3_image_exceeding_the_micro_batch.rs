@@ -4,8 +4,9 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::start_cluster_with_gemma_3_and_mmproj_and_n_batch::start_cluster_with_gemma_3_and_mmproj_and_n_batch;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
+use paddler_file_fixture::constants::SARNOW_JPEG;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -15,7 +16,6 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::oversized_media_details::OversizedMediaDetails;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::start_cluster_with_gemma_3_and_mmproj_and_n_batch::start_cluster_with_gemma_3_and_mmproj_and_n_batch;
 
 const GEMMA_3_IMAGE_TOKENS: usize = 256;
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
@@ -41,7 +41,8 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() {
                         content: ConversationMessageContent::Parts(vec![
                             ConversationMessageContentPart::ImageUrl {
                                 image_url: ImageUrl {
-                                    url: load_fixture_data_uri("sarnow.jpeg", "image/jpeg")
+                                    url: SARNOW_JPEG
+                                        .data_uri()
                                         .expect("the test fixture must load"),
                                 },
                             },

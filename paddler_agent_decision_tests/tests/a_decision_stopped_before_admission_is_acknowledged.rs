@@ -2,9 +2,9 @@
 
 use tokio::sync::mpsc;
 
+use paddler_agent_decision_tests::serving_decision_agent::ServingDecisionAgent;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::serving_decision_agent::ServingDecisionAgent;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_stopped_before_admission_is_acknowledged() {

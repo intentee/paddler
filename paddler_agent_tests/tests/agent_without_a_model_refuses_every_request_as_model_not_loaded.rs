@@ -1,6 +1,7 @@
 use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 
+use paddler_agent_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
@@ -18,7 +19,6 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::reserved_request::ReservedRequest;
-use paddler_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 
 fn requests_of_every_kind() -> [RequestEnvelope<AgentJsonRpcRequest>; 4] {
     [

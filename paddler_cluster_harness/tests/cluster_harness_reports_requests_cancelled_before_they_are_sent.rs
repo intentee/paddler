@@ -4,6 +4,7 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -11,11 +12,10 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_reports_requests_cancelled_before_they_are_sent() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
     let cancelled_requests = CancellationToken::new();

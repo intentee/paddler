@@ -7,17 +7,17 @@ use llama_cpp_context::llama_batch::LlamaBatch;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use paddler_tests::generation_done_discriminant::generation_done_discriminant;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::raw_prompt_generation::RawPromptGeneration;
+use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
+use paddler_cluster_harness::generation_done_discriminant::generation_done_discriminant;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const PROMPT: &str = "Paddler balances inference across agents, and";
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(8).unwrap();

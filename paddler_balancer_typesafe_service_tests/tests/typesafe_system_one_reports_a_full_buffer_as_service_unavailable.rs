@@ -1,8 +1,8 @@
 use reqwest::StatusCode;
 
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
-use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_a_full_buffer_as_service_unavailable() {

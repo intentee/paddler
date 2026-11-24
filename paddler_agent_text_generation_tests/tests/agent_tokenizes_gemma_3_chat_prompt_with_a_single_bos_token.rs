@@ -4,10 +4,10 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::start_cluster_with_gemma_3::start_cluster_with_gemma_3;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::greeting_conversation::greeting_conversation;
-use paddler_tests::start_cluster_with_gemma_3::start_cluster_with_gemma_3;
+use paddler_request_params_fixture::greeting_conversation::greeting_conversation;
 
 const RAW_PROMPT_WITHOUT_BOS: &str = "<start_of_turn>user\nhi<end_of_turn>\n<start_of_turn>model\n";
 

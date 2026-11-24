@@ -5,9 +5,19 @@ use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
+use log::LevelFilter;
+use log::set_max_level;
 use serde_json::Value;
+use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_cache_dir::cache_dir::CacheDir;
+use paddler_download_manager::download_manager::DownloadManager;
+use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
+use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
+use paddler_model_source::huggingface_hub::HuggingFaceHub;
 use paddler_client::client_health::ClientHealth;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
@@ -35,6 +45,7 @@ use crate::agent_spawner::AgentSpawner;
 use crate::buffered_request_count_is::buffered_request_count_is;
 use crate::cluster_desired_state::ClusterDesiredState;
 use crate::cluster_harness_error::ClusterHarnessError;
+use crate::cluster_params::ClusterParams;
 use crate::cluster_snapshots_watchers::ClusterSnapshotsWatchers;
 use crate::collect_decision_results::collect_decision_results;
 use crate::collect_embedding_results::collect_embedding_results;
@@ -45,6 +56,8 @@ use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::concurrent_connection_budget::ConcurrentConnectionBudget;
 use crate::connection_keep_alive::ConnectionKeepAlive;
 use crate::connection_runtime::ConnectionRuntime;
+use crate::in_process_agent_spawner::InProcessAgentSpawner;
+use crate::in_process_balancer::InProcessBalancer;
 use crate::openai_api_client::OpenAIApiClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
@@ -134,6 +147,58 @@ impl Cluster {
             connection_budget: ConcurrentConnectionBudget::default(),
             connection_runtime,
         })
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the in-process balancer cannot start or be addressed, when the temporary model directory, the model downloader, or the Hugging Face client cannot be created, when the cluster cannot connect to the balancer, and when its agents do not register.
+    pub async fn start_in_process(cluster_params: ClusterParams) -> Result<Self> {
+        set_max_level(LevelFilter::Trace);
+
+        let running_balancer =
+            BalancerRunner::start(cluster_params.in_process_balancer_runner_params()?)
+                .await
+                .context("failed to start in-process BalancerRunner")
+                .and_then(|balancer_runner| {
+                    RunningBalancer::new(
+                        balancer_runner.addresses,
+                        Box::new(InProcessBalancer::new(balancer_runner)),
+                    )
+                    .context("failed to address the in-process balancer")
+                })?;
+        let management_address = running_balancer.addresses.management;
+        let downloaded_models = TempDir::new()?;
+        let desired_model_resolver = DesiredModelResolver {
+            cache_dir: CacheDir {
+                explicit: Some(downloaded_models.path().to_path_buf()),
+                home: None,
+                xdg: None,
+            },
+            download_manager: DownloadManager::new()?,
+            huggingface_client: HuggingFaceHub {
+                cache_location: HuggingFaceCacheLocation::HubDefault,
+                endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+            }
+            .client()?,
+        };
+
+        let mut cluster = Self::connect(
+            CancellationToken::new(),
+            running_balancer,
+            Box::new(InProcessAgentSpawner {
+                desired_model_resolver,
+                downloaded_models,
+                management_address,
+            }),
+            &cluster_params.desired_state,
+        )
+        .await?;
+
+        cluster
+            .register_agents(&cluster_params.agents, cluster_params.wait_for_slots_ready)
+            .await?;
+
+        Ok(cluster)
     }
 
     /// # Errors

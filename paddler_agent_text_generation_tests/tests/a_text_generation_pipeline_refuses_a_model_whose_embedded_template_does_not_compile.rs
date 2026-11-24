@@ -5,15 +5,15 @@ use std::ffi::CString;
 use llama_cpp_model::model_error::ModelError;
 use tempfile::TempDir;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::write_patched_gguf::write_patched_gguf;
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_agent_text_generation_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
+use paddler_balancer_desired_state_fixture::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
-use paddler_tests::write_patched_gguf::write_patched_gguf;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_text_generation_pipeline_refuses_a_model_whose_embedded_template_does_not_compile() {

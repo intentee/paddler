@@ -1,11 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 #[test]
 fn a_model_keeps_its_vram_occupancy_until_its_last_clone_is_dropped() {

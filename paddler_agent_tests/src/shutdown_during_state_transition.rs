@@ -14,8 +14,6 @@ use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
-use crate::start_cluster::start_cluster;
-
 struct ClusterWithARegisteredAgent {
     agent_id: String,
     cluster: Cluster,
@@ -84,7 +82,7 @@ impl ShutdownDuringStateTransition {
             slot_count,
         } = self;
 
-        start_cluster(ClusterParams {
+        Cluster::start_in_process(ClusterParams {
             agents: vec![AgentConfig::single(slot_count)],
             desired_state: ClusterDesiredState::Apply(Box::new(initial_desired_state)),
             wait_for_slots_ready: false,

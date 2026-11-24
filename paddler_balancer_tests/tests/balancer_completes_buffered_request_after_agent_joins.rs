@@ -5,16 +5,16 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_buffered_request_after_agent_joins() {
-    let mut cluster = start_cluster(ClusterParams {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
         max_buffered_requests: 1,
         desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         ..ClusterParams::without_agents()

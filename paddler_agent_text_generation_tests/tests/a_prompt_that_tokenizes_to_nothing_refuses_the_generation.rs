@@ -1,13 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand as _;
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::raw_prompt_generation::RawPromptGeneration;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 #[test]
 fn a_prompt_that_tokenizes_to_nothing_refuses_the_generation() {

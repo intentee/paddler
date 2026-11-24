@@ -4,17 +4,17 @@ use std::mem::discriminant;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const SLOTS: u16 = 2;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_serves_decisions_with_a_batch_too_small_to_warm_up_every_slot() {
+async fn warm_up_with_one_batch_token_per_slot_lets_decisions_be_served() {
     let cluster = DecisionClusterParams {
         agents: vec![AgentConfig::single(SLOTS)],
         desired_state: DecisionDesiredState {

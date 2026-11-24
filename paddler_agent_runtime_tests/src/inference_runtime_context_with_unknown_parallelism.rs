@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 
-use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::parallelism_that_is_unknown::ParallelismThatIsUnknown;
 
 #[must_use]

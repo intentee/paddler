@@ -1,8 +1,10 @@
 use reqwest::StatusCode;
 use tokio::spawn;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
+use paddler_cluster_harness::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_status::AgentStatus;
@@ -11,14 +13,12 @@ use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const DECISION_SLOTS: u16 = 2;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_answers_that_do_not_match_its_questions_as_a_bad_gateway() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
     let mut untruthful_agent = UntrustedManagementAgent::connect_registered(

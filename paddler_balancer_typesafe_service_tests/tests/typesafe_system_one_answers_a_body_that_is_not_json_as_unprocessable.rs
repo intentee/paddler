@@ -2,12 +2,12 @@ use reqwest::Client;
 use reqwest::StatusCode;
 
 use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_answers_a_body_that_is_not_json_as_unprocessable() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
 

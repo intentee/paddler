@@ -4,18 +4,16 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::ministral_3_8b_reasoning::ministral_3_8b_reasoning;
-use paddler_cluster_harness::model_card::ministral_3_8b_reasoning_mmproj::ministral_3_8b_reasoning_mmproj;
-
-use crate::start_cluster::start_cluster;
+use paddler_model_card_fixture::ministral_3_8b_reasoning::ministral_3_8b_reasoning;
+use paddler_model_card_fixture::ministral_3_8b_reasoning_mmproj::ministral_3_8b_reasoning_mmproj;
 
 /// # Errors
 ///
-/// Returns the error of [`start_cluster`] when the cluster serving Ministral 3 with its multimodal projection cannot start.
+/// Returns the error of [`Cluster::start_in_process`] when the cluster serving Ministral 3 with its multimodal projection cannot start.
 pub async fn start_cluster_with_ministral_3_and_mmproj(
     agents: Vec<AgentConfig>,
 ) -> Result<Cluster> {
-    start_cluster(ClusterParams {
+    Cluster::start_in_process(ClusterParams {
         agents,
         desired_state: ClusterDesiredState::Apply(Box::new(
             ministral_3_8b_reasoning()

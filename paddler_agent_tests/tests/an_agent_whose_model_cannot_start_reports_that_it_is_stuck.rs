@@ -3,11 +3,11 @@ use std::io::Write as _;
 use tempfile::NamedTempFile;
 
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_whose_model_cannot_start_reports_that_it_is_stuck() {

@@ -1,16 +1,16 @@
 use tokio::fs::try_exists;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn reading_a_missing_state_file_changes_nothing() {
+async fn balancer_keeping_its_stored_state_does_not_create_a_missing_state_file() {
     let database =
         TemporaryStateDatabaseFile::new().expect("the state database file must be created");
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         desired_state: ClusterDesiredState::KeepStored,
         state_database_url: database.url.clone(),
         ..ClusterParams::without_agents()

@@ -4,11 +4,11 @@ use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_sampler::sampler_error::SamplerError;
 
+use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPositions;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_tests::grammar_refusing_the_greedy_selection::GrammarRefusingTheGreedySelection;
-use paddler_tests::prompt_sampling_positions::PromptSamplingPositions;
+use paddler_agent_text_generation_tests::grammar_refusing_the_greedy_selection::GrammarRefusingTheGreedySelection;
 
 #[test]
 fn a_sampler_chain_that_refuses_its_own_selection_fails_the_sampling() {

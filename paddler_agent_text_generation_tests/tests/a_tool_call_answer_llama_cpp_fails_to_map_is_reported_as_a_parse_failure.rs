@@ -8,15 +8,15 @@ use llama_cpp_model::sampled_token_section::SampledTokenSection;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 use serde_json::Value;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::tool_call_event::ToolCallEvent;
-use paddler_cluster_harness::model_card::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
+use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
+use paddler_agent_text_generation_tests::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
+use paddler_agent_text_generation_tests::weather_chat_session::weather_chat_session;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::get_weather_tool::get_weather_tool;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
-use paddler_tests::weather_chat_session::weather_chat_session;
+use paddler_model_card_fixture::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
 
 const WEATHER_TOOL_CALL: &str = r#"[TOOL_CALLS]get_weather[ARGS]{"location": "Paris"}"#;
 

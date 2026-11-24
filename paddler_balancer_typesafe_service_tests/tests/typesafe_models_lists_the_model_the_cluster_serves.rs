@@ -4,9 +4,9 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use serde_json::json;
 
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_models_lists_the_model_the_cluster_serves() {

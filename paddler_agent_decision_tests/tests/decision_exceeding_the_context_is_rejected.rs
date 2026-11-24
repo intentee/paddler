@@ -2,13 +2,13 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::constants::SMALL_DECISION_CONTEXT_SIZE;
+use paddler_cluster_harness::small_context_decision_cluster_params::small_context_decision_cluster_params;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::constants::SMALL_DECISION_CONTEXT_SIZE;
-use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::small_context_decision_cluster_params::small_context_decision_cluster_params;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const STATE_REPETITIONS_EXCEEDING_THE_CONTEXT: usize = 20;
 const TOKENS_REQUIRED_BY_THE_REPEATED_STATE_DECISION: usize = 602;

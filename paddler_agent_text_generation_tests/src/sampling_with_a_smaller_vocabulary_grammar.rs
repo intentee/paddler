@@ -5,16 +5,14 @@ use anyhow::Result;
 use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPositions;
+use paddler_agent_pipeline_harness::vocabulary_only_llama_model::VocabularyOnlyLlamaModel;
 use paddler_agent_text_generation::sampling_outcome::SamplingOutcome;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-
-use crate::agent_inference_runtime_context::agent_inference_runtime_context;
-use crate::llama_runtime::LlamaRuntime;
-use crate::prompt_sampling_positions::PromptSamplingPositions;
-use crate::vocabulary_only_llama_model::VocabularyOnlyLlamaModel;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 pub struct SamplingWithASmallerVocabularyGrammar {
     pub runtime: LlamaRuntime,

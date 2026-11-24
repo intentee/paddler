@@ -1,9 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_balancer_openai_service_tests::streamed_greeting_responses_request::streamed_greeting_responses_request;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::streamed_greeting_responses_request::streamed_greeting_responses_request;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_streaming_conforms_to_schema() {

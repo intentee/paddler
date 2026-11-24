@@ -1,9 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
+use paddler_agent_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
+use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_shuts_down_cleanly_while_switching_to_another_model() {

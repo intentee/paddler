@@ -1,0 +1,23 @@
+[package]
+name = "paddler_file_fixture"
+authors.workspace = true
+description = "Locates and encodes the files in the fixtures directory of the Paddler repository"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+base64 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+data-url = { workspace = true }
+
+[lints]
+workspace = true

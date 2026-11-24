@@ -32,7 +32,6 @@ trzcina = { workspace = true }
 
 [dev-dependencies]
 paddler_capturing_logger = { workspace = true }
-paddler_cluster_harness = { workspace = true }
 
 [lints]
 workspace = true

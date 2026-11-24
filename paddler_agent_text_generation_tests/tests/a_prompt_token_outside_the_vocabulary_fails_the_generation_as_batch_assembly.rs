@@ -5,6 +5,9 @@ use llama_cpp_model::llama_token::LlamaToken;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
@@ -12,13 +15,10 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
+use paddler_agent_text_generation_tests::last_generated_token_result::last_generated_token_result;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use paddler_tests::last_generated_token_result::last_generated_token_result;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::raw_prompt_generation::RawPromptGeneration;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 #[test]
 fn a_prompt_token_outside_the_vocabulary_fails_the_generation_as_batch_assembly() {

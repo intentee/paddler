@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use paddler_agent::desired_state_reconciliation::DesiredStateReconciliation;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_desired_state_with_a_missing_model_is_left_pending_without_starting_a_pipeline() {

@@ -2,20 +2,20 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::nomic_embed_desired_state_with_chat_template_override::nomic_embed_desired_state_with_chat_template_override;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::chat_template::ChatTemplate;
-use paddler_tests::nomic_embed_desired_state_with_chat_template_override::nomic_embed_desired_state_with_chat_template_override;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn management_returns_the_chat_template_override_an_embedding_agent_uses() {
+async fn embedding_agent_answers_the_chat_template_override_it_uses() {
     let chat_template = ChatTemplate {
         content: "{{ messages[0].content }}".to_owned(),
     };
 
-    let mut cluster = start_cluster(ClusterParams {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         desired_state: ClusterDesiredState::Apply(Box::new(

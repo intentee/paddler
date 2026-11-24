@@ -4,10 +4,10 @@ use std::mem::discriminant;
 
 use tokio::sync::mpsc;
 
+use paddler_agent_decision_tests::question_answered_discriminant::question_answered_discriminant;
+use paddler_agent_decision_tests::serving_decision_agent::ServingDecisionAgent;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_tests::many_question_decision::many_question_decision;
-use paddler_tests::question_answered_discriminant::question_answered_discriminant;
-use paddler_tests::serving_decision_agent::ServingDecisionAgent;
+use paddler_request_params_fixture::many_question_decision::many_question_decision;
 
 const QUESTIONS_OUTLASTING_A_STOP: usize = 96;
 

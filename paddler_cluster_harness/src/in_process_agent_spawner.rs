@@ -8,13 +8,13 @@ use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
 use paddler_bootstrap::agent_runtime_config::AgentRuntimeConfig;
-use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::agent_spawner::AgentSpawner;
-use paddler_cluster_harness::managed_process::ManagedProcess;
-use paddler_cluster_harness::unexpiring_shutdown_options::unexpiring_shutdown_options;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 
+use crate::agent_config::AgentConfig;
+use crate::agent_spawner::AgentSpawner;
 use crate::in_process_agent::InProcessAgent;
+use crate::managed_process::ManagedProcess;
+use crate::unexpiring_shutdown_options::unexpiring_shutdown_options;
 
 pub struct InProcessAgentSpawner {
     pub desired_model_resolver: DesiredModelResolver,

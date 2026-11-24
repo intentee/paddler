@@ -3,11 +3,11 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
+use paddler_cluster_harness::constants::SMALL_DECISION_CONTEXT_SIZE;
 use paddler_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
+use paddler_cluster_harness::small_context_decision_cluster_params::small_context_decision_cluster_params;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_tests::constants::SMALL_DECISION_CONTEXT_SIZE;
-use paddler_tests::oversized_text::oversized_text;
-use paddler_tests::small_context_decision_cluster_params::small_context_decision_cluster_params;
+use paddler_request_params_fixture::oversized_text::oversized_text;
 
 const TOKENS_REQUIRED_BY_THE_OVERSIZED_STATE_DECISION: usize = 410;
 

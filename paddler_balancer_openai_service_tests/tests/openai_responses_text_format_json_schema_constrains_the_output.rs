@@ -4,9 +4,9 @@ use serde_json::Value;
 use serde_json::from_str;
 use serde_json::json;
 
+use paddler_balancer_openai_service_tests::responses_message_text::responses_message_text;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::responses_message_text::responses_message_text;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_text_format_json_schema_constrains_the_output() {

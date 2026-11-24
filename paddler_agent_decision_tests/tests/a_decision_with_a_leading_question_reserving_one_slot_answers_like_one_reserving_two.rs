@@ -10,16 +10,16 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
+use paddler_agent_decision_tests::decision_scheduler_run::DecisionSchedulerRun;
+use paddler_agent_decision_tests::kev_decision_model::KevDecisionModel;
+use paddler_agent_decision_tests::prepared_decision::PreparedDecision;
+use paddler_agent_decision_tests::two_option_question::two_option_question;
 use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_status::slot_guard::SlotGuard;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
-use paddler_tests::kev_decision_model::KevDecisionModel;
-use paddler_tests::prepared_decision::PreparedDecision;
-use paddler_tests::two_option_question::two_option_question;
 
 fn answers_of(mut decision_result_rx: UnboundedReceiver<DecisionResult>) -> Vec<DecisionAnswer> {
     let mut answers = Vec::new();

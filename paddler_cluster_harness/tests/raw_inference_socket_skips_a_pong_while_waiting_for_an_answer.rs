@@ -3,19 +3,19 @@ use std::num::NonZeroU32;
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::Message;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
-use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
-use paddler_tests::start_cluster::start_cluster;
 
 const AWAITED_REQUEST_ID: &str = "request-after-the-ping";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn raw_inference_socket_skips_a_pong_while_waiting_for_an_answer() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         max_buffered_requests: 1,
         ..ClusterParams::without_agents()

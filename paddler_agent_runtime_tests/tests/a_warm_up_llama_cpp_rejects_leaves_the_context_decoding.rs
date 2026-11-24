@@ -8,10 +8,10 @@ use llama_cpp_context_memory::context_memory::ContextMemory as _;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const SLOTS: u16 = 200;
 const CACHE_CELLS_FEWER_THAN_TWO_PER_SLOT: NonZeroU32 = NonZeroU32::new(256).unwrap();

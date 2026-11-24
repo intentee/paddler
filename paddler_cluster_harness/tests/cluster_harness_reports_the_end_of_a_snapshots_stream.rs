@@ -2,7 +2,6 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::snapshots_stream::SnapshotsStream;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_reports_the_end_of_a_snapshots_stream() {
@@ -10,7 +9,7 @@ async fn cluster_harness_reports_the_end_of_a_snapshots_stream() {
         mut agents_watcher,
         balancer,
         ..
-    } = start_cluster(ClusterParams::without_agents())
+    } = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
 

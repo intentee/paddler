@@ -1,3 +1,4 @@
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::conversation_prompt_support::ConversationPromptSupport;
 use paddler_agent_text_generation::conversation_support::ConversationSupport;
@@ -6,8 +7,6 @@ use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::model_bos_token::ModelBosToken;
 use paddler_agent_text_generation::prompt_tokenizer::PromptTokenizer;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
-
-use crate::llama_runtime::LlamaRuntime;
 
 pub struct ChatTemplatesRequestPreparer<'runtime> {
     pub chat_templates: ConversationChatTemplates,

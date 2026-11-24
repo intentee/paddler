@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "paddler-openai-client-python-test"
+name = "paddler-balancer-openai-service-python-tests"
 version = "5.0.0"
 description = "Drives Paddler's OpenAI-compatible endpoints with the OpenAI client to verify real-client compatibility"
 authors = ["Intentee"]

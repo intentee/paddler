@@ -5,13 +5,13 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 const CONTEXT_SIZE: u32 = 512;
 const SLOTS: u16 = 4;
@@ -20,15 +20,18 @@ const SLOTS: u16 = 4;
 async fn agent_embeds_a_document_longer_than_a_sequence_context_with_an_encoder() {
     let context_size =
         NonZeroU32::new(CONTEXT_SIZE).expect("the context size must be greater than zero");
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: AgentConfig::uniform(1, SLOTS),
-        model_runtime_parameters: ModelRuntimeParameters {
-            context_size,
-            n_batch: BatchSize::default().at_most(context_size),
-            ..ModelRuntimeParameters::default()
-        },
-        ..EmbeddingClusterParams::default()
-    })
+    let cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: AgentConfig::uniform(1, SLOTS),
+            model_runtime_parameters: ModelRuntimeParameters {
+                context_size,
+                n_batch: BatchSize::default().at_most(context_size),
+                ..ModelRuntimeParameters::default()
+            },
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
 

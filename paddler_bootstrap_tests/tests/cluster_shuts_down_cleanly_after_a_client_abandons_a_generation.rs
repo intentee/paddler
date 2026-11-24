@@ -6,8 +6,8 @@ use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_shuts_down_cleanly_after_a_client_abandons_a_generation() {

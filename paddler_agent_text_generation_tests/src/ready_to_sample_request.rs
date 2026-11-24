@@ -8,6 +8,9 @@ use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use log::LevelFilter;
 use log::set_max_level;
 
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPositions;
+use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
 use paddler_agent_runtime::sequence_id_guard::SequenceIdGuard;
 use paddler_agent_runtime::sequence_id_pool::SequenceIdPool;
 use paddler_agent_text_generation::continuous_batch_active_request::ContinuousBatchActiveRequest;
@@ -21,9 +24,6 @@ use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 
 use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use crate::llama_runtime::LlamaRuntime;
-use crate::prompt_sampling_positions::PromptSamplingPositions;
-use crate::raw_prompt_generation::RawPromptGeneration;
 
 fn ready_to_sample(
     PreparedGenerationRequest {

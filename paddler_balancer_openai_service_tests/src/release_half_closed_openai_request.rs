@@ -9,8 +9,6 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 
-use crate::start_cluster::start_cluster;
-
 struct HalfClosedOpenAIRequest {
     client: HalfClosedClient,
     cluster: Cluster,
@@ -70,7 +68,7 @@ impl HalfClosedOpenAIRequest {
 ///
 /// Returns an error when the cluster without agents cannot start, when the client cannot send or half-close its OpenAI-compatible request, when the balancer neither buffers nor releases that request, and when the cluster does not shut down cleanly.
 pub async fn release_half_closed_openai_request(path: &str, body: &Value) -> Result<()> {
-    start_cluster(ClusterParams::without_agents())
+    Cluster::start_in_process(ClusterParams::without_agents())
         .map(|started| started.context("a cluster without agents must start"))
         .and_then(|cluster| HalfClosedOpenAIRequest::post(cluster, path, body))
         .and_then(HalfClosedOpenAIRequest::wait_until_buffered)

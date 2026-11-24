@@ -1,11 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use serde_json::json;
 use std::num::NonZeroU32;
 
+use serde_json::json;
+
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::oversized_text::oversized_text;
-use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
+use paddler_cluster_harness::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
+use paddler_request_params_fixture::oversized_text::oversized_text;
 
 const SEQUENCE_CONTEXT_SIZE: NonZeroU32 = NonZeroU32::new(256).unwrap();
 

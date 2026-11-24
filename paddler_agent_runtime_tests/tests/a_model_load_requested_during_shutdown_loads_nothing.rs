@@ -4,11 +4,11 @@ use std::path::PathBuf;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::llama_model_loader::LlamaModelLoader;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 
 #[tokio::test]
 async fn a_model_load_requested_during_shutdown_loads_nothing() {

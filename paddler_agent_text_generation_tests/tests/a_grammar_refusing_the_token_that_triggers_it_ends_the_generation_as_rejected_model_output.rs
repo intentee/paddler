@@ -6,10 +6,10 @@ use paddler_agent_text_generation::continuous_batch_terminal_outcome::Continuous
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
+use paddler_agent_text_generation_tests::constants::GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT;
+use paddler_agent_text_generation_tests::grammar_refusing_the_greedy_selection::GrammarRefusingTheGreedySelection;
+use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_tests::constants::GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT;
-use paddler_tests::grammar_refusing_the_greedy_selection::GrammarRefusingTheGreedySelection;
-use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
 
 #[test]
 fn a_grammar_refusing_the_token_that_triggers_it_ends_the_generation_as_rejected_model_output() {

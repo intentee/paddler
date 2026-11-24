@@ -6,17 +6,17 @@ use tokio::join;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() {
     let desired_state = qwen3_0_6b().into_desired_state();
 
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 2,

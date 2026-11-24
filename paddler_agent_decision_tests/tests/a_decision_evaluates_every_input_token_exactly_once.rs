@@ -7,10 +7,10 @@ use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
+use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
+use paddler_agent_decision_tests::kev_decision_model::KevDecisionModel;
+use paddler_agent_decision_tests::two_option_question::two_option_question;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_tests::admitted_decision::AdmittedDecision;
-use paddler_tests::kev_decision_model::KevDecisionModel;
-use paddler_tests::two_option_question::two_option_question;
 
 #[test]
 fn a_decision_evaluates_every_input_token_exactly_once() {

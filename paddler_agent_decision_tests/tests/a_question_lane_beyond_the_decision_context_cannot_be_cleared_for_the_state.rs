@@ -9,11 +9,11 @@ use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
+use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
+use paddler_agent_decision_tests::kev_decision_model::KevDecisionModel;
+use paddler_agent_decision_tests::two_option_question::two_option_question;
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
-use paddler_tests::admitted_decision::AdmittedDecision;
-use paddler_tests::kev_decision_model::KevDecisionModel;
-use paddler_tests::two_option_question::two_option_question;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u32 = 1;
 const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 2;

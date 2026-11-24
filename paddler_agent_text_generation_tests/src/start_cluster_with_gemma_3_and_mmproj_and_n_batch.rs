@@ -4,17 +4,15 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::gemma_3_4b_it::gemma_3_4b_it;
-use paddler_cluster_harness::model_card::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
-use crate::start_cluster::start_cluster;
+use paddler_model_card_fixture::gemma_3_4b_it::gemma_3_4b_it;
+use paddler_model_card_fixture::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
 
 /// # Errors
 ///
-/// Returns the error of [`start_cluster`] when the cluster serving Gemma 3 with its multimodal projection cannot start.
+/// Returns the error of [`Cluster::start_in_process`] when the cluster serving Gemma 3 with its multimodal projection cannot start.
 pub async fn start_cluster_with_gemma_3_and_mmproj_and_n_batch(
     agents: Vec<AgentConfig>,
     n_batch: BatchSize,
@@ -22,7 +20,7 @@ pub async fn start_cluster_with_gemma_3_and_mmproj_and_n_batch(
     let base_desired_state =
         gemma_3_4b_it().into_desired_state_with_multimodal_projection(gemma_3_4b_it_mmproj());
 
-    start_cluster(ClusterParams {
+    Cluster::start_in_process(ClusterParams {
         agents,
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model_runtime_parameters: ModelRuntimeParameters {

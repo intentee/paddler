@@ -1,12 +1,12 @@
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_buffered_requests_endpoint_returns_empty_snapshot_when_no_requests_are_buffered()
  {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("the cluster must start");
 

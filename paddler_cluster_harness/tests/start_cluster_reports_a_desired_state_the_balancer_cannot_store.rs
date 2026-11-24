@@ -7,12 +7,12 @@ use reqwest::Url;
 use tempfile::TempDir;
 
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
-use paddler_tests::start_cluster::start_cluster;
 
 const READ_ONLY_DIRECTORY_MODE: u32 = 0o555;
 
@@ -26,7 +26,7 @@ async fn start_cluster_reports_a_desired_state_the_balancer_cannot_store() {
     )
     .expect("the state directory must become read-only");
 
-    let start_error = start_cluster(ClusterParams {
+    let start_error = Cluster::start_in_process(ClusterParams {
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model: AgentDesiredModel::Uri("agent:///unstorable-model.gguf".to_owned()),
             ..BalancerDesiredState::default()

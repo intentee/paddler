@@ -2,12 +2,12 @@
 
 use std::num::NonZeroU32;
 
-use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_agent_tests::swappable_model_file::SwappableModelFile;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
-use paddler_tests::swappable_model_file::SwappableModelFile;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn changing_the_context_size_restarts_serving_on_the_loaded_model() {

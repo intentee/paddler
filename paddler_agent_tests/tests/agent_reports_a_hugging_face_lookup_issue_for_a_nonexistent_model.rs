@@ -1,13 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_a_hugging_face_lookup_issue_for_a_nonexistent_model() {
+async fn agent_reports_a_hugging_face_lookup_issue_for_a_nonexistent_model() {
     let reference = HuggingFaceModelReference {
         filename: "nonexistent.gguf".to_owned(),
         repository_name: "nonexistent-model-gguf".to_owned(),

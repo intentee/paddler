@@ -10,20 +10,20 @@ use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_classification::TokenClassification;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 use paddler_agent_text_generation::tool_call_handling::ToolCallHandling;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
+use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
+use paddler_agent_text_generation_tests::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
+use paddler_agent_text_generation_tests::weather_chat_session::weather_chat_session;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::get_weather_tool::get_weather_tool;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
-use paddler_tests::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
-use paddler_tests::weather_chat_session::weather_chat_session;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 const PROMPT: &str = "Paddler balances";
 const TOOL_CALL_OPEN_MARKER: &str = "<tool_call>";

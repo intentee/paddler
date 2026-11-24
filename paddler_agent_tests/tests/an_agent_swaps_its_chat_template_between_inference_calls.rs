@@ -6,17 +6,17 @@ use std::num::NonZeroU32;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const CAPITAL_OF_FRANCE_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
@@ -41,7 +41,7 @@ fn capital_of_france(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn chat_template_swaps_between_inference_calls() {
+async fn an_agent_swaps_its_chat_template_between_inference_calls() {
     let mut cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1))
         .await
         .expect("the cluster must start");

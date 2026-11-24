@@ -1,7 +1,7 @@
 [package]
 name = "paddler_balancer_desired_state_fixture"
 authors.workspace = true
-description = "Balancer desired states for Paddler tests"
+description = "Balancer desired states that Paddler tests apply"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -13,7 +13,9 @@ version.workspace = true
 doctest = false
 
 [dependencies]
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_model_card_fixture = { workspace = true }
 
 [lints]
 workspace = true

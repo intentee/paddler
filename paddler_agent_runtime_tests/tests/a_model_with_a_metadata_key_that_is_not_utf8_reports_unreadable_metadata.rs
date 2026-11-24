@@ -3,11 +3,11 @@
 use llama_cpp_model::model_error::ModelError;
 use tempfile::TempDir;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::write_patched_gguf::write_patched_gguf;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::write_patched_gguf::write_patched_gguf;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[test]
 fn a_model_with_a_metadata_key_that_is_not_utf8_reports_unreadable_metadata() {

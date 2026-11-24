@@ -4,10 +4,10 @@ use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::context_limits::ContextLimits;
 use llama_cpp_context::llama_batch::LlamaBatch;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const SLOTS: u16 = 2;
 const TOKENS_THE_BATCH_HOLDS: u32 = 1;

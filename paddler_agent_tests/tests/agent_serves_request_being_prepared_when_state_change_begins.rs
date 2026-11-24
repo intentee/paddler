@@ -6,9 +6,12 @@ use futures_util::StreamExt as _;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
+use paddler_balancer_desired_state_fixture::smolvlm2_desired_state::smolvlm2_desired_state;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
+use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_cluster_harness::unending_generation::unending_generation;
+use paddler_file_fixture::constants::SOLID_COLOR_4000X4000_PNG;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
@@ -18,11 +21,6 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
-use paddler_tests::smolvlm2_desired_state::smolvlm2_desired_state;
-use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
-
-const SLOW_TO_DECODE_IMAGE_FIXTURE: &str = "solid_color_4000x4000.png";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_serves_request_being_prepared_when_state_change_begins() {
@@ -43,11 +41,9 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() {
                 content: ConversationMessageContent::Parts(vec![
                         ConversationMessageContentPart::ImageUrl {
                             image_url: ImageUrl {
-                                url: load_fixture_data_uri(
-                                    SLOW_TO_DECODE_IMAGE_FIXTURE,
-                                    "image/png",
-                                )
-                                .expect("the test fixture must load"),
+                                url: SOLID_COLOR_4000X4000_PNG
+                                    .data_uri()
+                                    .expect("the test fixture must load"),
                             },
                         },
                         ConversationMessageContentPart::Text {

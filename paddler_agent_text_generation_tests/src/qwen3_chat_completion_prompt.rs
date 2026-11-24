@@ -11,14 +11,13 @@ use llama_cpp_model::llama_model::LlamaModel;
 use serde_json::Value;
 use serde_json::from_value;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::chat_template_conversation::ChatTemplateConversation;
 use paddler_agent_text_generation::media_marker::MediaMarker;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::translated_chat_completion_request::TranslatedChatCompletionRequest;
-
-use crate::agent_inference_runtime_context::agent_inference_runtime_context;
-use crate::llama_runtime::LlamaRuntime;
 
 const MEDIA_MARKER: &str = "<media>";
 

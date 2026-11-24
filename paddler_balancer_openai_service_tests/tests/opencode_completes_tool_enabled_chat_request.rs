@@ -1,8 +1,8 @@
 #![cfg(all(feature = "tests_that_use_llms", feature = "tests_that_use_opencode"))]
 
-use paddler_opencode_tests::opencode_binary_path::opencode_binary_path;
-use paddler_opencode_tests::opencode_test_project::OpenCodeTestProject;
-use paddler_tests::ministral3_cluster_params::Ministral3ClusterParams;
+use paddler_balancer_openai_service_tests::opencode_binary_path::opencode_binary_path;
+use paddler_balancer_openai_service_tests::opencode_test_project::OpenCodeTestProject;
+use paddler_cluster_harness::ministral3_cluster_params::Ministral3ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn opencode_completes_tool_enabled_chat_request() {

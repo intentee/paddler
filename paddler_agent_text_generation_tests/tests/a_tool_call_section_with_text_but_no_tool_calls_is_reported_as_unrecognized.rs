@@ -2,14 +2,14 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
+use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
+use paddler_agent_text_generation_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
+use paddler_agent_text_generation_tests::start_cluster_with_gemma_4::start_cluster_with_gemma_4;
+use paddler_agent_text_generation_tests::weather_question_conversation::weather_question_conversation;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
-use paddler_tests::gbnf_literal::gbnf_literal;
-use paddler_tests::get_weather_tool::get_weather_tool;
-use paddler_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
-use paddler_tests::start_cluster_with_gemma_4::start_cluster_with_gemma_4;
-use paddler_tests::weather_question_conversation::weather_question_conversation;
 
 const FORCED_OUTPUT: &str = "<|tool_call>call:Sure, let me check.<tool_call|>";
 

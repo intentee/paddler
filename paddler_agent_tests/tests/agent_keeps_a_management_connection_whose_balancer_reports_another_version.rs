@@ -1,13 +1,13 @@
 use log::Level;
 
+use paddler_agent_tests::agent_answer_after_a_notification::agent_answer_after_a_notification;
+use paddler_agent_tests::constants::ANSWERED_REQUEST_ID;
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
 use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
-use paddler_tests::agent_answer_after_a_notification::agent_answer_after_a_notification;
-use paddler_tests::constants::ANSWERED_REQUEST_ID;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_keeps_a_management_connection_whose_balancer_reports_another_version() {

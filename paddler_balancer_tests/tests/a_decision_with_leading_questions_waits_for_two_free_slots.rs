@@ -5,10 +5,10 @@ use std::mem::discriminant;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
+use paddler_balancer_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_with_leading_questions_waits_for_two_free_slots() {

@@ -2,8 +2,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_cluster_harness::managed_process::ManagedProcess;
-use paddler_cluster_harness::process_end::ProcessEnd;
+
+use crate::managed_process::ManagedProcess;
+use crate::process_end::ProcessEnd;
 
 pub struct InProcessAgent {
     runner: AgentRunner,

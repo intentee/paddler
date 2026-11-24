@@ -5,11 +5,11 @@ use std::mem::discriminant;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_tests::constants::QUESTIONS_OUTLASTING_A_DISCONNECT;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::many_question_decision::many_question_decision;
-use paddler_tests::sample_decision::sample_decision;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
+use paddler_request_params_fixture::constants::QUESTIONS_OUTLASTING_A_DISCONNECT;
+use paddler_request_params_fixture::many_question_decision::many_question_decision;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_client_disconnecting_mid_decision_releases_its_sequences() {

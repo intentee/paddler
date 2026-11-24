@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "paddler-typesafe-client-python-test"
+name = "paddler-balancer-typesafe-service-python-tests"
 version = "5.0.0"
 description = "Drives Paddler's TypeSafe-compatible endpoints with the official TypeSafe SDK to verify real-client compatibility"
 authors = ["Intentee"]

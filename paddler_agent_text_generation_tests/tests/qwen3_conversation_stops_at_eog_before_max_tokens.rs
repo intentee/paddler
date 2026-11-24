@@ -5,10 +5,10 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_messaging::generation_finish::GenerationFinish;
-use paddler_tests::greeting_conversation::greeting_conversation;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_request_params_fixture::greeting_conversation::greeting_conversation;
 
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(500).unwrap();
 

@@ -1,15 +1,15 @@
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_tests::conversation_with_a_tool_requiring_an_undeclared_property::conversation_with_a_tool_requiring_an_undeclared_property;
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::conversation_with_a_tool_requiring_an_undeclared_property::conversation_with_a_tool_requiring_an_undeclared_property;
-use paddler_tests::start_cluster::start_cluster;
 
 const BAD_REQUEST: u16 = 400;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_tool_whose_required_field_is_not_a_property() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
 

@@ -1,16 +1,15 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use paddler_cluster_harness::cluster::Cluster;
-use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
+use crate::cluster::Cluster;
+use crate::cluster_desired_state::ClusterDesiredState;
+use crate::cluster_params::ClusterParams;
 use crate::constants::BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT;
-use crate::start_cluster::start_cluster;
 
 pub struct ClusterWithAnAgentDownloadingItsModel {
     pub cluster: Cluster,
@@ -27,7 +26,7 @@ impl ClusterWithAnAgentDownloadingItsModel {
         })
         .await
         .context("the model server must start")?;
-        let mut cluster = start_cluster(ClusterParams {
+        let mut cluster = Cluster::start_in_process(ClusterParams {
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
                 model: AgentDesiredModel::Uri(model_server.url("/model.gguf")),
                 ..BalancerDesiredState::default()

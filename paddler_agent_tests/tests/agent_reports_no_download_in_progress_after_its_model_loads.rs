@@ -3,11 +3,11 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn management_reports_no_download_in_progress_after_load_complete() {
+async fn agent_reports_no_download_in_progress_after_its_model_loads() {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
         .await
         .expect("the cluster must start");

@@ -1,5 +1,6 @@
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::text_generation_pipeline::TextGenerationPipeline;
@@ -7,8 +8,6 @@ use paddler_agent_text_generation::text_generation_settings::TextGenerationSetti
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
-
-use crate::llama_runtime::LlamaRuntime;
 
 pub struct TextGenerationPipelineParts {
     pub chat_template_source: ChatTemplateSource,

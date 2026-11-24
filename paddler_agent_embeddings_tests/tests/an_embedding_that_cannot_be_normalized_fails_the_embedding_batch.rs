@@ -6,11 +6,11 @@ use llama_cpp_model::llama_token::LlamaToken;
 use tokio::sync::mpsc::error::TryRecvError;
 
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
+use paddler_agent_embeddings_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
+use paddler_agent_embeddings_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
+use paddler_agent_embeddings_tests::normalization_of_an_embedding_too_long_for_rms_norm::NormalizationOfAnEmbeddingTooLongForRmsNorm;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_result::EmbeddingResult;
-use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
-use paddler_tests::nomic_embedding_batch_processing::NomicEmbeddingBatchProcessing;
-use paddler_tests::normalization_of_an_embedding_too_long_for_rms_norm::NormalizationOfAnEmbeddingTooLongForRmsNorm;
 
 const REQUEST_SEQUENCES: NonZeroU16 = NonZeroU16::new(2).unwrap();
 

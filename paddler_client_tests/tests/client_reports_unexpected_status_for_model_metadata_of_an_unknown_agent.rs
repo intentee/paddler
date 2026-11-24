@@ -2,12 +2,12 @@ use reqwest::StatusCode;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn client_reports_unexpected_status_for_model_metadata_of_an_unknown_agent() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
 

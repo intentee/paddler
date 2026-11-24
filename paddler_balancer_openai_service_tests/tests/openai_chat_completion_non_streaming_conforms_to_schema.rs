@@ -3,8 +3,8 @@
 use serde_json::json;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_non_streaming_conforms_to_schema() {

@@ -9,12 +9,12 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent::inference_capabilities::InferenceCapabilities;
 use paddler_agent::model_serving_settings::ModelServingSettings;
+use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
-use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 #[test]
 fn retaining_a_served_model_restarts_its_changed_capabilities_at_once() {

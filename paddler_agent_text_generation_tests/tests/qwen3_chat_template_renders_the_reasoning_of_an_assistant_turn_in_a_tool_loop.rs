@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use paddler_tests::qwen3_chat_completion_prompt::qwen3_chat_completion_prompt;
+use paddler_agent_text_generation_tests::qwen3_chat_completion_prompt::qwen3_chat_completion_prompt;
 
 #[test]
 fn qwen3_chat_template_renders_the_reasoning_of_an_assistant_turn_in_a_tool_loop() {

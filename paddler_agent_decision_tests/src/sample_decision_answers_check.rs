@@ -13,9 +13,7 @@ use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-
-use crate::sample_decision::sample_decision;
-use crate::start_cluster::start_cluster;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const PROBABILITY_SUM_TOLERANCE: f32 = 1e-5;
 const SAMPLE_DECISION_INPUT_TOKENS: usize = 85;
@@ -97,7 +95,7 @@ impl SampleDecisionAnswersCheck {
     ///
     /// Returns an error when the cluster cannot start, when the sample decision is not accepted, when its answers do not match its questions, do not sum to one, or do not evaluate every input token, and when the cluster does not shut down cleanly.
     pub async fn ensure_for_the_sample_decision(self) -> Result<()> {
-        start_cluster(self.cluster_params)
+        Cluster::start_in_process(self.cluster_params)
             .map(|started| started.context("the cluster must start"))
             .and_then(decide_the_sample_decision)
             .await

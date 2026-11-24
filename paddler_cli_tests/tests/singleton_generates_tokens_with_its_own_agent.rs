@@ -13,9 +13,9 @@ use paddler_client::client_management::ClientManagement;
 use paddler_cluster_harness::agent_readiness::AgentReadiness;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_cluster_harness::snapshots_watcher::SnapshotsWatcher;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 const SINGLETON_AGENT_NAME: &str = "singleton-agent";
 

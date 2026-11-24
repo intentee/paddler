@@ -3,14 +3,14 @@ use async_openai::error::OpenAIError;
 use http::StatusCode;
 use serde_json::json;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_accepts_an_assistant_tool_call_turn_without_content() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         ..ClusterParams::without_agents()
     })

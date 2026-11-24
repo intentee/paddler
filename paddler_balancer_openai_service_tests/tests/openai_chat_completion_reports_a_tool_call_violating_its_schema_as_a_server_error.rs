@@ -5,19 +5,19 @@ use serde_json::Value;
 use serde_json::json;
 
 use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::post_openai_chat_completion::post_openai_chat_completion;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
-use paddler_tests::constants::WEATHER_TOOL_QUESTION;
-use paddler_tests::post_openai_chat_completion::post_openai_chat_completion;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;
+use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_reports_a_tool_call_violating_its_schema_as_a_server_error() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig::single(1)],
         desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         wait_for_slots_ready: true,

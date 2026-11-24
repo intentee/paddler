@@ -4,13 +4,13 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_with_system_message_completes_with_thinking_enabled() {

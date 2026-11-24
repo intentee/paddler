@@ -1,9 +1,9 @@
 use std::num::NonZeroU32;
 
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 pub struct DecisionDesiredState {
     pub context_size: NonZeroU32,

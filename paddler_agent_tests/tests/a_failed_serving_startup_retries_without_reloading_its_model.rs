@@ -2,19 +2,19 @@
 
 use std::mem::discriminant;
 
-use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_agent_pipeline_harness::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_agent_tests::swappable_model_file::SwappableModelFile;
+use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
+use paddler_balancer_desired_state_fixture::uncompilable_chat_template::uncompilable_chat_template;
+use paddler_balancer_desired_state_fixture::uncompilable_chat_template_issue::UncompilableChatTemplateIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
-use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
-use paddler_tests::swappable_model_file::SwappableModelFile;
-use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
-use paddler_tests::uncompilable_chat_template_issue::UncompilableChatTemplateIssue;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_failed_attempt_retries_without_reloading_its_model() {
+async fn a_failed_serving_startup_retries_without_reloading_its_model() {
     let swappable_model_file = SwappableModelFile::link_to(
         &qwen3_5_0_8b()
             .cached_path()

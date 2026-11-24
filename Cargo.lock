@@ -3660,6 +3660,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_agent_decision_tests"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "llama-cpp-context",
+ "llama-cpp-context-memory",
+ "llama-cpp-model",
+ "log",
+ "paddler_agent",
+ "paddler_agent_decision",
+ "paddler_agent_pipeline_harness",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_balancer_desired_state_fixture",
+ "paddler_capturing_logger",
+ "paddler_cluster_harness",
+ "paddler_file_fixture",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_model_card_fixture",
+ "paddler_request_params_fixture",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "paddler_agent_embeddings"
 version = "5.0.0"
 dependencies = [
@@ -3673,6 +3702,54 @@ dependencies = [
  "paddler_inference_parameters",
  "paddler_messaging",
  "thiserror",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "paddler_agent_embeddings_tests"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "llama-cpp-context",
+ "llama-cpp-model",
+ "paddler_agent_embeddings",
+ "paddler_agent_pipeline_harness",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_cluster_harness",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_model_card_fixture",
+ "paddler_request_params_fixture",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "paddler_agent_pipeline_harness"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "llama-cpp-backend",
+ "llama-cpp-context",
+ "llama-cpp-gguf",
+ "llama-cpp-model",
+ "llama-cpp-params",
+ "paddler_agent",
+ "paddler_agent_decision",
+ "paddler_agent_embeddings",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_agent_text_generation",
+ "paddler_cluster_harness",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_model_card_fixture",
+ "paddler_model_source",
+ "tempfile",
  "tokio",
  "tokio-util",
 ]
@@ -3703,12 +3780,25 @@ dependencies = [
 name = "paddler_agent_runtime_tests"
 version = "5.0.0"
 dependencies = [
+ "futures-util",
  "llama-cpp-backend",
+ "llama-cpp-context",
+ "llama-cpp-context-memory",
+ "llama-cpp-model",
  "log",
+ "paddler_agent_decision",
+ "paddler_agent_pipeline_harness",
  "paddler_agent_runtime",
+ "paddler_balancer_desired_state_fixture",
+ "paddler_blocking_thread_fixture",
  "paddler_capturing_logger",
+ "paddler_cluster_harness",
+ "paddler_file_fixture",
+ "paddler_inference_parameters",
  "paddler_messaging",
- "paddler_tests",
+ "paddler_model_card_fixture",
+ "paddler_model_source",
+ "paddler_request_params_fixture",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -3732,24 +3822,34 @@ dependencies = [
  "anyhow",
  "futures-util",
  "hf-hub",
+ "http 1.5.0",
  "log",
  "paddler_agent",
+ "paddler_agent_pipeline_harness",
  "paddler_agent_runtime",
  "paddler_agent_status",
  "paddler_agent_text_generation",
+ "paddler_balancer_desired_state_fixture",
  "paddler_blocking_thread_fixture",
+ "paddler_bootstrap",
  "paddler_cache_dir",
  "paddler_capturing_logger",
+ "paddler_cluster_harness",
  "paddler_download_manager",
+ "paddler_file_fixture",
  "paddler_inference_parameters",
  "paddler_local_http_fixture",
  "paddler_messaging",
+ "paddler_model_card_fixture",
  "paddler_model_source",
- "paddler_tests",
+ "paddler_request_params_fixture",
+ "paddler_tcp_buffer_limits",
  "reqwest",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-tungstenite",
  "tokio-util",
  "trzcina",
 ]
@@ -3781,6 +3881,40 @@ dependencies = [
  "rand 0.10.3",
  "serde_json",
  "thiserror",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "paddler_agent_text_generation_tests"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
+ "llama-cpp-chat",
+ "llama-cpp-context",
+ "llama-cpp-fault-injection",
+ "llama-cpp-model",
+ "llama-cpp-sampler",
+ "llama-cpp-token-usage",
+ "log",
+ "paddler_agent_pipeline_harness",
+ "paddler_agent_runtime",
+ "paddler_agent_text_generation",
+ "paddler_balancer_desired_state_fixture",
+ "paddler_cluster_harness",
+ "paddler_file_fixture",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_model_card_fixture",
+ "paddler_model_source",
+ "paddler_openai_translation",
+ "paddler_request_params_fixture",
+ "paddler_tool_call_validator",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tokio-util",
 ]
@@ -3844,7 +3978,9 @@ dependencies = [
 name = "paddler_balancer_desired_state_fixture"
 version = "5.0.0"
 dependencies = [
+ "paddler_inference_parameters",
  "paddler_messaging",
+ "paddler_model_card_fixture",
 ]
 
 [[package]]
@@ -3866,6 +4002,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_balancer_openai_service_tests"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "async-openai",
+ "futures-util",
+ "http 1.5.0",
+ "paddler_balancer_openai_service",
+ "paddler_client",
+ "paddler_cluster_harness",
+ "paddler_messaging",
+ "paddler_model_card_fixture",
+ "paddler_openai_schema_validator",
+ "paddler_request_params_fixture",
+ "reqwest",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
 name = "paddler_balancer_state_database"
 version = "5.0.0"
 dependencies = [
@@ -3884,6 +4044,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_balancer_tests"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "paddler_balancer",
+ "paddler_balancer_desired_state_fixture",
+ "paddler_balancer_state_database",
+ "paddler_bootstrap",
+ "paddler_client",
+ "paddler_cluster_harness",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_model_card_fixture",
+ "paddler_model_source",
+ "paddler_request_params_fixture",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+]
+
+[[package]]
 name = "paddler_balancer_typesafe_service"
 version = "5.0.0"
 dependencies = [
@@ -3893,6 +4077,24 @@ dependencies = [
  "paddler_messaging",
  "paddler_typesafe_translation",
  "serde",
+]
+
+[[package]]
+name = "paddler_balancer_typesafe_service_tests"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "paddler_balancer_typesafe_service",
+ "paddler_client",
+ "paddler_cluster_harness",
+ "paddler_messaging",
+ "paddler_request_params_fixture",
+ "paddler_typesafe_translation",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3916,7 +4118,6 @@ dependencies = [
  "paddler_balancer_state_database",
  "paddler_balancer_typesafe_service",
  "paddler_capturing_logger",
- "paddler_cluster_harness",
  "paddler_error_chain",
  "paddler_messaging",
  "paddler_model_source",
@@ -4009,18 +4210,21 @@ dependencies = [
  "llama-cpp-model",
  "llama-cpp-sampler",
  "nix",
+ "paddler_agent_pipeline_harness",
  "paddler_agent_text_generation",
  "paddler_balancer",
+ "paddler_balancer_desired_state_fixture",
  "paddler_balancer_openai_service",
  "paddler_balancer_typesafe_service",
  "paddler_bootstrap",
  "paddler_cli",
  "paddler_client",
  "paddler_cluster_harness",
+ "paddler_file_fixture",
  "paddler_inference_parameters",
  "paddler_messaging",
+ "paddler_model_card_fixture",
  "paddler_openai_schema_validator",
- "paddler_tests",
  "reqwest",
  "seccompiler",
  "serde_json",
@@ -4058,23 +4262,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_client_tests"
+version = "5.0.0"
+dependencies = [
+ "futures-util",
+ "paddler_balancer",
+ "paddler_client",
+ "paddler_cluster_harness",
+ "paddler_messaging",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "paddler_cluster_harness"
 version = "5.0.0"
 dependencies = [
  "anyhow",
  "async-openai",
  "async-trait",
- "base64 0.23.1",
- "data-url",
- "futures",
+ "clap",
  "futures-util",
- "hf-hub",
- "paddler_agent_status",
+ "log",
  "paddler_balancer",
+ "paddler_balancer_desired_state_fixture",
+ "paddler_balancer_state_database",
  "paddler_balancer_typesafe_service",
+ "paddler_bootstrap",
+ "paddler_cache_dir",
  "paddler_client",
+ "paddler_download_manager",
+ "paddler_file_fixture",
  "paddler_inference_parameters",
+ "paddler_local_http_fixture",
  "paddler_messaging",
+ "paddler_model_card_fixture",
  "paddler_model_source",
  "paddler_spawn_resuming_panic",
  "quick-xml",
@@ -4120,6 +4344,15 @@ dependencies = [
 name = "paddler_error_chain"
 version = "5.0.0"
 dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "paddler_file_fixture"
+version = "5.0.0"
+dependencies = [
+ "base64 0.23.1",
+ "data-url",
  "thiserror",
 ]
 
@@ -4191,6 +4424,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_model_card_fixture"
+version = "5.0.0"
+dependencies = [
+ "futures",
+ "hf-hub",
+ "paddler_agent_status",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_model_source",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "paddler_model_source"
 version = "5.0.0"
 dependencies = [
@@ -4245,23 +4492,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler_opencode_tests"
-version = "5.0.0"
-dependencies = [
- "paddler_tests",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "paddler_outbox"
 version = "5.0.0"
 dependencies = [
  "parking_lot 0.13.0",
  "tokio",
+]
+
+[[package]]
+name = "paddler_request_params_fixture"
+version = "5.0.0"
+dependencies = [
+ "paddler_messaging",
 ]
 
 [[package]]
@@ -4296,68 +4538,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler_tests"
-version = "5.0.0"
-dependencies = [
- "anyhow",
- "async-openai",
- "async-trait",
- "clap",
- "futures-util",
- "http 1.5.0",
- "llama-cpp-backend",
- "llama-cpp-bindings",
- "llama-cpp-bindings-sys",
- "llama-cpp-bindings-types",
- "llama-cpp-chat",
- "llama-cpp-context",
- "llama-cpp-context-memory",
- "llama-cpp-fault-injection",
- "llama-cpp-gbnf",
- "llama-cpp-gguf",
- "llama-cpp-model",
- "llama-cpp-mtmd",
- "llama-cpp-params",
- "llama-cpp-sampler",
- "llama-cpp-token-usage",
- "log",
- "paddler_agent",
- "paddler_agent_decision",
- "paddler_agent_embeddings",
- "paddler_agent_runtime",
- "paddler_agent_status",
- "paddler_agent_text_generation",
- "paddler_balancer",
- "paddler_balancer_openai_service",
- "paddler_balancer_state_database",
- "paddler_balancer_typesafe_service",
- "paddler_blocking_thread_fixture",
- "paddler_bootstrap",
- "paddler_cache_dir",
- "paddler_capturing_logger",
- "paddler_client",
- "paddler_cluster_harness",
- "paddler_download_manager",
- "paddler_inference_parameters",
- "paddler_local_http_fixture",
- "paddler_messaging",
- "paddler_model_source",
- "paddler_openai_schema_validator",
- "paddler_openai_translation",
- "paddler_tcp_buffer_limits",
- "paddler_tool_call_validator",
- "paddler_typesafe_translation",
- "reqwest",
- "serde",
- "serde_json",
- "syn 3.0.9",
- "tempfile",
- "tokio",
- "tokio-tungstenite",
- "tokio-util",
-]
-
-[[package]]
 name = "paddler_tool_call_validator"
 version = "5.0.0"
 dependencies = [
@@ -4381,6 +4561,7 @@ dependencies = [
 name = "paddler_typesafe_translation_tests"
 version = "5.0.0"
 dependencies = [
+ "paddler_file_fixture",
  "paddler_messaging",
  "paddler_typesafe_translation",
  "serde",

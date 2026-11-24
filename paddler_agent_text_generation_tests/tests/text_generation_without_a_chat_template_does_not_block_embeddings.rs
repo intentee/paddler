@@ -3,19 +3,19 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_serves_embeddings_without_a_chat_template() {
-    let cluster = start_cluster(ClusterParams {
+async fn text_generation_without_a_chat_template_does_not_block_embeddings() {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: true,
         desired_state: ClusterDesiredState::Apply(Box::new(

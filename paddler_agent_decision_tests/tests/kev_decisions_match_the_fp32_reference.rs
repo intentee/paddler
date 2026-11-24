@@ -1,15 +1,17 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::fs::read_to_string;
 use std::mem::discriminant;
 
 use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_decision_tests::kev_parity_record::KevParityRecord;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
+use paddler_cluster_harness::test_cluster_preset::TestClusterPreset;
+use paddler_file_fixture::fixture_path::fixture_path;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::kev_parity_record::KevParityRecord;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::test_cluster_preset::TestClusterPreset;
 
 const KEV_DOCUMENTED_GPU_BF16_DEVIATION: f32 = 0.03;
 
@@ -23,11 +25,12 @@ fn most_probable_option(probabilities: &[f32]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn kev_decisions_match_the_fp32_reference() {
-    let records: Vec<KevParityRecord> = from_str(include_str!(
-        "../../fixtures/kev_0_8b_parity_reference.json"
-    ))
+    let records: Vec<KevParityRecord> = from_str(
+        &read_to_string(fixture_path("kev_0_8b_parity_reference.json"))
+            .expect("the parity reference must be readable"),
+    )
     .expect("the parity reference must parse");
-    let cluster = start_cluster(TestClusterPreset::Kev0_8b.cluster_params())
+    let cluster = Cluster::start_in_process(TestClusterPreset::Kev0_8b.cluster_params())
         .await
         .expect("the Kev cluster must start");
 

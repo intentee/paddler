@@ -57,10 +57,10 @@ mod tests {
         let missing_path = PathBuf::from("/paddler/definitely/missing/opencode");
         let error = resolve_binary_path(Ok(missing_path.display().to_string())).unwrap_err();
 
-        assert_eq!(
-            error.to_string(),
-            OpenCodeTestError::BinaryDoesNotExist { path: missing_path }.to_string()
-        );
+        assert!(matches!(
+            error,
+            OpenCodeTestError::BinaryDoesNotExist { path } if path == missing_path
+        ));
     }
 
     #[test]

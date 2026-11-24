@@ -5,9 +5,9 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
@@ -16,7 +16,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 const CONTEXT_SIZE: u32 = 512;
 const SLOTS: u16 = 4;
@@ -31,7 +31,7 @@ async fn agent_reports_a_document_exceeding_its_sequence_context_and_embeds_the_
             pooling_type: PoolingType::Last,
             ..EmbeddingParameters::default()
         });
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, SLOTS),
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model_runtime_parameters: ModelRuntimeParameters {

@@ -9,6 +9,8 @@ use seccompiler::SeccompCmpOp;
 use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::conversation_prompt_support::ConversationPromptSupport;
 use paddler_agent_text_generation::conversation_support::ConversationSupport;
@@ -17,12 +19,10 @@ use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::model_bos_token::ModelBosToken;
 use paddler_agent_text_generation::prompt_tokenizer::PromptTokenizer;
 use paddler_agent_text_generation::sampler_chain_factory::SamplerChainFactory;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_balancer_desired_state_fixture::first_message_content_chat_template::first_message_content_chat_template;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::first_message_content_chat_template::first_message_content_chat_template;
-use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 use crate::refused_syscall::RefusedSyscall;
 use crate::refused_syscalls::RefusedSyscalls;

@@ -2,16 +2,16 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_a_second_registration_under_a_registered_agent_id() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         desired_state: ClusterDesiredState::Apply(Box::default()),
         wait_for_slots_ready: false,

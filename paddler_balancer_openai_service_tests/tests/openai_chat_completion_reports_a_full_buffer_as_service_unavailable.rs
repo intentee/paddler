@@ -2,14 +2,14 @@ use reqwest::StatusCode;
 use serde_json::Value;
 
 use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::minimal_openai_chat_completion::minimal_openai_chat_completion;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
-use paddler_tests::minimal_openai_chat_completion::minimal_openai_chat_completion;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_reports_a_full_buffer_as_service_unavailable() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         max_buffered_requests: 0,
         ..ClusterParams::without_agents()
     })

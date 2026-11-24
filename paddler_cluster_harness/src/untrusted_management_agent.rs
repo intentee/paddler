@@ -21,7 +21,8 @@ use paddler_messaging::management_socket::balancer::notification::Notification a
 use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
 use paddler_messaging::management_socket::balancer::notification_params::update_agent_status_params::UpdateAgentStatusParams;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_cluster_harness::untrusted_agent_socket_client::UntrustedAgentSocketClient;
+
+use crate::untrusted_agent_socket_client::UntrustedAgentSocketClient;
 
 pub struct UntrustedManagementAgent {
     pub socket_client: UntrustedAgentSocketClient,
@@ -64,7 +65,7 @@ impl UntrustedManagementAgent {
 
     /// # Errors
     ///
-    /// Returns the [`ClusterHarnessError`](paddler_cluster_harness::cluster_harness_error::ClusterHarnessError) of the agent socket when the balancer sends no text, and an error when the balancer sends an agent message that cannot be decoded.
+    /// Returns the [`ClusterHarnessError`](crate::cluster_harness_error::ClusterHarnessError) of the agent socket when the balancer sends no text, and an error when the balancer sends an agent message that cannot be decoded.
     pub async fn next_request(&mut self) -> Result<RequestEnvelope<AgentJsonRpcRequest>> {
         loop {
             if let AgentJsonRpcMessage::Request(request_envelope) =

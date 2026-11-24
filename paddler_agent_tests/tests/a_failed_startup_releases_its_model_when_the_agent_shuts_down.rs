@@ -1,9 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
-use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
+use paddler_balancer_desired_state_fixture::uncompilable_chat_template::uncompilable_chat_template;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failed_startup_releases_its_model_when_the_agent_shuts_down() {

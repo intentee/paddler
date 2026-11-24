@@ -2,10 +2,10 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_embeddings_tests::embedding_documents_fixture::EmbeddingDocumentsFixture;
+use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_messaging::embedding_result::EmbeddingResult;
-use paddler_tests::embedding_documents_fixture::EmbeddingDocumentsFixture;
-use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 const DOCUMENT_COUNT: usize = 64;
 

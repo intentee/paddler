@@ -3,12 +3,12 @@ use std::io::Write as _;
 use tempfile::NamedTempFile;
 
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_model_cannot_be_loaded_for_corrupt_file() {
+async fn loading_a_corrupt_model_file_reports_that_it_cannot_be_loaded() {
     let mut corrupt_model = NamedTempFile::new().expect("a temporary model file must be creatable");
 
     corrupt_model

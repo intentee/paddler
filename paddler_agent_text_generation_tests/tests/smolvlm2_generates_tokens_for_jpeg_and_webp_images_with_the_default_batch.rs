@@ -4,11 +4,11 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::constants::JPEG_AND_WEBP_IMAGE_FIXTURES;
+use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_tests::constants::JPEG_AND_WEBP_IMAGE_FIXTURES;
-use paddler_tests::single_image_question::SingleImageQuestion;
-use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
 

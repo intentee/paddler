@@ -6,12 +6,12 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
+use paddler_agent_decision_tests::decision_scheduler_run::DecisionSchedulerRun;
+use paddler_agent_decision_tests::kev_decision_model::KevDecisionModel;
+use paddler_agent_decision_tests::prepared_decision::PreparedDecision;
 use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
-use paddler_tests::kev_decision_model::KevDecisionModel;
-use paddler_tests::prepared_decision::PreparedDecision;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u16 = 1;
 const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 2;

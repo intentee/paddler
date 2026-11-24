@@ -1,11 +1,11 @@
 use clap::ValueEnum;
 
-use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 
+use crate::agent_config::AgentConfig;
+use crate::cluster_desired_state::ClusterDesiredState;
+use crate::cluster_params::ClusterParams;
 use crate::decision_cluster_params::DecisionClusterParams;
-use crate::qwen3_desired_state::qwen3_desired_state;
 
 const TEXT_GENERATION_SLOTS: u16 = 1;
 

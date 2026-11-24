@@ -7,11 +7,11 @@ use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::collect_decision_results::collect_decision_results;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_done_discriminant::decision_done_discriminant;
-use paddler_tests::many_question_decision::many_question_decision;
+use paddler_request_params_fixture::many_question_decision::many_question_decision;
 
 const QUESTIONS_OUTLASTING_A_STATE_CHANGE: usize = 96;
 const CHANGED_CONTEXT_SIZE: u32 = 4096;

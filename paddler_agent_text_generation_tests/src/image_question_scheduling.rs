@@ -9,21 +9,21 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::conversation_generation::ConversationGeneration;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
-use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
-use paddler_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
+use paddler_file_fixture::constants::LLAMAS_JPEG;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
+use paddler_model_card_fixture::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 
-use crate::agent_inference_runtime_context::agent_inference_runtime_context;
-use crate::conversation_generation::ConversationGeneration;
 use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use crate::llama_runtime::LlamaRuntime;
 use crate::single_image_question::SingleImageQuestion;
 
 const IMAGE_QUESTION: &str = "How many llamas are in the image?";
@@ -62,7 +62,7 @@ impl ImageQuestionScheduling {
             mut generated_tokens_rx,
         } = ConversationGeneration::new(
             SingleImageQuestion {
-                image_data_uri: load_test_image_data_uri().context("the test image must load")?,
+                image_data_uri: LLAMAS_JPEG.data_uri().context("the test image must load")?,
                 max_tokens: NonZeroU32::MIN,
                 question: IMAGE_QUESTION,
             }

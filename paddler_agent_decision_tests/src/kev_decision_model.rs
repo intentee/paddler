@@ -10,11 +10,11 @@ use paddler_agent_decision::decision_scheduler::DecisionScheduler;
 use paddler_agent_decision::decision_scheduler_context::DecisionSchedulerContext;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 use paddler_agent_decision::kev_option_scorer::KevOptionScorer;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
-use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::decision_scheduler_run::DecisionSchedulerRun;
-use crate::llama_runtime::LlamaRuntime;
 use crate::two_option_question::two_option_question;
 
 pub struct KevDecisionModel {

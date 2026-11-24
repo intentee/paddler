@@ -6,10 +6,10 @@ use llama_cpp_model::llama_token::LlamaToken;
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
+use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
+use paddler_agent_decision_tests::kev_decision_model::KevDecisionModel;
+use paddler_agent_decision_tests::two_option_question::two_option_question;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_tests::admitted_decision::AdmittedDecision;
-use paddler_tests::kev_decision_model::KevDecisionModel;
-use paddler_tests::two_option_question::two_option_question;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u32 = 1;
 const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 4;

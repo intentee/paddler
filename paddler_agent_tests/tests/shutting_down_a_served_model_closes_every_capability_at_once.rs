@@ -7,10 +7,10 @@ use std::task::Waker;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
-use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 #[test]
 fn shutting_down_a_served_model_closes_every_capability_at_once() {

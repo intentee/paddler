@@ -12,12 +12,12 @@ use paddler_agent::model_serving_settings::ModelServingSettings;
 use paddler_agent::replacement_outcome::ReplacementOutcome;
 use paddler_agent::retry_delay::RetryDelay;
 use paddler_agent::serving_replacement::ServingReplacement;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
+use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
-use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabilities_it_kept() {

@@ -5,19 +5,19 @@ use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const PINGING_AGENT_ID: &str = "pinging";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_untrusted_agent_waiting_for_a_request_skips_the_pong_answering_its_ping() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+async fn cluster_harness_untrusted_agent_skips_the_pong_answering_its_ping() {
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
     let mut pinging_agent =

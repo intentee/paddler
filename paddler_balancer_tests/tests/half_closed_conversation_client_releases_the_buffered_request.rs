@@ -2,15 +2,15 @@ use std::num::NonZeroU32;
 
 use serde_json::to_value;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
-use paddler_tests::greeting_conversation::greeting_conversation;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_request_params_fixture::greeting_conversation::greeting_conversation;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn half_closed_http_client_releases_the_buffered_request() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+async fn half_closed_conversation_client_releases_the_buffered_request() {
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("the cluster must start");
 

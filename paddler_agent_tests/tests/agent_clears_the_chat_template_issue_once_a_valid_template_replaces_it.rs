@@ -2,17 +2,17 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
+use paddler_balancer_desired_state_fixture::uncompilable_chat_template::uncompilable_chat_template;
+use paddler_balancer_desired_state_fixture::uncompilable_chat_template_issue::UncompilableChatTemplateIssue;
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
-use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
-use paddler_tests::uncompilable_chat_template_issue::UncompilableChatTemplateIssue;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it() {

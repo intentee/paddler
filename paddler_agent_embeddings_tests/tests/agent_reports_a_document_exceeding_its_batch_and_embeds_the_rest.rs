@@ -5,31 +5,35 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_tests::oversized_text::oversized_text;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use paddler_request_params_fixture::oversized_text::oversized_text;
 
 const N_BATCH: usize = 64;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_a_document_exceeding_its_batch_and_embeds_the_rest() {
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
-        agents: vec![AgentConfig::single(1)],
-        model_runtime_parameters: ModelRuntimeParameters {
-            n_batch: BatchSize::try_from(
-                u32::try_from(N_BATCH).expect("the value must fit its target type"),
-            )
-            .expect("the value must fit its target type"),
-            context_size: NonZeroU32::try_from(2048).expect("the value must fit its target type"),
-            ..ModelRuntimeParameters::default()
-        },
-        ..EmbeddingClusterParams::default()
-    })
+    let cluster = Cluster::start_in_process(
+        EmbeddingClusterParams {
+            agents: vec![AgentConfig::single(1)],
+            model_runtime_parameters: ModelRuntimeParameters {
+                n_batch: BatchSize::try_from(
+                    u32::try_from(N_BATCH).expect("the value must fit its target type"),
+                )
+                .expect("the value must fit its target type"),
+                context_size: NonZeroU32::try_from(2048)
+                    .expect("the value must fit its target type"),
+                ..ModelRuntimeParameters::default()
+            },
+            ..EmbeddingClusterParams::default()
+        }
+        .into_cluster_params(),
+    )
     .await
     .expect("the cluster must start");
 

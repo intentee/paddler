@@ -2,7 +2,7 @@
 name = "paddler_bootstrap_tests"
 autotests = false
 authors.workspace = true
-description = "Integration tests for the Paddler bootstrap"
+description = "Tests of the Paddler bootstrap"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -16,6 +16,12 @@ doctest = false
 [[test]]
 name = "integration"
 path = "tests/main.rs"
+
+[features]
+cuda = ["paddler_bootstrap/cuda"]
+metal = ["paddler_bootstrap/metal"]
+tests_that_use_llms = []
+web_admin_panel = ["paddler_bootstrap/web_admin_panel"]
 
 [dependencies]
 futures-util = { workspace = true }
@@ -38,10 +44,6 @@ serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
-
-[features]
-default = []
-web_admin_panel = ["paddler_bootstrap/web_admin_panel"]
 
 [lints]
 workspace = true

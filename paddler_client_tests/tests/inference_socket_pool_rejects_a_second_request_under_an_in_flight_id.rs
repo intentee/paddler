@@ -11,7 +11,7 @@ use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster_harness::cluster::Cluster;
 
 const IN_FLIGHT_REQUEST_ID: &str = "in-flight-request-id";
 
@@ -28,7 +28,7 @@ fn raw_prompt_message() -> InferenceServerMessage<ValidatedParametersSchema> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_pool_rejects_a_second_request_under_an_in_flight_id() {
-    let cluster = start_cluster(ClusterParams::without_agents())
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
     let pool = Pool::new(

@@ -8,17 +8,17 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_pipeline::DecisionPipeline;
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const SLOTS: NonZeroU16 = NonZeroU16::new(200).unwrap();
 const CACHE_CELLS_FEWER_THAN_TWO_PER_SLOT: NonZeroU32 = NonZeroU32::new(256).unwrap();
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_decision_pipeline_whose_context_cannot_warm_up_every_slot_refuses_to_start() {
+async fn a_context_without_cells_for_every_slot_fails_its_warm_up_decode() {
     let LlamaRuntime {
         inference_runtime_context,
         loaded_llama_model,

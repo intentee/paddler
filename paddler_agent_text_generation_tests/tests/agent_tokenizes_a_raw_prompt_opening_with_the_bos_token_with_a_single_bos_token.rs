@@ -4,8 +4,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::ministral3_cluster_params::Ministral3ClusterParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_tests::ministral3_cluster_params::Ministral3ClusterParams;
 
 const MINISTRAL_3_BOS_TOKEN_TEXT: &str = "<s>";
 const RAW_PROMPT_WITHOUT_BOS: &str = "[INST]hi[/INST]";

@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use llama_cpp_backend::backend_error::BackendError;
 use llama_cpp_backend::llama_backend::LlamaBackend;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 
 #[test]
 fn loading_a_model_while_another_backend_runs_reports_that_it_cannot_be_loaded() {

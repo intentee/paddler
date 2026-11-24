@@ -1,16 +1,16 @@
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::untrusted_management_agent::UntrustedManagementAgent;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 
 const REPEATING_AGENT_ID: &str = "repeating-agent";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_keeps_an_agent_that_repeats_its_status_registered() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
     let status_report = |desired_slots_total: u16, version: u64| SlotAggregatedStatusSnapshot {

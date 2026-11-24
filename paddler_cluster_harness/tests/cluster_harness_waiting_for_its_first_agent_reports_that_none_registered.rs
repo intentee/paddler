@@ -1,13 +1,13 @@
 use std::mem::discriminant;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_waiting_for_its_first_agent_reports_that_none_registered() {
-    let mut cluster = start_cluster(ClusterParams::without_agents())
+    let mut cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a cluster without agents must start");
 

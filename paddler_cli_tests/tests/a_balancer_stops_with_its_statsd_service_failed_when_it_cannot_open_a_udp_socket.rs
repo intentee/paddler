@@ -22,7 +22,6 @@ use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 use paddler_cluster_harness::constants::LONGER_THAN_ANY_TEST_RUN;
-use paddler_tests::in_process_balancer_runner_params::in_process_balancer_runner_params;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_udp_socket() {
@@ -49,9 +48,9 @@ async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_u
     .apply_to_every_thread()
     .expect("the refusing filter must apply to every thread of the test process");
 
-    let balancer_runner_params =
-        in_process_balancer_runner_params(&ClusterParams::without_agents())
-            .expect("the balancer parameters must be valid");
+    let balancer_runner_params = ClusterParams::without_agents()
+        .in_process_balancer_runner_params()
+        .expect("the balancer parameters must be valid");
     let mut balancer_runner = BalancerRunner::start(BalancerRunnerParams {
         bootstrap_config: BalancerBootstrapConfig {
             statsd_service_configuration: Some(StatsdServiceConfiguration {

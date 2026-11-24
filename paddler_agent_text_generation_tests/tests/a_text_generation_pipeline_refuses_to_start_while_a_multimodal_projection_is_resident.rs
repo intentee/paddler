@@ -1,17 +1,17 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
-use paddler_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
+use paddler_agent_text_generation_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
+use paddler_model_card_fixture::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_second_multimodal_projection_cannot_load_while_one_is_resident() {
+async fn a_text_generation_pipeline_refuses_to_start_while_a_multimodal_projection_is_resident() {
     let llama_runtime = LlamaRuntime::load(
         &smolvlm2_256m()
             .cached_path()

@@ -1,6 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_agent_tests::swappable_model_file::SwappableModelFile;
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
@@ -9,9 +11,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
-use paddler_tests::swappable_model_file::SwappableModelFile;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_state_changing_only_its_sampling_keeps_serving_decisions_without_reloading_the_model() {

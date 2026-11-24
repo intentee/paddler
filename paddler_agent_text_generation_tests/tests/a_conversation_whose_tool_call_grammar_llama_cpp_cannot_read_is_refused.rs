@@ -6,18 +6,18 @@ use llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_
 use llama_cpp_chat::chat_error::ChatError;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::conversation_generation::ConversationGeneration;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_agent_text_generation_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
+use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
+use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
+use paddler_agent_text_generation_tests::weather_question_conversation::weather_question_conversation;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
-use paddler_tests::conversation_generation::ConversationGeneration;
-use paddler_tests::gbnf_literal::gbnf_literal;
-use paddler_tests::get_weather_tool::get_weather_tool;
-use paddler_tests::llama_runtime::LlamaRuntime;
-use paddler_tests::weather_question_conversation::weather_question_conversation;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[test]
 fn a_conversation_whose_tool_call_grammar_llama_cpp_cannot_read_is_refused() {

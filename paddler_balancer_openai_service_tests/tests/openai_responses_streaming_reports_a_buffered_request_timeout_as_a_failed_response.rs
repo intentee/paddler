@@ -1,12 +1,12 @@
 use serde_json::json;
 
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_streaming_reports_a_buffered_request_timeout_as_a_failed_response() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         ..ClusterParams::without_agents()
     })

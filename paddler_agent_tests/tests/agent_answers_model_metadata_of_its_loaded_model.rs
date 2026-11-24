@@ -3,10 +3,10 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn management_returns_model_metadata_for_loaded_agent() {
+async fn agent_answers_model_metadata_of_its_loaded_model() {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
         .await
         .expect("the cluster must start");

@@ -6,9 +6,9 @@ use paddler_agent_decision::constants::KEV_DECISION_DELIMITERS;
 use paddler_agent_decision::decision_delimiter_tokens::DecisionDelimiterTokens;
 use paddler_agent_decision::decision_delimiters::DecisionDelimiters;
 use paddler_agent_decision::decision_error::DecisionError;
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::llama_runtime::LlamaRuntime;
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const DELIMITER_WITH_A_NUL_BYTE: &str = "<|fim_suffix|>\0";
 

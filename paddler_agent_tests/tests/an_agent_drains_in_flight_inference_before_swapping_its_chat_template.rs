@@ -4,8 +4,10 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_cluster_harness::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 use paddler_cluster_harness::unending_grammar::unending_grammar;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -13,13 +15,11 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 
 const CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION: NonZeroU32 = NonZeroU32::new(256).unwrap();
 
 #[tokio::test(flavor = "multi_thread")]
-async fn chat_template_drains_in_flight_inference_before_swap() {
+async fn an_agent_drains_in_flight_inference_before_swapping_its_chat_template() {
     let mut cluster = start_cluster_with_qwen3_and_context_size(
         AgentConfig::uniform(1, 1),
         CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION,

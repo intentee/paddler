@@ -5,15 +5,15 @@ use reqwest::header::HeaderValue;
 
 use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_balancer_openai_service::constants::OPENAI_HEADER_REQUEST_ID;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::API_PATH_HEALTH;
-use paddler_tests::start_cluster::start_cluster;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_service_lets_browsers_send_and_read_openai_headers() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
         ..ClusterParams::without_agents()
     })

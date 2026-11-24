@@ -1,16 +1,16 @@
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::fixture_path::fixture_path;
+use paddler_file_fixture::fixture_path::fixture_path;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
+async fn loading_an_invalid_gguf_model_reports_that_it_cannot_be_loaded() {
     let model_path_on_agent = fixture_path("invalid.gguf").display().to_string();
-    let mut cluster = start_cluster(ClusterParams {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model: agent_desired_model_at(&fixture_path("invalid.gguf"))

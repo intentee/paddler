@@ -2,15 +2,15 @@
 
 use std::num::NonZeroU32;
 
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::start_cluster::start_cluster;
 
 const SHARED_REQUEST_ID: &str = "shared-request-id";
 const MAX_TOKENS_THAT_KEEP_THE_FIRST_REQUEST_GENERATING: NonZeroU32 =
@@ -28,7 +28,7 @@ const fn is_generated_token(message: &InferenceClientMessage) -> bool {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_serves_requests_from_different_connections_that_share_a_request_id() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 2),
         desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         wait_for_slots_ready: true,

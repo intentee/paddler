@@ -1,12 +1,11 @@
 use anyhow::Result;
 
-use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::cluster::Cluster;
-use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
+use paddler_model_card_fixture::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
 
-use crate::start_cluster::start_cluster;
+use crate::agent_config::AgentConfig;
+use crate::cluster::Cluster;
+use crate::cluster_desired_state::ClusterDesiredState;
+use crate::cluster_params::ClusterParams;
 
 pub struct Ministral3ClusterParams {
     pub agents: Vec<AgentConfig>,
@@ -15,11 +14,11 @@ pub struct Ministral3ClusterParams {
 impl Ministral3ClusterParams {
     /// # Errors
     ///
-    /// Returns the error of [`start_cluster`] when the cluster serving Ministral 3 cannot start.
+    /// Returns the error of [`Cluster::start_in_process`] when the cluster serving Ministral 3 cannot start.
     pub async fn start_cluster(self) -> Result<Cluster> {
         let Self { agents } = self;
 
-        start_cluster(ClusterParams {
+        Cluster::start_in_process(ClusterParams {
             agents,
             desired_state: ClusterDesiredState::Apply(Box::new(
                 ministral_3_3b_reasoning().into_desired_state(),

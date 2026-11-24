@@ -4,23 +4,23 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_text_generation_tests::chat_template_rendering_every_message_after::chat_template_rendering_every_message_after;
+use paddler_agent_text_generation_tests::image_description_conversation::image_description_conversation;
+use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
+use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_cluster_harness::model_card::gemma_3_4b_it::gemma_3_4b_it;
-use paddler_cluster_harness::model_card::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
+use paddler_file_fixture::constants::LLAMAS_JPEG;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::chat_template_rendering_every_message_after::chat_template_rendering_every_message_after;
-use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::image_description_conversation::image_description_conversation;
-use paddler_tests::single_image_question::SingleImageQuestion;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_model_card_fixture::gemma_3_4b_it::gemma_3_4b_it;
+use paddler_model_card_fixture::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_multimodal_prompt_carries_one_bos_whether_or_not_its_template_renders_it() {
-    let image_data_uri = load_test_image_data_uri().expect("the test image must load");
+    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
     let conversations = [
         image_description_conversation(image_data_uri.clone()),
         SingleImageQuestion {
@@ -32,7 +32,7 @@ async fn a_multimodal_prompt_carries_one_bos_whether_or_not_its_template_renders
         .conversation_history,
     ];
     let prompt_tokens_rendered_by = async |chat_template: ChatTemplate| -> Vec<u64> {
-        let cluster = start_cluster(ClusterParams {
+        let cluster = Cluster::start_in_process(ClusterParams {
             agents: vec![AgentConfig::single(1)],
             desired_state: ClusterDesiredState::Apply(Box::new(
                 desired_state_with_chat_template_override(

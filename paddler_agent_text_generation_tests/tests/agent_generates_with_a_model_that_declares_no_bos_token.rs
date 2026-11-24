@@ -5,16 +5,16 @@ use std::num::NonZeroU32;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::write_patched_gguf::write_patched_gguf;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
-use paddler_tests::write_patched_gguf::write_patched_gguf;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_generates_with_a_model_that_declares_no_bos_token() {

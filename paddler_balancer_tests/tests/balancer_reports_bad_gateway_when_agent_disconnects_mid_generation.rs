@@ -5,8 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::inference_stream_error_codes::inference_stream_error_codes;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_cluster_harness::unending_generation::unending_generation;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const BAD_GATEWAY: i32 = 502;
 

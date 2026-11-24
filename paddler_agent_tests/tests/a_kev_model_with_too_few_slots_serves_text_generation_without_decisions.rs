@@ -2,7 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
@@ -12,8 +13,7 @@ use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const SLOTS_TOO_FEW_FOR_DECISIONS: u16 = 1;
 

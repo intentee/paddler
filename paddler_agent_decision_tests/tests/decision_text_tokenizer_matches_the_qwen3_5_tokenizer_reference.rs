@@ -1,10 +1,10 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-use paddler_tests::kev_tokenizer_reference_comparison::KevTokenizerReferenceComparison;
+use paddler_agent_decision_tests::kev_tokenizer_reference_comparison::KevTokenizerReferenceComparison;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 #[test]
-fn qwen3_5_decision_text_tokenizes_like_kev() {
+fn decision_text_tokenizer_matches_the_qwen3_5_tokenizer_reference() {
     let comparison = KevTokenizerReferenceComparison {
         model_path: kev_0_8b()
             .cached_path()

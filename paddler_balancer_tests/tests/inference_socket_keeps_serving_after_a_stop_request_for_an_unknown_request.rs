@@ -9,12 +9,12 @@ use paddler_messaging::inference_server::notification::Notification as Inference
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
-use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_cluster_harness::cluster::Cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_keeps_serving_after_a_stop_request_for_an_unknown_request() {
-    let cluster = start_cluster(ClusterParams {
+    let cluster = Cluster::start_in_process(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         max_buffered_requests: 1,
         ..ClusterParams::without_agents()

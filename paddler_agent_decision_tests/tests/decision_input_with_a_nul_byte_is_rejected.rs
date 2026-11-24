@@ -2,12 +2,12 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::with_nul_byte::with_nul_byte;
+use paddler_request_params_fixture::sample_decision::sample_decision;
+use paddler_request_params_fixture::with_nul_byte::with_nul_byte;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_input_with_a_nul_byte_is_rejected() {

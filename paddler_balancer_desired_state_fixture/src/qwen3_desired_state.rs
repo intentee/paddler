@@ -1,5 +1,5 @@
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[must_use]
 pub fn qwen3_desired_state() -> BalancerDesiredState {

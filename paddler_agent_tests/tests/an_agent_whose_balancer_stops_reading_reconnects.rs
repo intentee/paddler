@@ -1,11 +1,11 @@
 use serde_json::to_string;
 use tokio_tungstenite::tungstenite::Message;
 
+use paddler_agent_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_tcp_buffer_limits::tcp_buffer_limits_file::TcpBufferLimitsFile;
-use paddler_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_whose_balancer_stops_reading_reconnects() {

@@ -2,8 +2,8 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
-use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn shutting_down_a_served_model_stops_its_schedulers_and_frees_their_contexts() {

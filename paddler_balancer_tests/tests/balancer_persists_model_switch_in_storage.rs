@@ -3,14 +3,14 @@ use std::path::Path;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::model_card::ModelCard;
-use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::model_card::ModelCard;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_model_source::model_source::ModelSource;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_model_switch_in_storage() {
@@ -24,7 +24,7 @@ async fn balancer_persists_model_switch_in_storage() {
         ..BalancerDesiredState::default()
     };
 
-    let first_cluster = start_cluster(ClusterParams {
+    let first_cluster = Cluster::start_in_process(ClusterParams {
         state_database_url: database.url.clone(),
         desired_state: ClusterDesiredState::Apply(Box::new(initial_state)),
         ..ClusterParams::without_agents()
@@ -48,7 +48,7 @@ async fn balancer_persists_model_switch_in_storage() {
         .await
         .expect("the cluster must shut down cleanly");
 
-    let second_cluster = start_cluster(ClusterParams {
+    let second_cluster = Cluster::start_in_process(ClusterParams {
         state_database_url: database.url.clone(),
         desired_state: ClusterDesiredState::KeepStored,
         ..ClusterParams::without_agents()
