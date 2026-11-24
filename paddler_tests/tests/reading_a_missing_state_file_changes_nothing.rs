@@ -1,9 +1,9 @@
 use tokio::fs::try_exists;
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

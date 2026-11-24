@@ -8,9 +8,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use tempfile::TempDir;
 
+use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_model_source::model_source_error::ModelSourceError;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 
 pub struct SwappableModelFile {
     model_directory: TempDir,

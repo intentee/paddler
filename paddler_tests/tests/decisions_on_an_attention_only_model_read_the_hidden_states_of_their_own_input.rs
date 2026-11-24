@@ -1,12 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::answered_decision_probabilities::answered_decision_probabilities;
 use paddler_tests::model_declaring_decision_metadata::ModelDeclaringDecisionMetadata;
 use paddler_tests::sample_decision::sample_decision;

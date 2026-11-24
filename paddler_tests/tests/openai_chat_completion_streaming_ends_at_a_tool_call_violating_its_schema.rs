@@ -3,7 +3,7 @@
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::constants::WEATHER_TOOL_QUESTION;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;

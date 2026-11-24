@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::kev_tokenizer_reference_comparison::KevTokenizerReferenceComparison;
 
 #[test]

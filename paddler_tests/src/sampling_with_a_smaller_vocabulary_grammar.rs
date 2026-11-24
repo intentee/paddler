@@ -9,7 +9,7 @@ use paddler_agent_text_generation::sampling_outcome::SamplingOutcome;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::llama_runtime::LlamaRuntime;

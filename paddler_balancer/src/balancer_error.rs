@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::watch::error::RecvError;
 
-use paddler_state_database::state_database_error::StateDatabaseError;
+use paddler_balancer_state_database::state_database_error::StateDatabaseError;
 
 use crate::transform_result::TransformResult;
 use crate::websocket_outbound_frame::WebSocketOutboundFrame;

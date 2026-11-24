@@ -4,10 +4,10 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
+use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_inference_parameters::invalid_inference_parameters::InvalidInferenceParameters;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
-use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;

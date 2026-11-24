@@ -12,8 +12,8 @@ use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized
 use paddler_agent_embeddings::embedding_scheduler_context::EmbeddingSchedulerContext;
 use paddler_agent_embeddings::normalizes_embedding::NormalizesEmbedding;
 use paddler_agent_runtime::resident_llama_context::ResidentLlamaContext;
+use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_inference_parameters::pooling_type::PoolingType;
-use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 use crate::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;

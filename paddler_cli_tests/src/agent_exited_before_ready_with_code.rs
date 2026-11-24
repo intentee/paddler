@@ -1,7 +1,7 @@
 use anyhow::Error;
 
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
-use paddler_test_cluster_harness::process_end::ProcessEnd;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::process_end::ProcessEnd;
 
 use crate::subprocess_cluster_error::SubprocessClusterError;
 

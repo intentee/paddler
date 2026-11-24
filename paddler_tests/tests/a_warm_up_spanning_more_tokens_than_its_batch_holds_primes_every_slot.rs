@@ -5,8 +5,8 @@ use llama_cpp_context_memory::context_memory::ContextMemory as _;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 

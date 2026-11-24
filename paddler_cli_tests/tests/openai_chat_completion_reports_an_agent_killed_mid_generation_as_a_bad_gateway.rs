@@ -7,9 +7,9 @@ use tokio::spawn;
 use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
-use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_tests::minimal_openai_chat_completion::minimal_openai_chat_completion;
 
 const TEXT_GENERATION_SLOTS: u16 = 1;

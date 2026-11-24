@@ -2,9 +2,9 @@
 
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;

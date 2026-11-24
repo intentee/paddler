@@ -1,8 +1,8 @@
 use paddler_cli_tests::agent_exited_before_ready_with_code::agent_exited_before_ready_with_code;
 use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 const SLOTS_THE_AGENT_REJECTS: u16 = 0;
 

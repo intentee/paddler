@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::agent_readiness::AgentReadiness;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::running_agent::RunningAgent;
+use paddler_cluster_harness::agent_readiness::AgentReadiness;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::running_agent::RunningAgent;
 
 use crate::pausable_agent_params::PausableAgentParams;
 use crate::signalled_subprocess::SignalledSubprocess;

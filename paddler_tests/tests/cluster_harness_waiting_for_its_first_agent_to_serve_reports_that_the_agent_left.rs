@@ -1,8 +1,8 @@
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

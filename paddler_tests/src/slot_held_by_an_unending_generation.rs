@@ -7,8 +7,8 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_client::client_inference::ClientInference;
 use paddler_client::inference_message_stream::InferenceMessageStream;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::unending_generation::unending_generation;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::unending_generation::unending_generation;
 
 pub struct SlotHeldByAnUnendingGeneration {
     generation_stop: CancellationToken,

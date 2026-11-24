@@ -1,4 +1,4 @@
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 pub struct PausableAgentClusterParams {
     pub binary_path: String,

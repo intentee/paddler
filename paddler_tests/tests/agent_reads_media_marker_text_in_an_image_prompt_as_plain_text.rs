@@ -2,10 +2,10 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
 use paddler_tests::single_image_question::SingleImageQuestion;

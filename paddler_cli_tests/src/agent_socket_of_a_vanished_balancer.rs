@@ -4,9 +4,9 @@ use anyhow::Error;
 use anyhow::Result;
 use futures_util::TryFutureExt as _;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::untrusted_agent_socket_client::UntrustedAgentSocketClient;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::untrusted_agent_socket_client::UntrustedAgentSocketClient;
 
 use crate::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use crate::subprocess_cluster::SubprocessCluster;

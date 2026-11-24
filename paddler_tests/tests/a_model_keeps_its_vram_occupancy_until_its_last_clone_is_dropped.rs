@@ -3,8 +3,8 @@
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 
 #[test]

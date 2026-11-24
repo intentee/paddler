@@ -2,7 +2,7 @@ use paddler_cli_tests::agent_exited_before_ready_with_code::agent_exited_before_
 use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 const SLOTS_THE_AGENT_REJECTS: u16 = 0;
 

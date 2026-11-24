@@ -10,7 +10,7 @@ use paddler_messaging::inference_server::request::Request as InferenceServerRequ
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 const IN_FLIGHT_REQUEST_ID: &str = "in-flight-request-id";

@@ -6,8 +6,8 @@ use serde_json::json;
 use std::num::NonZeroU32;
 
 use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
-use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_tests::oversized_text::oversized_text;
 use paddler_tests::post_openai_chat_completion::post_openai_chat_completion;
 use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;

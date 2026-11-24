@@ -7,7 +7,7 @@ use nix::unistd::Pid;
 use paddler_cli_tests::paddler_command::paddler_command;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
-use paddler_test_cluster_harness::managed_process::ManagedProcess as _;
+use paddler_cluster_harness::managed_process::ManagedProcess as _;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_exit_reaped_elsewhere_is_reported_as_unobservable() {

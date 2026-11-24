@@ -2,12 +2,12 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
-use paddler_test_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

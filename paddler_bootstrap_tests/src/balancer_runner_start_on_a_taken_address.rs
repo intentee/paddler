@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 use crate::bootstrap_tests_error::BootstrapTestsError;
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;

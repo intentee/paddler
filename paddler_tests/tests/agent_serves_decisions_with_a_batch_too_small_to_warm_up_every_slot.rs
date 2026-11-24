@@ -4,8 +4,8 @@ use std::mem::discriminant;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;

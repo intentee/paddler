@@ -2,10 +2,10 @@
 
 use std::mem::discriminant;
 
+use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;

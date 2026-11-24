@@ -2,7 +2,7 @@ use std::io;
 use std::io::ErrorKind;
 
 use paddler_cli_tests::cluster_with_a_missing_agent_binary::cluster_with_a_missing_agent_binary;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_cluster_reports_an_agent_binary_that_cannot_be_spawned() {

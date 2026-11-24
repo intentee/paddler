@@ -7,12 +7,12 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use paddler_agent::pipeline_request::PipelineRequest;
 use paddler_agent_runtime::agent_request::AgentRequest;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
 use paddler_messaging::validates::Validates as _;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 

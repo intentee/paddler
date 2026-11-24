@@ -2,8 +2,8 @@
 
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand as _;
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::llama_runtime::LlamaRuntime;

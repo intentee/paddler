@@ -7,11 +7,11 @@ use serde_json::to_string;
 use tokio_tungstenite::tungstenite::Message;
 
 use paddler_bootstrap::agent_runner::AgentRunner;
+use paddler_cluster_harness::untrusted_balancer_socket::UntrustedBalancerSocket;
+use paddler_cluster_harness::untrusted_balancer_socket_server::UntrustedBalancerSocketServer;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
-use paddler_test_cluster_harness::untrusted_balancer_socket::UntrustedBalancerSocket;
-use paddler_test_cluster_harness::untrusted_balancer_socket_server::UntrustedBalancerSocketServer;
 
 use crate::agent_runner_connected_to::agent_runner_connected_to;
 

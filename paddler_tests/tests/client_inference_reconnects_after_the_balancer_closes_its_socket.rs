@@ -9,9 +9,9 @@ use paddler_balancer::constants::MAX_WEBSOCKET_MESSAGE_SIZE;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::error::Error;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 

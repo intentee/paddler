@@ -2,14 +2,14 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::numbered_embedding_documents::numbered_embedding_documents;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;

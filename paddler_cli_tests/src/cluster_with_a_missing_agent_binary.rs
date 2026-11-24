@@ -2,8 +2,8 @@ use anyhow::Result;
 use futures_util::TryFutureExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 use crate::constants::MISSING_BINARY_PATH;
 use crate::running_balancer_subprocess::running_balancer_subprocess;

@@ -4,8 +4,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::constants::WEATHER_TOOL_CALL_JSON;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::get_weather_tool::get_weather_tool;

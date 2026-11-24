@@ -1,11 +1,11 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ministral_3_8b_reasoning::ministral_3_8b_reasoning;
-use paddler_test_cluster_harness::model_card::ministral_3_8b_reasoning_mmproj::ministral_3_8b_reasoning_mmproj;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::model_card::ministral_3_8b_reasoning::ministral_3_8b_reasoning;
+use paddler_cluster_harness::model_card::ministral_3_8b_reasoning_mmproj::ministral_3_8b_reasoning_mmproj;
 
 use crate::start_cluster::start_cluster;
 

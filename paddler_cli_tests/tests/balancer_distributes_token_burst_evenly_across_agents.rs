@@ -8,11 +8,11 @@ use futures_util::stream::iter;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_test_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
-use paddler_test_cluster_harness::unending_generation::unending_generation;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
+use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster_harness::unending_generation::unending_generation;
 
 const AGENT_COUNT: usize = 4;
 const SLOTS_PER_AGENT: u16 = 1;

@@ -2,8 +2,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_test_cluster_harness::managed_process::ManagedProcess;
-use paddler_test_cluster_harness::process_end::ProcessEnd;
+use paddler_cluster_harness::managed_process::ManagedProcess;
+use paddler_cluster_harness::process_end::ProcessEnd;
 
 pub struct InProcessBalancer {
     runner: BalancerRunner,

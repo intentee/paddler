@@ -1,7 +1,7 @@
 use reqwest::StatusCode;
 
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

@@ -26,7 +26,7 @@ export function run({ development, once = false, rustJobs }) {
       "paddler_model_source",
       "paddler_openai_translation",
       "paddler_request_registry",
-      "paddler_state_database",
+      "paddler_balancer_state_database",
       "paddler_tool_call_validator",
       "paddler_typesafe_translation",
       "resources",

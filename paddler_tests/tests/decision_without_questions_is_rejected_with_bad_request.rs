@@ -2,9 +2,9 @@ use reqwest::StatusCode;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::API_PATH_DECIDE;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 
 #[tokio::test(flavor = "multi_thread")]

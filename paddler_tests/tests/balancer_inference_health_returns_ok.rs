@@ -1,7 +1,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::reports_health::ReportsHealth as _;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

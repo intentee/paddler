@@ -8,7 +8,7 @@ use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 const REPORTING_INTERVAL_LONGER_THAN_THE_TEST: Duration = Duration::from_hours(1);
 const MAX_STATSD_DATAGRAM_BYTES: usize = 1024;

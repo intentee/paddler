@@ -21,7 +21,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 paddler_generation_result_fixture = { workspace = true }
-paddler_openai_response_format_validator = { workspace = true }
+paddler_openai_schema_validator = { workspace = true }
 
 [lints]
 workspace = true

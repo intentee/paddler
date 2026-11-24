@@ -1,5 +1,5 @@
 #[cfg(feature = "web_admin_panel")]
-use paddler_dashboard_assets::dashboard_assets_html_file_name;
+use paddler_balancer_dashboard_assets::dashboard_assets_html_file_name;
 
 pub const AGENT_ID_ROUTE_SEGMENT: &str = "{agent_id}";
 #[cfg(feature = "web_admin_panel")]

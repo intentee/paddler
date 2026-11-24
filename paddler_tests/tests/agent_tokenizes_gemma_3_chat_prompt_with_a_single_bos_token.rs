@@ -4,8 +4,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::greeting_conversation::greeting_conversation;
 use paddler_tests::start_cluster_with_gemma_3::start_cluster_with_gemma_3;
 

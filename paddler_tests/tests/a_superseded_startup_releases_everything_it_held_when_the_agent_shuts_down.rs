@@ -3,10 +3,10 @@
 use std::mem::discriminant;
 
 use paddler_agent_runtime::agent_vram_residencies::AgentVramResidencies;
+use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 

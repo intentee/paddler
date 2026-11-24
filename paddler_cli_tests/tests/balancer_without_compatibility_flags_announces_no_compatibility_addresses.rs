@@ -3,7 +3,7 @@ use std::mem::discriminant;
 use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
 use paddler_cli_tests::running_balancer_subprocess::running_balancer_subprocess;
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_without_compatibility_flags_announces_no_compatibility_addresses() {

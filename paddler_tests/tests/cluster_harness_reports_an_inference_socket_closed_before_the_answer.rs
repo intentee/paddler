@@ -1,6 +1,6 @@
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_tests::start_cluster::start_cluster;
 
 const UNANSWERED_REQUEST_ID: &str = "request-the-balancer-never-received";

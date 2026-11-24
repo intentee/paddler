@@ -5,9 +5,9 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error;
 use paddler_client::http_client::HttpClient;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::constants::API_PATH_AGENTS_STREAM;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

@@ -6,10 +6,10 @@ use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
 use paddler_bootstrap::agent_runtime_config::AgentRuntimeConfig;
+use paddler_cluster_harness::unexpiring_shutdown_options::unexpiring_shutdown_options;
 use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::model_source_error::ModelSourceError;
-use paddler_test_cluster_harness::unexpiring_shutdown_options::unexpiring_shutdown_options;
 
 /// # Errors
 ///

@@ -6,8 +6,8 @@ use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap_tests::agent_runner_params_for_balancer_at::agent_runner_params_for_balancer_at;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 use paddler_client::client_management::ClientManagement;
+use paddler_cluster_harness::snapshots_watcher::SnapshotsWatcher;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_test_cluster_harness::snapshots_watcher::SnapshotsWatcher;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_runner_leaves_its_balancer_when_dropped() {

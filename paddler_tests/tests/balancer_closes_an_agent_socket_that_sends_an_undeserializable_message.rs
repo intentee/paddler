@@ -1,7 +1,7 @@
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 

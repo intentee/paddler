@@ -2,9 +2,9 @@ use std::num::NonZeroU32;
 
 use tokio_tungstenite::tungstenite::Message;
 
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 

@@ -1,11 +1,11 @@
 use serde_json::to_value;
 
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

@@ -5,8 +5,8 @@ use anyhow::Result;
 use futures_util::TryFutureExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::collected_decision_results::CollectedDecisionResults;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::collected_decision_results::CollectedDecisionResults;
 
 use crate::decision_cluster_params::DecisionClusterParams;
 use crate::decision_done_discriminant::decision_done_discriminant;

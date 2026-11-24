@@ -77,7 +77,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
+    use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 
     use super::CompatibilityAppData;
     use super::post_chat_completions;

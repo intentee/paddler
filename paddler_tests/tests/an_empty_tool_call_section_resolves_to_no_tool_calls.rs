@@ -2,8 +2,8 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;

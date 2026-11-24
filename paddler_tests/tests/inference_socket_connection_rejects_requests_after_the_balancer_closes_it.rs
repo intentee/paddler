@@ -3,7 +3,7 @@ use tokio::join;
 
 use paddler_client::error::Error;
 use paddler_client::inference_socket::connection::Connection;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

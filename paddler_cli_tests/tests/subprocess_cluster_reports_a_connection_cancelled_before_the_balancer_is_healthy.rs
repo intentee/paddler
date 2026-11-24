@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_cli_tests::running_balancer_subprocess::running_balancer_subprocess;
 use paddler_cli_tests::subprocess_agents_cluster_connection::SubprocessAgentsClusterConnection;
 use paddler_client::error::Error as ClientError;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_cluster_reports_a_connection_cancelled_before_the_balancer_is_healthy() {

@@ -333,7 +333,7 @@ mod tests {
     use paddler_generation_result_fixture::finished_generation_summary::finished_generation_summary;
     use paddler_generation_result_fixture::weather_call::weather_call;
     use paddler_messaging::generation_finish::GenerationFinish;
-    use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
+    use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 
     use super::ResponsesStream;
     use crate::generated_output_part::GeneratedOutputPart;

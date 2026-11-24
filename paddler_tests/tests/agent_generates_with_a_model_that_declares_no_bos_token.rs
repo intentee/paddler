@@ -5,13 +5,13 @@ use std::num::NonZeroU32;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_tests::write_patched_gguf::write_patched_gguf;

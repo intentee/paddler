@@ -4,6 +4,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -13,8 +15,6 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::oversized_media_details::OversizedMediaDetails;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_tests::start_cluster_with_gemma_3_and_mmproj_and_n_batch::start_cluster_with_gemma_3_and_mmproj_and_n_batch;
 
 const GEMMA_3_IMAGE_TOKENS: usize = 256;

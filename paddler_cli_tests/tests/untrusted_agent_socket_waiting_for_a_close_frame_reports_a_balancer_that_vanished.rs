@@ -5,7 +5,7 @@ use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_tungstenite::tungstenite::error::ProtocolError;
 
 use paddler_cli_tests::agent_socket_of_a_vanished_balancer::AgentSocketOfAVanishedBalancer;
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn untrusted_agent_socket_waiting_for_a_close_frame_reports_a_balancer_that_vanished() {

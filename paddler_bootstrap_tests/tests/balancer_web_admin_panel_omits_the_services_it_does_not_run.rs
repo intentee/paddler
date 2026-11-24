@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 use paddler_bootstrap_tests::rendered_dashboard_attributes::rendered_dashboard_attributes;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 #[tokio::test]
 async fn balancer_web_admin_panel_omits_the_services_it_does_not_run() {

@@ -19,10 +19,10 @@ use paddler_agent::served_embeddings::ServedEmbeddings;
 use paddler_agent::served_model::ServedModel;
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
+use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
-use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::llama_runtime::LlamaRuntime;

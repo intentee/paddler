@@ -5,11 +5,11 @@ use serde_json::Value;
 use serde_json::json;
 
 use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
-use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_tests::constants::WEATHER_TOOL_QUESTION;
 use paddler_tests::post_openai_chat_completion::post_openai_chat_completion;
 use paddler_tests::start_cluster::start_cluster;

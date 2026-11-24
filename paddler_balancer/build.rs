@@ -5,8 +5,8 @@ use std::env::var_os;
 use std::io::stdout;
 use std::path::Path;
 
-use paddler_dashboard_assets::dashboard_assets_build::DashboardAssetsBuild;
-use paddler_dashboard_assets::web_admin_panel_feature::WebAdminPanelFeature;
+use paddler_balancer_dashboard_assets::dashboard_assets_build::DashboardAssetsBuild;
+use paddler_balancer_dashboard_assets::web_admin_panel_feature::WebAdminPanelFeature;
 
 use crate::balancer_build_error::BalancerBuildError;
 

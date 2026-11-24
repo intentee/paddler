@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
+use paddler_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::ephemeral_balancer_arguments::ephemeral_balancer_arguments;
 use crate::signalled_subprocess::SignalledSubprocess;

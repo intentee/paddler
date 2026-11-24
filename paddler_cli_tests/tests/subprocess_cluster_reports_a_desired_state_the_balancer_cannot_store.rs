@@ -8,11 +8,11 @@ use url::Url;
 
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_client::error::Error as ClientError;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
 const READ_ONLY_DIRECTORY_MODE: u32 = 0o555;
 

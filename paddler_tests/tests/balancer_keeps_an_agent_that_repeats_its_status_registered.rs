@@ -1,8 +1,8 @@
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
 

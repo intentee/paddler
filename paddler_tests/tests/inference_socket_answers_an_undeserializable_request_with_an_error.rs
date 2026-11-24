@@ -3,11 +3,11 @@ use std::num::NonZeroU32;
 use serde_json::json;
 use tokio_tungstenite::tungstenite::Message;
 
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

@@ -16,8 +16,8 @@ use paddler_agent_text_generation::prepared_generation_request::PreparedGenerati
 use paddler_agent_text_generation::token_classification::TokenClassification;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 use paddler_agent_text_generation::tool_call_handling::ToolCallHandling;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::llama_runtime::LlamaRuntime;

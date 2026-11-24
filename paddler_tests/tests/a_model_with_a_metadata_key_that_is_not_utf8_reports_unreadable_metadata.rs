@@ -4,7 +4,7 @@ use llama_cpp_model::model_error::ModelError;
 use tempfile::TempDir;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::write_patched_gguf::write_patched_gguf;

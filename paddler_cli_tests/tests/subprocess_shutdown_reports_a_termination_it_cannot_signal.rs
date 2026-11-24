@@ -9,7 +9,7 @@ use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 use paddler_cli_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
-use paddler_test_cluster_harness::managed_process::ManagedProcess;
+use paddler_cluster_harness::managed_process::ManagedProcess;
 
 const SLOTS_THE_AGENT_REJECTS_ON_ITS_OWN: u16 = 0;
 

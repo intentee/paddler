@@ -5,14 +5,14 @@ use std::io::Write as _;
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

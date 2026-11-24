@@ -6,7 +6,7 @@ use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_sampler::sampler_error::SamplerError;
 
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::constants::GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT;

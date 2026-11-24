@@ -4,10 +4,10 @@ use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::client_management::ClientManagement;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 async fn get_balancer_desired_state(

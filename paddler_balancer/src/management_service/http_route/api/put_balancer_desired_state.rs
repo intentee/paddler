@@ -43,12 +43,12 @@ mod tests {
     use tempfile::TempDir;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_balancer_state_database::state_database::StateDatabase;
+    use paddler_balancer_state_database::state_database_file::StateDatabaseFile;
+    use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
-    use paddler_state_database::state_database::StateDatabase;
-    use paddler_state_database::state_database_file::StateDatabaseFile;
-    use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::put_balancer_desired_state;
     use crate::agent_controller_pool::AgentControllerPool;

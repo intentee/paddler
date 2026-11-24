@@ -3,8 +3,8 @@
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]

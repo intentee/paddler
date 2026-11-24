@@ -7,14 +7,14 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_cache_dir::cache_dir::CacheDir;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::running_balancer::RunningBalancer;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_hub::HuggingFaceHub;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::in_process_agent_spawner::InProcessAgentSpawner;
 use crate::in_process_balancer::InProcessBalancer;

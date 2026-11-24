@@ -6,8 +6,8 @@ use paddler_agent_text_generation::continuous_batch_terminal_outcome::Continuous
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;

@@ -4,7 +4,7 @@ use serde_json::Value;
 use serde_json::from_str;
 use serde_json::json;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::responses_message_text::responses_message_text;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

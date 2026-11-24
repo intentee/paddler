@@ -1,5 +1,5 @@
 [package]
-name = "paddler_state_database"
+name = "paddler_balancer_state_database"
 authors.workspace = true
 description.workspace = true
 edition.workspace = true

@@ -13,9 +13,9 @@ use serde_json::from_value;
 
 use paddler_agent_text_generation::chat_template_conversation::ChatTemplateConversation;
 use paddler_agent_text_generation::media_marker::MediaMarker;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::translated_chat_completion_request::TranslatedChatCompletionRequest;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::llama_runtime::LlamaRuntime;

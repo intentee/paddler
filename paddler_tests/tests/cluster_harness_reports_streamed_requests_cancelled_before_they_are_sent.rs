@@ -4,13 +4,13 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
 use paddler_client::format_api_url::format_api_url;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 fn is_cancelled_request_to(

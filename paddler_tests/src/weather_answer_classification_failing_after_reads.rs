@@ -12,7 +12,7 @@ use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_classification::TokenClassification;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::llama_runtime::LlamaRuntime;

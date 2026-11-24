@@ -5,9 +5,9 @@ use std::mem::discriminant;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;

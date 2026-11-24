@@ -4,7 +4,7 @@ use reqwest::Error as ReqwestError;
 use thiserror::Error;
 
 use paddler_bootstrap::bootstrap_error::BootstrapError;
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 
 #[derive(Debug, Error)]
 pub enum BootstrapTestsError {

@@ -5,10 +5,10 @@ use tokio::spawn;
 
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
-use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_an_agent_killed_mid_decision_as_a_bad_gateway() {

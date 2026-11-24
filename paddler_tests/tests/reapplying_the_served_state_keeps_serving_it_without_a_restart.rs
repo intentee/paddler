@@ -2,8 +2,8 @@
 
 use std::mem::discriminant;
 
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 

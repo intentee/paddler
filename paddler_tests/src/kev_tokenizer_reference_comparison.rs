@@ -8,7 +8,7 @@ use llama_cpp_model::llama_token::LlamaToken;
 use serde_json::from_str;
 
 use paddler_agent_decision::decision_text_tokenizer::DecisionTextTokenizer;
-use paddler_test_cluster_harness::fixture_path::fixture_path;
+use paddler_cluster_harness::fixture_path::fixture_path;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::tokenizer_reference::TokenizerReference;

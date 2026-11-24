@@ -5,10 +5,10 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const WAITING_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(32).unwrap();

@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]

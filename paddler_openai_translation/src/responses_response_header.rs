@@ -121,7 +121,7 @@ mod tests {
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::token_usage::TokenUsage;
-    use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
+    use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 
     use super::ResponsesResponseHeader;
     use crate::completes_generation::CompletesGeneration as _;

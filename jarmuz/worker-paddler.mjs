@@ -5,7 +5,7 @@ import { spawner } from "jarmuz/job-types";
 
 const stateDatabase = temporaryFile({
   extension: "json",
-  prefix: "worker-paddler-state-database-",
+  prefix: "worker-paddler-balancer-state-database-",
 });
 
 spawner(async function ({ buildId, command }) {

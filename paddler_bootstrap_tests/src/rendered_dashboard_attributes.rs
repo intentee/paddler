@@ -7,8 +7,8 @@ use reqwest::get;
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
-use paddler_test_cluster_harness::dashboard_attributes::dashboard_attributes;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::dashboard_attributes::dashboard_attributes;
 
 use crate::bootstrap_tests_error::BootstrapTestsError;
 

@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 use crate::connect_subprocess_balancer::connect_subprocess_balancer;
 use crate::subprocess_cluster::SubprocessCluster;

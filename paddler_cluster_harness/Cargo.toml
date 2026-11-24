@@ -1,5 +1,5 @@
 [package]
-name = "paddler_test_cluster_harness"
+name = "paddler_cluster_harness"
 autotests = false
 authors.workspace = true
 description = "Shared balancer-API-facing test harness for Paddler integration tests"

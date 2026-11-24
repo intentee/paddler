@@ -9,9 +9,9 @@ use llama_cpp_token_usage::token_usage::TokenUsage;
 use serde_json::Value;
 
 use paddler_agent_text_generation::tool_call_event::ToolCallEvent;
+use paddler_cluster_harness::model_card::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_test_cluster_harness::model_card::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::llama_runtime::LlamaRuntime;

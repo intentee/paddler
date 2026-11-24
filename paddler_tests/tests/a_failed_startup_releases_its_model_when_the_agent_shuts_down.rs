@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;

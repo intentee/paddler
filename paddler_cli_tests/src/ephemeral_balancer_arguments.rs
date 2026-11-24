@@ -1,4 +1,4 @@
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 #[must_use]
 pub fn ephemeral_balancer_arguments() -> [String; 5] {

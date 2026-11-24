@@ -2,7 +2,7 @@
 
 use serde_json::Value;
 
-use paddler_test_cluster_harness::constants::TYPESAFE_REQUEST_MODEL;
+use paddler_cluster_harness::constants::TYPESAFE_REQUEST_MODEL;
 use paddler_tests::typesafe_tone_and_payment_decision::typesafe_tone_and_payment_decision;
 
 #[tokio::test(flavor = "multi_thread")]

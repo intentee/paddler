@@ -6,7 +6,7 @@ use llama_cpp_sampler::sampler_error::SamplerError;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
+use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::sampling_with_a_smaller_vocabulary_grammar::SamplingWithASmallerVocabularyGrammar;
 
 #[test]

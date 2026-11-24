@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 use crate::pausable_agent::PausableAgent;
 use crate::pausable_agent_cluster_params::PausableAgentClusterParams;

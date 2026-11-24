@@ -1,6 +1,6 @@
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_balancer_drops_an_agent_that_stops_answering_pings() {

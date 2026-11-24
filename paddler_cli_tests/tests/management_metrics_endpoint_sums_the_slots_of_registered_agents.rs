@@ -3,7 +3,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_metrics_endpoint_sums_the_slots_of_registered_agents() {

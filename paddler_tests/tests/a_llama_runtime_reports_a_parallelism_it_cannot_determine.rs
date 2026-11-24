@@ -3,7 +3,7 @@
 use std::io::ErrorKind;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::inference_runtime_context_with_unknown_parallelism::inference_runtime_context_with_unknown_parallelism;
 use paddler_tests::llama_runtime::LlamaRuntime;
 

@@ -10,7 +10,7 @@ use paddler_agent_decision::decision_scheduler::DecisionScheduler;
 use paddler_agent_decision::decision_scheduler_context::DecisionSchedulerContext;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 use paddler_agent_decision::kev_option_scorer::KevOptionScorer;
-use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
+use paddler_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::decision_scheduler_run::DecisionSchedulerRun;

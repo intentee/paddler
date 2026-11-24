@@ -3,7 +3,7 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
-use paddler_test_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
+use paddler_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::with_nul_byte::with_nul_byte;
 

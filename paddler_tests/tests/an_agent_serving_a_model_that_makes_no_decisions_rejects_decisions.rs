@@ -6,10 +6,10 @@ use tokio::sync::mpsc;
 
 use paddler_agent::pipeline_request::PipelineRequest;
 use paddler_agent_runtime::agent_request::AgentRequest;
+use paddler_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::DecideParams;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]

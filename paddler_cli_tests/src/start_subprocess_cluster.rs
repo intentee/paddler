@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 use crate::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 

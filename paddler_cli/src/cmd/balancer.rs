@@ -12,6 +12,7 @@ use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use paddler_balancer_state_database::state_database_type::StateDatabaseType;
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
 use paddler_bootstrap::constants::BALANCER_DEFAULT_BUFFERED_REQUEST_TIMEOUT;
@@ -21,7 +22,6 @@ use paddler_bootstrap::constants::BALANCER_DEFAULT_MANAGEMENT_PORT;
 use paddler_bootstrap::constants::BALANCER_DEFAULT_MAX_BUFFERED_REQUESTS;
 use paddler_bootstrap::constants::BALANCER_DEFAULT_STATSD_PREFIX;
 use paddler_bootstrap::constants::BALANCER_DEFAULT_STATSD_REPORTING_INTERVAL;
-use paddler_state_database::state_database_type::StateDatabaseType;
 
 use super::run_announced_service_manager::run_announced_service_manager;
 use super::value_parser::parse_duration::parse_duration;

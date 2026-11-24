@@ -2,8 +2,8 @@ use serde_json::json;
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::Message;
 
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_tests::start_cluster::start_cluster;
 
 const PING_PAYLOAD: &[u8] = b"probe";

@@ -3,7 +3,7 @@
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const REASONING_AND_ANSWER_BUDGET: u32 = 512;

@@ -1,8 +1,8 @@
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::conversation_with_a_tool_requiring_an_undeclared_property::conversation_with_a_tool_requiring_an_undeclared_property;
 use paddler_tests::start_cluster::start_cluster;
 

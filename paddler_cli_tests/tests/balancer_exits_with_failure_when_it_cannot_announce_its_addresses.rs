@@ -5,7 +5,7 @@ use std::process::Stdio;
 
 use paddler_cli_tests::ephemeral_balancer_arguments::ephemeral_balancer_arguments;
 use paddler_cli_tests::paddler_command::paddler_command;
-use paddler_test_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
+use paddler_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_exits_with_failure_when_it_cannot_announce_its_addresses() {

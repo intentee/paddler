@@ -20,10 +20,10 @@ path = "tests/main.rs"
 [dependencies]
 futures-util = { workspace = true }
 paddler_balancer = { workspace = true }
+paddler_balancer_state_database = { workspace = true }
 paddler_bootstrap = { workspace = true }
+paddler_cluster_harness = { workspace = true }
 paddler_model_source = { workspace = true }
-paddler_state_database = { workspace = true }
-paddler_test_cluster_harness = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
 tokio-util = { workspace = true }

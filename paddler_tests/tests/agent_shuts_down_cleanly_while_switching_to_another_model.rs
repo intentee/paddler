@@ -1,7 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
 

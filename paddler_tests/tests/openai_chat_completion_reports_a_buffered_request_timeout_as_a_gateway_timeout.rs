@@ -2,8 +2,8 @@ use reqwest::StatusCode;
 use serde_json::Value;
 
 use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
-use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::minimal_openai_chat_completion::minimal_openai_chat_completion;
 use paddler_tests::start_cluster::start_cluster;

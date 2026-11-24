@@ -8,6 +8,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
+use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
@@ -15,7 +16,6 @@ use paddler_messaging::management_socket::agent::notification::Notification as A
 use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::reserved_request::ReservedRequest;
-use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 

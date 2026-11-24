@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 use crate::signalled_subprocess::SignalledSubprocess;
 use crate::spawn_balancer_subprocess::spawn_balancer_subprocess;

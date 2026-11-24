@@ -1,9 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_tests::model_declaring_decision_metadata::ModelDeclaringDecisionMetadata;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 

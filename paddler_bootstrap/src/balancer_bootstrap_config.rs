@@ -8,7 +8,7 @@ use paddler_balancer::statsd_service::configuration::Configuration as StatsdServ
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler_state_database::state_database_type::StateDatabaseType;
+use paddler_balancer_state_database::state_database_type::StateDatabaseType;
 
 pub struct BalancerBootstrapConfig {
     pub buffered_request_timeout: Duration,

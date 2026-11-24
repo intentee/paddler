@@ -10,7 +10,7 @@ use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 
 const REPORTING_INTERVAL_LONGER_THAN_THE_TEST: Duration = Duration::from_hours(1);
 const STATSD_SERVICE_TARGET: &str = "paddler_balancer::statsd_service";

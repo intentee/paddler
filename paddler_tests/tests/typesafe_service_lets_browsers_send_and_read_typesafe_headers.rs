@@ -9,7 +9,7 @@ use paddler_balancer::constants::TYPESAFE_HEADER_REQUEST_ID;
 use paddler_balancer::constants::TYPESAFE_HEADER_RETRY_COUNT;
 use paddler_balancer::constants::TYPESAFE_HEADER_RUNTIME;
 use paddler_balancer::constants::TYPESAFE_HEADER_SDK;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";

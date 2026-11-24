@@ -5,13 +5,13 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_cluster_harness::model_card::every_model_card::every_model_card;
 use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolution::DesiredModelResolution;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_hub::HuggingFaceHub;
 use paddler_model_source::huggingface_model_source::HuggingFaceModelSource;
 use paddler_model_source::resolves_model_source::ResolvesModelSource as _;
-use paddler_test_cluster_harness::model_card::every_model_card::every_model_card;
 
 #[tokio::test]
 async fn every_model_card_resolves_from_the_hugging_face_cache() {

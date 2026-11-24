@@ -5,10 +5,10 @@ use futures::future::ready;
 use tokio::sync::Mutex;
 use tokio::sync::watch;
 
+use paddler_balancer_state_database::state_database::StateDatabase;
+use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_spawn_resuming_panic::spawn_resuming_panic::spawn_resuming_panic;
-use paddler_state_database::state_database::StateDatabase;
-use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -98,10 +98,10 @@ mod tests {
     use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
     use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
 
+    use paddler_balancer_state_database::state_database::StateDatabase;
+    use paddler_balancer_state_database::state_database_file::StateDatabaseFile;
+    use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_state_database::state_database::StateDatabase;
-    use paddler_state_database::state_database_file::StateDatabaseFile;
-    use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::BalancerDesiredStateStore;
 

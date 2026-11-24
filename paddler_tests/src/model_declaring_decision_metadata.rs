@@ -6,10 +6,10 @@ use llama_cpp_gguf::gguf_context::GgufContext;
 use llama_cpp_gguf::gguf_context_error::GgufContextError;
 use tempfile::TempDir;
 
+use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
+use paddler_cluster_harness::model_card::ModelCard;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_source::model_source_error::ModelSourceError;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
-use paddler_test_cluster_harness::model_card::ModelCard;
 
 use crate::write_patched_gguf::write_patched_gguf;
 

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::subprocess_agent_spawner::SubprocessAgentSpawner;
 

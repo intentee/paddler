@@ -2,9 +2,9 @@ use std::num::NonZeroU32;
 
 use serde_json::to_value;
 
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_tests::greeting_conversation::greeting_conversation;
 use paddler_tests::start_cluster::start_cluster;
 

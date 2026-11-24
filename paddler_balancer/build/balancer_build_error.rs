@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use paddler_dashboard_assets::dashboard_assets_error::DashboardAssetsError;
+use paddler_balancer_dashboard_assets::dashboard_assets_error::DashboardAssetsError;
 
 #[derive(Debug, Error)]
 pub enum BalancerBuildError {

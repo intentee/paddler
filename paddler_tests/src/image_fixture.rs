@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
+use paddler_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 
 pub struct ImageFixture {
     pub fixture_name: &'static str,

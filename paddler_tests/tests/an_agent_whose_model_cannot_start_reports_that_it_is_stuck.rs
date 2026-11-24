@@ -2,11 +2,11 @@ use std::io::Write as _;
 
 use tempfile::NamedTempFile;
 
+use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]

@@ -10,13 +10,13 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
-use paddler_test_cluster_harness::unending_grammar::unending_grammar;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::half_closed_client::HalfClosedClient;
+use paddler_cluster_harness::unending_grammar::unending_grammar;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_client_stops_conversation_history_generation_before_max_tokens() {

@@ -15,10 +15,10 @@ use paddler_agent_text_generation::continuous_batch_scheduler_context::Continuou
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
+use paddler_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
+use paddler_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
-use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::conversation_generation::ConversationGeneration;

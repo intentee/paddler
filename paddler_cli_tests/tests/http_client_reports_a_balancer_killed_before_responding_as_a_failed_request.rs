@@ -7,7 +7,7 @@ use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subpr
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
 use paddler_client::error::Error as ClientError;
 use paddler_client::http_client::HttpClient;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_client_reports_a_balancer_killed_before_responding_as_a_failed_request() {

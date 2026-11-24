@@ -19,9 +19,9 @@ use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_cli_tests::refused_syscall::RefusedSyscall;
 use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
-use paddler_test_cluster_harness::constants::LONGER_THAN_ANY_TEST_RUN;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::constants::LONGER_THAN_ANY_TEST_RUN;
 use paddler_tests::in_process_balancer_runner_params::in_process_balancer_runner_params;
 
 #[tokio::test(flavor = "multi_thread")]

@@ -7,7 +7,7 @@ use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
 use tokio::process::Child;
 
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
+use paddler_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::paddler_command::paddler_command;
 use crate::read_balancer_addresses::read_balancer_addresses;

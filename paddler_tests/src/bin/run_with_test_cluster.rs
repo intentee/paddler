@@ -9,7 +9,7 @@ use futures_util::TryFutureExt as _;
 use tokio::process::Command;
 
 use paddler_balancer::balancer_addresses::BalancerAddresses;
-use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster::Cluster;
 use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::test_cluster_preset::TestClusterPreset;
 

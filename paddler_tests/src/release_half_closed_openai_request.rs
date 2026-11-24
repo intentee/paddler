@@ -5,9 +5,9 @@ use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
 use serde_json::Value;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 
 use crate::start_cluster::start_cluster;
 

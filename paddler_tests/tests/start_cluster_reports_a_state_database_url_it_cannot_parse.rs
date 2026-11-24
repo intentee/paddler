@@ -1,5 +1,5 @@
-use paddler_state_database::state_database_error::StateDatabaseError;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_balancer_state_database::state_database_error::StateDatabaseError;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

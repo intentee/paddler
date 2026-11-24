@@ -1,11 +1,11 @@
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_state_database::state_database_type::StateDatabaseType;
+use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_state_database::state_database_type::StateDatabaseType;
-use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
 #[tokio::test]
 async fn balancer_runner_holds_the_desired_state_it_starts_with() {

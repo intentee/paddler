@@ -4,11 +4,11 @@ use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 
 use paddler_balancer::balancer_error::BalancerError;
+use paddler_balancer_state_database::state_database_error::StateDatabaseError;
+use paddler_balancer_state_database::state_database_type::StateDatabaseType;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
-use paddler_state_database::state_database_error::StateDatabaseError;
-use paddler_state_database::state_database_type::StateDatabaseType;
 
 #[tokio::test]
 async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() {

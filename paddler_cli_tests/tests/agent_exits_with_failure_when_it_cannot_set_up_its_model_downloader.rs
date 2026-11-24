@@ -2,8 +2,8 @@ use std::process::Stdio;
 
 use paddler_cli_tests::constants::UNREACHABLE_MANAGEMENT_ADDR;
 use paddler_cli_tests::paddler_command::paddler_command;
-use paddler_test_cluster_harness::constants::CA_BUNDLE_WITHOUT_CERTIFICATES;
-use paddler_test_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
+use paddler_cluster_harness::constants::CA_BUNDLE_WITHOUT_CERTIFICATES;
+use paddler_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_exits_with_failure_when_it_cannot_set_up_its_model_downloader() {
