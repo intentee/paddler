@@ -113,15 +113,14 @@ mod tests {
             .terminate()
             .expect_err("signalling the init process must be refused");
 
-        assert_eq!(
-            terminate_error.to_string(),
+        assert!(matches!(
+            terminate_error,
             SubprocessClusterError::SignalUndeliverable {
-                pid: Pid::from_raw(1),
+                pid,
                 signal: Signal::SIGTERM,
                 source: Errno::EPERM,
-            }
-            .to_string()
-        );
+            } if pid == Pid::from_raw(1)
+        ));
         assert_eq!(
             terminate_error
                 .source()
@@ -152,14 +151,13 @@ mod tests {
         let pause_error =
             pause_result.expect_err("pausing a process this harness did not spawn must fail");
 
-        assert_eq!(
-            pause_error.to_string(),
+        assert!(matches!(
+            pause_error,
             SubprocessClusterError::ProcessUnobservable {
-                pid: grandchild,
+                pid,
                 source: Errno::ECHILD,
-            }
-            .to_string()
-        );
+            } if pid == grandchild
+        ));
         assert_eq!(
             pause_error
                 .source()

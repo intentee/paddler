@@ -72,6 +72,7 @@ impl<'de> Deserialize<'de> for EmbeddingVector {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::error::Category;
     use serde_json::from_str;
     use serde_json::to_string;
 
@@ -92,21 +93,21 @@ mod tests {
 
     #[test]
     fn refuses_a_vector_that_is_not_json() {
-        assert_eq!(
-            from_str::<EmbeddingVector>("[0.25,")
-                .unwrap_err()
-                .to_string(),
-            "EOF while parsing a value at line 1 column 6"
-        );
+        assert!(matches!(
+            from_str::<EmbeddingVector>("[0.25,"),
+            Err(deserialization_error) if deserialization_error.classify() == Category::Eof
+                && deserialization_error.line() == 1
+                && deserialization_error.column() == 6
+        ));
     }
 
     #[test]
     fn refuses_a_vector_of_values_that_are_not_numbers() {
-        assert_eq!(
-            from_str::<EmbeddingVector>(r#"["a"]"#)
-                .unwrap_err()
-                .to_string(),
-            "invalid type: string \"a\", expected f32 at line 1 column 4"
-        );
+        assert!(matches!(
+            from_str::<EmbeddingVector>(r#"["a"]"#),
+            Err(deserialization_error) if deserialization_error.classify() == Category::Data
+                && deserialization_error.line() == 1
+                && deserialization_error.column() == 4
+        ));
     }
 }

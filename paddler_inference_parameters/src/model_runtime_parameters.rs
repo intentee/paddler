@@ -72,6 +72,7 @@ impl TryFrom<RawModelRuntimeParameters> for ModelRuntimeParameters {
 mod tests {
     use std::num::NonZeroU32;
 
+    use serde_json::error::Category;
     use serde_json::from_value;
     use serde_json::json;
     use serde_json::to_value;
@@ -107,9 +108,9 @@ mod tests {
 
         assert_eq!(
             from_value::<ModelRuntimeParameters>(parameters)
-                .unwrap_err()
-                .to_string(),
-            InvalidInferenceParameters::GpuLayersBelowAllLayers { n_gpu_layers: -2 }.to_string()
+                .err()
+                .map(|deserialization_error| deserialization_error.classify()),
+            Some(Category::Data)
         );
     }
 

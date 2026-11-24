@@ -67,13 +67,6 @@ mod tests {
     use super::DecisionOutcome;
     use crate::typesafe_decision_failure::TypeSafeDecisionFailure;
 
-    fn failed(status_code: StatusCode, detail: &str) -> DecisionOutcome {
-        DecisionOutcome::Failed(TypeSafeDecisionFailure {
-            detail: detail.to_owned(),
-            status_code,
-        })
-    }
-
     #[test]
     fn classifies_every_final_decision_result() {
         let summary = DecisionSummary {
@@ -81,69 +74,62 @@ mod tests {
             processing_milliseconds: 1,
         };
 
-        for (decision_final_result, expected_outcome) in [
-            (
-                DecisionFinalResult::Done(summary.clone()),
-                DecisionOutcome::Finished(summary),
-            ),
+        assert_eq!(
+            DecisionOutcome::from(DecisionFinalResult::Done(summary.clone())),
+            DecisionOutcome::Finished(summary)
+        );
+
+        for (decision_final_result, expected_status_code) in [
             (
                 DecisionFinalResult::RequestExceedsContext(OversizedDecisionDetails {
                     context_size: 128,
                     required_tokens: 410,
                 }),
-                failed(
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    "the request needs 410 tokens in the cache, more than the 128 the context holds",
-                ),
+                StatusCode::UNPROCESSABLE_ENTITY,
             ),
             (
                 DecisionFinalResult::InputTokenizationFailed("nul byte".to_owned()),
-                failed(StatusCode::UNPROCESSABLE_ENTITY, "nul byte"),
+                StatusCode::UNPROCESSABLE_ENTITY,
             ),
             (
                 DecisionFinalResult::DecisionsNotServed("decisions not served".to_owned()),
-                failed(StatusCode::SERVICE_UNAVAILABLE, "decisions not served"),
+                StatusCode::SERVICE_UNAVAILABLE,
             ),
             (
                 DecisionFinalResult::ModelNotLoaded("no model".to_owned()),
-                failed(StatusCode::SERVICE_UNAVAILABLE, "no model"),
+                StatusCode::SERVICE_UNAVAILABLE,
             ),
             (
                 DecisionFinalResult::SchedulerUnavailable("stopped".to_owned()),
-                failed(StatusCode::SERVICE_UNAVAILABLE, "stopped"),
+                StatusCode::SERVICE_UNAVAILABLE,
             ),
             (
                 DecisionFinalResult::BatchAssemblyFailed("batch".to_owned()),
-                failed(StatusCode::INTERNAL_SERVER_ERROR, "batch"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (
                 DecisionFinalResult::DecodeFailed("decode".to_owned()),
-                failed(StatusCode::INTERNAL_SERVER_ERROR, "decode"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (
                 DecisionFinalResult::HiddenStateUnavailable("hidden".to_owned()),
-                failed(StatusCode::INTERNAL_SERVER_ERROR, "hidden"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (
                 DecisionFinalResult::KvCacheCopyFailed("copy".to_owned()),
-                failed(StatusCode::INTERNAL_SERVER_ERROR, "copy"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (
                 DecisionFinalResult::KvCacheRemovalFailed("removal".to_owned()),
-                failed(StatusCode::INTERNAL_SERVER_ERROR, "removal"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             ),
-            (
-                DecisionFinalResult::StopRequested,
-                failed(
-                    StatusCode::BAD_GATEWAY,
-                    "the agent stopped before it finished the decision",
-                ),
-            ),
+            (DecisionFinalResult::StopRequested, StatusCode::BAD_GATEWAY),
         ] {
-            assert_eq!(
+            assert!(matches!(
                 DecisionOutcome::from(decision_final_result),
-                expected_outcome
-            );
+                DecisionOutcome::Failed(TypeSafeDecisionFailure { status_code, .. })
+                    if status_code == expected_status_code
+            ));
         }
     }
 }

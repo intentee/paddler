@@ -201,18 +201,12 @@ mod tests {
         }))
         .unwrap();
 
-        assert_eq!(
-            params
-                .translate(UNIX_EPOCH)
-                .err()
-                .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::MessageWithoutContent {
-                    role: ChatCompletionMessageRole::User
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            params.translate(UNIX_EPOCH),
+            Err(OpenAITranslationError::MessageWithoutContent {
+                role: ChatCompletionMessageRole::User
+            })
+        ));
     }
 
     #[test]

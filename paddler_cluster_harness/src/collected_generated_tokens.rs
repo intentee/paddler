@@ -79,17 +79,12 @@ mod tests {
             }],
         };
 
-        assert_eq!(
-            collected.summary().err().map(|refusal| refusal.to_string()),
-            Some(
-                ClusterHarnessError::GenerationEndedWithoutSummary {
-                    last_token_result: Some(GeneratedTokenResult::SamplerError(
-                        "failed".to_owned()
-                    )),
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            collected.summary(),
+            Err(ClusterHarnessError::GenerationEndedWithoutSummary {
+                last_token_result: Some(GeneratedTokenResult::SamplerError(_)),
+            })
+        ));
     }
 
     #[test]

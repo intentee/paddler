@@ -25,16 +25,17 @@ pub async fn write_websocket_session(
     connection_close: CancellationToken,
     outbound_rx: UnboundedReceiver<WebSocketOutboundFrame>,
     session: Session,
-) {
-    match write_frames_until_connection_closes(
+) -> FrameWritingEnd<Closed> {
+    let frame_writing_end = write_frames_until_connection_closes(
         connection_close,
         outbound_rx,
         pin!(unfold(session, |mut session, frame| async move {
             send_frame(&mut session, frame).await.map(|()| session)
         })),
     )
-    .await
-    {
+    .await;
+
+    match &frame_writing_end {
         FrameWritingEnd::ConnectionClosed => {
             debug!("Abandoning the WebSocket session writes because the peer is not reading them");
         }
@@ -43,6 +44,8 @@ pub async fn write_websocket_session(
             debug!("The WebSocket session closed before all of its frames were sent");
         }
     }
+
+    frame_writing_end
 }
 
 #[cfg(test)]
@@ -55,16 +58,15 @@ mod tests {
     use actix_web::http::header::UPGRADE;
     use actix_web::test::TestRequest;
     use actix_web::web::Payload;
+    use actix_ws::Closed;
     use actix_ws::Session;
     use actix_ws::handle;
-    use log::Level;
     use tokio::spawn;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio::task::yield_now;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_capturing_logger::captured_record::CapturedRecord;
-    use paddler_capturing_logger::capturing_logger::CapturingLogger;
+    use paddler_frame_writer::frame_writing_end::FrameWritingEnd;
 
     use super::write_websocket_session;
     use crate::websocket_outbound_frame::WebSocketOutboundFrame;
@@ -78,9 +80,9 @@ mod tests {
             .to_http_parts();
         let payload = Payload::from_request(&http_request, &mut request_payload)
             .into_inner()
-            .unwrap();
+            .expect("the test request must carry a payload");
         let (handshake_response, session, _message_stream) =
-            handle(&http_request, payload).unwrap();
+            handle(&http_request, payload).expect("the test request must upgrade to a WebSocket");
 
         OpenedWebSocketSession {
             handshake_response,
@@ -95,8 +97,6 @@ mod tests {
 
     #[tokio::test]
     async fn a_writer_abandons_the_writes_its_peer_does_not_read_once_the_connection_closes() {
-        CapturingLogger::install();
-
         let OpenedWebSocketSession {
             handshake_response: _unread_handshake_response,
             session,
@@ -112,22 +112,16 @@ mod tests {
         connection_close.cancel();
 
         while !writer.is_finished() {
-            outbound_tx.send(WebSocketOutboundFrame::Ping).unwrap();
+            outbound_tx
+                .send(WebSocketOutboundFrame::Ping)
+                .expect("the writer must still receive frames");
             yield_now().await;
         }
 
-        writer.await.unwrap();
-
-        assert!(
-            CapturingLogger::records_for("paddler_balancer::write_websocket_session")
-                .contains(&CapturedRecord {
-                level: Level::Debug,
-                message:
-                    "Abandoning the WebSocket session writes because the peer is not reading them"
-                        .to_owned(),
-                target: "paddler_balancer::write_websocket_session".to_owned(),
-            })
-        );
+        assert!(matches!(
+            writer.await.expect("the writer task must not panic"),
+            FrameWritingEnd::ConnectionClosed
+        ));
     }
 
     #[tokio::test]
@@ -144,8 +138,13 @@ mod tests {
         ));
 
         drop(handshake_response);
-        outbound_tx.send(WebSocketOutboundFrame::Ping).unwrap();
+        outbound_tx
+            .send(WebSocketOutboundFrame::Ping)
+            .expect("the writer must still receive frames");
 
-        writer.await.unwrap();
+        assert!(matches!(
+            writer.await.expect("the writer task must not panic"),
+            FrameWritingEnd::SendFailed(Closed)
+        ));
     }
 }

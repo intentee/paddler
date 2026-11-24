@@ -83,13 +83,10 @@ mod tests {
     use std::time::Duration;
     use std::time::UNIX_EPOCH;
 
-    use actix_web::body::to_bytes;
     use actix_web::http::StatusCode;
     use serde_json::Map;
     use serde_json::Value;
-    use serde_json::from_slice;
     use serde_json::from_str;
-    use serde_json::json;
 
     use paddler_balancer::relay_failure::RelayFailure;
     use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
@@ -99,153 +96,100 @@ mod tests {
     use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 
     use super::OpenAIFailure;
+    use crate::openai_error_type::OpenAIErrorType;
 
-    fn error_body(message: &str, error_type: &str) -> Value {
-        json!({
-            "error": {
-                "message": message,
-                "type": error_type,
-                "param": null,
-                "code": null
-            }
-        })
+    fn assert_answered_with(
+        openai_failure: OpenAIFailure,
+        expected_status: StatusCode,
+        expected_error_type: OpenAIErrorType,
+    ) {
+        assert_eq!(openai_failure.status_code(), expected_status);
+        assert_eq!(
+            openai_failure.into_error_body().error_type,
+            expected_error_type
+        );
     }
 
-    fn generation_failure(cause: GenerationFailureCause, message: &str) -> OpenAIFailure {
+    fn generation_failure(cause: GenerationFailureCause) -> OpenAIFailure {
         OpenAIFailure::Generation(GenerationFailure {
             cause,
-            message: message.to_owned(),
+            message: "generation failed".to_owned(),
         })
     }
 
-    #[actix_web::test]
-    async fn answers_every_failure_with_its_status_and_openai_error_body() {
-        let clock_error = UNIX_EPOCH
-            .checked_sub(Duration::from_secs(1))
-            .expect("one second before the Unix epoch must be representable")
-            .duration_since(UNIX_EPOCH)
-            .unwrap_err();
+    #[test]
+    fn answers_a_generation_failure_with_the_status_of_its_cause() {
+        assert_answered_with(
+            generation_failure(GenerationFailureCause::InvalidRequest),
+            StatusCode::BAD_REQUEST,
+            OpenAIErrorType::InvalidRequestError,
+        );
+        assert_answered_with(
+            generation_failure(GenerationFailureCause::Unavailable),
+            StatusCode::SERVICE_UNAVAILABLE,
+            OpenAIErrorType::ServerError,
+        );
+        assert_answered_with(
+            generation_failure(GenerationFailureCause::AgentFailed),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            OpenAIErrorType::ServerError,
+        );
+    }
 
-        for (openai_failure, expected_status, expected_body) in [
-            (
-                generation_failure(GenerationFailureCause::InvalidRequest, "client mistake"),
-                StatusCode::BAD_REQUEST,
-                error_body("client mistake", "invalid_request_error"),
+    #[test]
+    fn answers_a_request_the_client_must_correct_as_an_invalid_request() {
+        for translation_error in [
+            OpenAITranslationError::ToolRejected(
+                RequestParamsValidationError::RequiredFieldNotInProperties {
+                    field: "absent".to_owned(),
+                },
             ),
-            (
-                generation_failure(GenerationFailureCause::Unavailable, "no model is loaded"),
-                StatusCode::SERVICE_UNAVAILABLE,
-                error_body("no model is loaded", "server_error"),
-            ),
-            (
-                generation_failure(GenerationFailureCause::AgentFailed, "sampler blew up"),
-                StatusCode::INTERNAL_SERVER_ERROR,
-                error_body("sampler blew up", "server_error"),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(OpenAITranslationError::ToolRejected(
-                    RequestParamsValidationError::RequiredFieldNotInProperties {
-                        field: "absent".to_owned(),
-                    },
-                )),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "Required field 'absent' not found in properties",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::MessageWithoutContent {
-                        role: ChatCompletionMessageRole::User,
-                    },
-                ),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "a 'user' message must have content",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::ReasoningOnNonAssistantMessage {
-                        role: ChatCompletionMessageRole::Developer,
-                    },
-                ),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "only an assistant message can carry reasoning, not a 'developer' message",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::ReasoningItemWithoutContent,
-                ),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "a reasoning item must carry its reasoning text",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject {
-                        tool_call_id: "call_0".to_owned(),
-                        source: from_str::<Map<String, Value>>("[]").unwrap_err(),
-                    },
-                ),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "the arguments of the tool call 'call_0' are not a JSON object",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::ToolCallsOnNonAssistantMessage {
-                        role: ChatCompletionMessageRole::User,
-                    },
-                ),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "only an assistant message can request tool calls, not a 'user' message",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::ToolResultWithoutToolCallId,
-                ),
-                StatusCode::BAD_REQUEST,
-                error_body(
-                    "a tool message must name the tool call it answers in 'tool_call_id'",
-                    "invalid_request_error",
-                ),
-            ),
-            (
-                OpenAIFailure::RequestUntranslatable(OpenAITranslationError::ClockBeforeUnixEpoch(
-                    clock_error,
-                )),
-                StatusCode::INTERNAL_SERVER_ERROR,
-                error_body(
-                    "the system clock reads a time before the Unix epoch",
-                    "server_error",
-                ),
-            ),
-            (
-                OpenAIFailure::Relay(RelayFailure::BufferedRequestTimedOut),
-                StatusCode::GATEWAY_TIMEOUT,
-                error_body("Waiting for available slot timed out", "server_error"),
-            ),
+            OpenAITranslationError::MessageWithoutContent {
+                role: ChatCompletionMessageRole::User,
+            },
+            OpenAITranslationError::ReasoningOnNonAssistantMessage {
+                role: ChatCompletionMessageRole::Developer,
+            },
+            OpenAITranslationError::ReasoningItemWithoutContent,
+            OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject {
+                tool_call_id: "call_0".to_owned(),
+                source: from_str::<Map<String, Value>>("[]")
+                    .expect_err("a JSON array must not parse as a JSON object"),
+            },
+            OpenAITranslationError::ToolCallsOnNonAssistantMessage {
+                role: ChatCompletionMessageRole::User,
+            },
+            OpenAITranslationError::ToolResultWithoutToolCallId,
         ] {
-            let response = openai_failure.into_http_response();
-
-            assert_eq!(response.status(), expected_status);
-            assert_eq!(
-                from_slice::<Value>(&to_bytes(response.into_body()).await.unwrap()).unwrap(),
-                expected_body
+            assert_answered_with(
+                OpenAIFailure::RequestUntranslatable(translation_error),
+                StatusCode::BAD_REQUEST,
+                OpenAIErrorType::InvalidRequestError,
             );
         }
+    }
+
+    #[test]
+    fn answers_a_clock_before_the_unix_epoch_as_a_server_error() {
+        assert_answered_with(
+            OpenAIFailure::RequestUntranslatable(OpenAITranslationError::ClockBeforeUnixEpoch(
+                UNIX_EPOCH
+                    .checked_sub(Duration::from_secs(1))
+                    .expect("one second before the Unix epoch must be representable")
+                    .duration_since(UNIX_EPOCH)
+                    .expect_err("a time before the Unix epoch must have no duration since it"),
+            )),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            OpenAIErrorType::ServerError,
+        );
+    }
+
+    #[test]
+    fn answers_a_relay_failure_with_the_status_of_its_upstream_failure() {
+        assert_answered_with(
+            OpenAIFailure::Relay(RelayFailure::BufferedRequestTimedOut),
+            StatusCode::GATEWAY_TIMEOUT,
+            OpenAIErrorType::ServerError,
+        );
     }
 }

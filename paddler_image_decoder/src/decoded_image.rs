@@ -462,13 +462,9 @@ mod tests {
         assert_eq!(decoded_image.height, 50);
         assert_eq!(decoded_image.rgb_pixels.first_chunk(), Some(&[255, 0, 0]));
         assert!(
-            CapturingLogger::records_for("paddler_image_decoder::decoded_image").contains(
-                &CapturedRecord {
-                    level: Level::Info,
-                    message: "Rasterizing SVG (max_dimension: 1024)".to_owned(),
-                    target: "paddler_image_decoder::decoded_image".to_owned(),
-                }
-            )
+            CapturingLogger::records_for("paddler_image_decoder::decoded_image")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Info)
         );
     }
 

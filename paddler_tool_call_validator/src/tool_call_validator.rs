@@ -267,15 +267,18 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
             },
         );
 
-        assert_eq!(
-            validator
-                .validate(&parsed)
-                .err()
-                .map(|validation_error| validation_error.to_string()),
-            Some(
-                "arguments for tool \"get_weather\" are not valid JSON (expected ident at line 1 column 2): \"not json\"".to_owned()
-            )
-        );
+        assert!(matches!(
+            validator.validate(&parsed),
+            Err(ToolCallValidationError::ArgumentsAreNotJson {
+                tool_name,
+                raw_arguments,
+                parse_failure: InvalidArgumentsJson {
+                    line: 1,
+                    column: 2,
+                    ..
+                },
+            }) if tool_name == "get_weather" && raw_arguments == "not json"
+        ));
     }
 
     #[test]

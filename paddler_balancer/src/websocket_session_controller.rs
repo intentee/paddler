@@ -126,7 +126,7 @@ mod tests {
                 .send_response(MessageThatCannotSerialize)
                 .await,
             Err(BalancerError::ResponseUnserializable(serialization_error))
-                if serialization_error.to_string() == "the message cannot be serialized"
+                if serialization_error.is_data()
         ));
         assert_eq!(outbound_rx.try_recv(), Err(TryRecvError::Disconnected));
     }

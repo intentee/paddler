@@ -551,21 +551,12 @@ mod tests {
         }))
         .unwrap();
 
-        assert_eq!(
-            params
-                .translate(UNIX_EPOCH, &SamplingParameters::default())
-                .err()
-                .as_ref()
-                .map(ToString::to_string),
-            Some(
-                OpenAITranslationError::ToolRejected(
-                    RequestParamsValidationError::RequiredFieldNotInProperties {
-                        field: "absent".to_owned(),
-                    }
-                )
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
+            Err(OpenAITranslationError::ToolRejected(
+                RequestParamsValidationError::RequiredFieldNotInProperties { field }
+            )) if field == "absent"
+        ));
     }
 
     #[test]
@@ -634,12 +625,9 @@ mod tests {
         }))
         .unwrap();
 
-        assert_eq!(
-            params
-                .translate(UNIX_EPOCH, &SamplingParameters::default())
-                .err()
-                .map(|translation_error| translation_error.to_string()),
-            Some(OpenAITranslationError::ReasoningItemWithoutContent.to_string())
-        );
+        assert!(matches!(
+            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
+            Err(OpenAITranslationError::ReasoningItemWithoutContent)
+        ));
     }
 }

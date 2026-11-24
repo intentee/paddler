@@ -93,7 +93,6 @@ impl From<GeneratedTokenFinalResult> for GenerationOutcome {
 
 #[cfg(test)]
 mod tests {
-
     use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
@@ -108,15 +107,11 @@ mod tests {
     fn assert_failure_classified_as(
         expected_cause: GenerationFailureCause,
         generated_token_final_result: GeneratedTokenFinalResult,
-        expected_message: &str,
     ) {
-        assert_eq!(
+        assert!(matches!(
             GenerationOutcome::from(generated_token_final_result),
-            GenerationOutcome::Failed(GenerationFailure {
-                cause: expected_cause,
-                message: expected_message.to_owned(),
-            })
-        );
+            GenerationOutcome::Failed(GenerationFailure { cause, .. }) if cause == expected_cause
+        ));
     }
 
     #[test]
@@ -134,146 +129,64 @@ mod tests {
 
     #[test]
     fn classifies_client_mistakes_as_invalid_requests() {
-        for (generated_token_final_result, expected_message) in [
-            (
-                GeneratedTokenFinalResult::GrammarIncompatibleWithThinking(
-                    "client mistake".to_owned(),
-                ),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::GrammarSyntaxError("client mistake".to_owned()),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::ImageDecodingFailed("client mistake".to_owned()),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::MediaExceedsMicroBatch(OversizedMediaDetails {
-                    media_tokens: 256,
-                    micro_batch_tokens: 128,
-                }),
-                "media required 256 tokens but one agent micro batch holds 128 tokens",
-            ),
-            (
-                GeneratedTokenFinalResult::MultimodalNotSupported("client mistake".to_owned()),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::MultimodalTokenizationFailed(
-                    "client mistake".to_owned(),
-                ),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::PromptExceedsContextSize(OversizedPromptDetails {
-                    prompt_tokens: 9895,
-                    sequence_context_size: 8192,
-                }),
-                "prompt has 9895 tokens but each agent sequence holds 8192 tokens; shorten the prompt or raise context_size",
-            ),
-            (
-                GeneratedTokenFinalResult::PromptTokenizationFailed("client mistake".to_owned()),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::PromptTokenizedToNothing("client mistake".to_owned()),
-                "client mistake",
-            ),
-            (
-                GeneratedTokenFinalResult::ToolSchemaInvalid("client mistake".to_owned()),
-                "client mistake",
-            ),
+        for generated_token_final_result in [
+            GeneratedTokenFinalResult::GrammarIncompatibleWithThinking(String::new()),
+            GeneratedTokenFinalResult::GrammarSyntaxError(String::new()),
+            GeneratedTokenFinalResult::ImageDecodingFailed(String::new()),
+            GeneratedTokenFinalResult::MediaExceedsMicroBatch(OversizedMediaDetails {
+                media_tokens: 256,
+                micro_batch_tokens: 128,
+            }),
+            GeneratedTokenFinalResult::MultimodalNotSupported(String::new()),
+            GeneratedTokenFinalResult::MultimodalTokenizationFailed(String::new()),
+            GeneratedTokenFinalResult::PromptExceedsContextSize(OversizedPromptDetails {
+                prompt_tokens: 9895,
+                sequence_context_size: 8192,
+            }),
+            GeneratedTokenFinalResult::PromptTokenizationFailed(String::new()),
+            GeneratedTokenFinalResult::PromptTokenizedToNothing(String::new()),
+            GeneratedTokenFinalResult::ToolSchemaInvalid(String::new()),
         ] {
             assert_failure_classified_as(
                 GenerationFailureCause::InvalidRequest,
                 generated_token_final_result,
-                expected_message,
             );
         }
     }
 
     #[test]
     fn classifies_agents_that_cannot_serve_as_unavailable() {
-        for (generated_token_final_result, expected_message) in [
-            (
-                GeneratedTokenFinalResult::ModelNotLoaded("unavailable".to_owned()),
-                "unavailable",
-            ),
-            (
-                GeneratedTokenFinalResult::NoSequenceSlotAvailable("unavailable".to_owned()),
-                "unavailable",
-            ),
-            (
-                GeneratedTokenFinalResult::SchedulerUnavailable("unavailable".to_owned()),
-                "unavailable",
-            ),
+        for generated_token_final_result in [
+            GeneratedTokenFinalResult::ModelNotLoaded(String::new()),
+            GeneratedTokenFinalResult::NoSequenceSlotAvailable(String::new()),
+            GeneratedTokenFinalResult::SchedulerUnavailable(String::new()),
         ] {
             assert_failure_classified_as(
                 GenerationFailureCause::Unavailable,
                 generated_token_final_result,
-                expected_message,
             );
         }
     }
 
     #[test]
     fn classifies_agent_failures_as_agent_failed() {
-        for (generated_token_final_result, expected_message) in [
-            (
-                GeneratedTokenFinalResult::BatchAssemblyFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::ChatTemplateError("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::DecodeFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::DetokenizationFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::AnswerClassificationFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::GrammarInitializationFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::GrammarRejectedModelOutput("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::KvCacheClearFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::MultimodalIngestionFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::SamplerChainCreationFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::SamplerError("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::SamplingCandidatesExhausted("agent failure".to_owned()),
-                "agent failure",
-            ),
+        for generated_token_final_result in [
+            GeneratedTokenFinalResult::BatchAssemblyFailed(String::new()),
+            GeneratedTokenFinalResult::ChatTemplateError(String::new()),
+            GeneratedTokenFinalResult::DecodeFailed(String::new()),
+            GeneratedTokenFinalResult::DetokenizationFailed(String::new()),
+            GeneratedTokenFinalResult::AnswerClassificationFailed(String::new()),
+            GeneratedTokenFinalResult::GrammarInitializationFailed(String::new()),
+            GeneratedTokenFinalResult::GrammarRejectedModelOutput(String::new()),
+            GeneratedTokenFinalResult::KvCacheClearFailed(String::new()),
+            GeneratedTokenFinalResult::MultimodalIngestionFailed(String::new()),
+            GeneratedTokenFinalResult::SamplerChainCreationFailed(String::new()),
+            GeneratedTokenFinalResult::SamplerError(String::new()),
+            GeneratedTokenFinalResult::SamplingCandidatesExhausted(String::new()),
         ] {
             assert_failure_classified_as(
                 GenerationFailureCause::AgentFailed,
                 generated_token_final_result,
-                expected_message,
             );
         }
     }

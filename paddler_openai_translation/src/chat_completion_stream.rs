@@ -379,14 +379,20 @@ mod tests {
                 "test-request",
                 GenerationProgress::Failed(generation_failure())
             ),
-            ChatCompletionStreamEmission::Failure(failure) if failure == generation_failure()
+            ChatCompletionStreamEmission::Failure(GenerationFailure {
+                cause: GenerationFailureCause::AgentFailed,
+                ..
+            })
         ));
         assert!(matches!(
             chat_completion_stream.conclude(
                 "test-request",
                 GenerationOutcome::Failed(generation_failure())
             ),
-            ChatCompletionStreamEmission::Failure(failure) if failure == generation_failure()
+            ChatCompletionStreamEmission::Failure(GenerationFailure {
+                cause: GenerationFailureCause::AgentFailed,
+                ..
+            })
         ));
     }
 }

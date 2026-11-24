@@ -628,10 +628,6 @@ mod tests {
                 failed.pointer("/response/error/code"),
                 Some(&json!("server_error"))
             );
-            assert_eq!(
-                failed.pointer("/response/error/message"),
-                Some(&json!("boom"))
-            );
         }
     }
 

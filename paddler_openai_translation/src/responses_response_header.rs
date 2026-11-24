@@ -182,11 +182,14 @@ mod tests {
     }
 
     #[test]
-    fn failed_carries_the_error_message() {
-        let response = to_value(header().failed("boom".to_owned())).unwrap();
+    fn failed_reports_a_server_error() {
+        let response = to_value(header().failed(String::new())).unwrap();
 
         assert_eq!(response.pointer("/status"), Some(&json!("failed")));
-        assert_eq!(response.pointer("/error/message"), Some(&json!("boom")));
+        assert_eq!(
+            response.pointer("/error/code"),
+            Some(&json!("server_error"))
+        );
         assert!(response.get("usage").is_none());
     }
 

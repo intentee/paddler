@@ -89,17 +89,11 @@ mod tests {
             .await
             .expect_err("a stream carrying an embedding result must not be collected");
 
-        assert_eq!(
-            collection_error
-                .downcast_ref::<ClusterHarnessError>()
-                .map(ToString::to_string),
-            Some(
-                ClusterHarnessError::DecisionStreamMessageUnexpected {
-                    message: Box::new(embedding_done()),
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::DecisionStreamMessageUnexpected { message })
+                if **message == embedding_done()
+        ));
     }
 
     #[tokio::test]

@@ -35,15 +35,10 @@ mod tests {
         let translation_error = timestamp_from(UNIX_EPOCH - Duration::from_secs(1))
             .expect_err("a time before the Unix epoch must be refused");
 
-        assert_eq!(
-            translation_error.to_string(),
-            OpenAITranslationError::ClockBeforeUnixEpoch(
-                UNIX_EPOCH
-                    .duration_since(UNIX_EPOCH + Duration::from_secs(1))
-                    .expect_err("the Unix epoch must precede the second after it")
-            )
-            .to_string()
-        );
+        assert!(matches!(
+            translation_error,
+            OpenAITranslationError::ClockBeforeUnixEpoch(_)
+        ));
         assert_eq!(
             translation_error
                 .source()

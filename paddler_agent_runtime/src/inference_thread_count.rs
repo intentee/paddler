@@ -21,11 +21,11 @@ pub fn inference_thread_count(logical_cores: NonZeroUsize) -> Result<i32, AgentR
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error as _;
     use std::num::NonZeroUsize;
 
     use super::MINIMUM_THREAD_COUNT;
     use super::inference_thread_count;
+    use crate::agent_runtime_error::AgentRuntimeError;
 
     #[test]
     fn never_runs_fewer_than_the_minimum_threads() {
@@ -37,18 +37,9 @@ mod tests {
 
     #[test]
     fn reports_a_parallelism_llama_cpp_cannot_address() {
-        assert_eq!(
-            inference_thread_count(NonZeroUsize::MAX)
-                .err()
-                .as_ref()
-                .map(|unaddressable_parallelism| (
-                    unaddressable_parallelism.to_string(),
-                    unaddressable_parallelism.source().map(ToString::to_string)
-                )),
-            Some((
-                "the machine runs more threads in parallel than llama.cpp can address".to_owned(),
-                Some("number too large to fit in target type".to_owned())
-            ))
-        );
+        assert!(matches!(
+            inference_thread_count(NonZeroUsize::MAX),
+            Err(AgentRuntimeError::ThreadCountOutOfRange(_))
+        ));
     }
 }

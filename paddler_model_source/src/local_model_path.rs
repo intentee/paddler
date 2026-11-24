@@ -60,7 +60,7 @@ mod tests {
         let regular_file = NamedTempFile::new().unwrap();
         let path_below_the_regular_file = regular_file.path().join("model.gguf");
 
-        assert_eq!(
+        assert!(matches!(
             LocalModelPath {
                 path: path_below_the_regular_file.clone(),
             }
@@ -68,17 +68,14 @@ mod tests {
                 &CancellationToken::new(),
                 Arc::new(SlotAggregatedStatus::new(1))
             )
-            .await
-            .err()
-            .map(|resolution_error| resolution_error.to_string()),
-            Some(
-                ModelSourceError::LocalFileUncheckable {
-                    path: path_below_the_regular_file.clone(),
-                    source: metadata(&path_below_the_regular_file).unwrap_err(),
-                }
-                .to_string()
-            )
-        );
+            .await,
+            Err(ModelSourceError::LocalFileUncheckable { path, source })
+                if path == path_below_the_regular_file
+                    && source.kind()
+                        == metadata(&path_below_the_regular_file)
+                            .expect_err("a path below a regular file must not be readable")
+                            .kind()
+        ));
     }
 
     #[tokio::test]

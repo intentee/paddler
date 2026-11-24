@@ -215,49 +215,36 @@ mod tests {
 
     #[test]
     fn a_message_without_content_or_tool_calls_is_refused_naming_its_role() {
-        assert_eq!(
-            converted(json!({"role": "assistant", "content": null}))
-                .err()
-                .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::MessageWithoutContent {
-                    role: ChatCompletionMessageRole::Assistant
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            converted(json!({"role": "assistant", "content": null})),
+            Err(OpenAITranslationError::MessageWithoutContent {
+                role: ChatCompletionMessageRole::Assistant
+            })
+        ));
     }
 
     #[test]
     fn tool_calls_on_a_message_that_is_not_an_assistant_message_are_refused() {
-        assert_eq!(
+        assert!(matches!(
             converted(json!({
                 "role": "user",
                 "content": "hi",
                 "tool_calls": [
                     {"id": "call_0", "type": "function", "function": {"name": "read", "arguments": "{}"}}
                 ]
-            }))
-            .err()
-            .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::ToolCallsOnNonAssistantMessage {
-                    role: ChatCompletionMessageRole::User
-                }
-                .to_string()
-            )
-        );
+            })),
+            Err(OpenAITranslationError::ToolCallsOnNonAssistantMessage {
+                role: ChatCompletionMessageRole::User
+            })
+        ));
     }
 
     #[test]
     fn a_tool_message_without_a_tool_call_id_is_refused() {
-        assert_eq!(
-            converted(json!({"role": "tool", "content": "file contents"}))
-                .err()
-                .as_ref()
-                .map(ToString::to_string),
-            Some(OpenAITranslationError::ToolResultWithoutToolCallId.to_string())
-        );
+        assert!(matches!(
+            converted(json!({"role": "tool", "content": "file contents"})),
+            Err(OpenAITranslationError::ToolResultWithoutToolCallId)
+        ));
     }
 
     #[test]
@@ -317,20 +304,15 @@ mod tests {
 
     #[test]
     fn reasoning_on_a_message_that_is_not_an_assistant_message_is_refused() {
-        assert_eq!(
+        assert!(matches!(
             appended(json!({
                 "role": "user",
                 "content": "hi",
                 "reasoning_content": "I am thinking"
-            }))
-            .err()
-            .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::ReasoningOnNonAssistantMessage {
-                    role: ChatCompletionMessageRole::User
-                }
-                .to_string()
-            )
-        );
+            })),
+            Err(OpenAITranslationError::ReasoningOnNonAssistantMessage {
+                role: ChatCompletionMessageRole::User
+            })
+        ));
     }
 }

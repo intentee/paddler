@@ -100,17 +100,12 @@ mod tests {
 
     #[test]
     fn a_malformed_hugging_face_endpoint_keeps_the_resolver_from_being_built() {
-        assert_eq!(
-            DesiredModelResolver::from_process_env("not an endpoint".to_owned())
-                .err()
-                .map(|construction_error| construction_error.to_string()),
-            Some(
-                ModelSourceError::HuggingFaceClientUnavailable(HFError::Url(
-                    ParseError::RelativeUrlWithoutBase
-                ))
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            DesiredModelResolver::from_process_env("not an endpoint".to_owned()),
+            Err(ModelSourceError::HuggingFaceClientUnavailable(
+                HFError::Url(ParseError::RelativeUrlWithoutBase)
+            ))
+        ));
     }
 
     #[tokio::test]

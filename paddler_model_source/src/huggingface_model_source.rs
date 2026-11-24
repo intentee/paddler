@@ -133,7 +133,6 @@ impl ResolvesModelSource for HuggingFaceModelSource {
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error as _;
     use std::fs::File;
     use std::fs::create_dir_all;
     use std::fs::read;
@@ -218,34 +217,28 @@ mod tests {
         model_file
     }
 
-    async fn assert_hub_status_fails_the_download(status: StatusCode, hub_failure: &str) {
+    async fn assert_hub_status_fails_the_download(
+        status: StatusCode,
+        is_hub_failure_for_model_file_url: fn(&HFError, &str) -> bool,
+    ) {
         let hub_cache = HubCache::new();
         let hub = LocalHttpFixture::start(FixtureResponse::Status(status))
             .await
             .unwrap();
         let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
+        let model_file_url = hub.url("/owner/repo/resolve/main/model.gguf");
 
         let resolution = hub_cache
             .model_source_downloading_from(&hub)
             .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
             .await;
 
-        assert_eq!(
-            resolution.err().map(|resolution_error| (
-                resolution_error.to_string(),
-                resolution_error.source().map(ToString::to_string)
-            )),
-            Some((
-                format!(
-                    "Failed to download model '{}' from Hugging Face",
-                    uncached_model_reference().model_path().model_path
-                ),
-                Some(format!(
-                    "{hub_failure} (url={})",
-                    hub.url("/owner/repo/resolve/main/model.gguf")
-                ))
-            ))
-        );
+        assert!(matches!(
+            resolution,
+            Err(ModelSourceError::HuggingFaceDownloadFailed { model_path, source })
+                if model_path == uncached_model_reference().model_path().model_path
+                    && is_hub_failure_for_model_file_url(&source, &model_file_url)
+        ));
         assert!(
             slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceDownloadFailed(
                 HuggingFaceDownloadFailedParams {
@@ -376,18 +369,13 @@ mod tests {
         .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
         .await;
 
-        assert_eq!(
-            resolution
-                .err()
-                .map(|resolution_error| resolution_error.to_string()),
-            Some(
-                ModelSourceError::HuggingFaceCacheLookupFailed {
-                    model_path: uncached_model_reference().model_path().model_path,
-                    source: HFError::CacheNotEnabled,
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            resolution,
+            Err(ModelSourceError::HuggingFaceCacheLookupFailed {
+                model_path,
+                source: HFError::CacheNotEnabled,
+            }) if model_path == uncached_model_reference().model_path().model_path
+        ));
         assert!(
             slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceDownloadFailed(
                 HuggingFaceDownloadFailedParams {
@@ -471,17 +459,11 @@ mod tests {
             .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
             .await;
 
-        assert_eq!(
-            resolution
-                .err()
-                .map(|resolution_error| resolution_error.to_string()),
-            Some(
-                ModelSourceError::HuggingFacePermissionDenied {
-                    model_path: uncached_model_reference().model_path().model_path,
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            resolution,
+            Err(ModelSourceError::HuggingFacePermissionDenied { model_path })
+                if model_path == uncached_model_reference().model_path().model_path
+        ));
         assert!(
             slot_aggregated_status.has_issue(&AgentIssue::HuggingFacePermissions(
                 uncached_model_reference().model_path()
@@ -493,19 +475,44 @@ mod tests {
     async fn a_hub_failing_with_a_server_error_fails_the_download() {
         assert_hub_status_fails_the_download(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "HTTP error: 500 Internal Server Error",
+            |hub_failure, model_file_url| {
+                matches!(
+                    hub_failure,
+                    HFError::Http { context }
+                        if context.status == StatusCode::INTERNAL_SERVER_ERROR
+                            && context.url == model_file_url
+                )
+            },
         )
         .await;
     }
 
     #[tokio::test]
     async fn a_hub_reporting_a_conflict_fails_the_download() {
-        assert_hub_status_fails_the_download(StatusCode::CONFLICT, "Conflict").await;
+        assert_hub_status_fails_the_download(
+            StatusCode::CONFLICT,
+            |hub_failure, model_file_url| {
+                matches!(
+                    hub_failure,
+                    HFError::Conflict { context } if context.url == model_file_url
+                )
+            },
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn a_hub_rate_limiting_the_client_fails_the_download() {
-        assert_hub_status_fails_the_download(StatusCode::TOO_MANY_REQUESTS, "Rate limited").await;
+        assert_hub_status_fails_the_download(
+            StatusCode::TOO_MANY_REQUESTS,
+            |hub_failure, model_file_url| {
+                matches!(
+                    hub_failure,
+                    HFError::RateLimited { context, .. } if context.url == model_file_url
+                )
+            },
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -526,19 +533,17 @@ mod tests {
             .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
             .await;
 
-        assert_eq!(
-            resolution.err().map(|resolution_error| (
-                resolution_error.to_string(),
-                resolution_error.source().map(ToString::to_string)
-            )),
-            Some((
-                format!(
-                    "Failed to download model '{}' from Hugging Face",
-                    uncached_model_reference().model_path().model_path
-                ),
-                Some("HTTP request error: error decoding response body".to_owned())
-            ))
-        );
+        assert!(matches!(
+            resolution,
+            Err(ModelSourceError::HuggingFaceDownloadFailed {
+                model_path,
+                source: HFError::Request {
+                    source: request_error,
+                    url: None,
+                },
+            }) if model_path == uncached_model_reference().model_path().model_path
+                && request_error.is_decode()
+        ));
         assert_eq!(
             slot_aggregated_status
                 .make_snapshot()

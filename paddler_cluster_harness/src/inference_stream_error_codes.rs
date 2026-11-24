@@ -26,9 +26,6 @@ pub async fn inference_stream_error_codes(
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error as _;
-    use std::mem::discriminant;
-
     use futures_util::stream::iter;
 
     use paddler_client::error::Error as ClientError;
@@ -75,22 +72,10 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert_eq!(
-            discriminant(&stream_error),
-            discriminant(&ClusterHarnessError::TokenStreamFailed(
-                ClientError::ConnectionDropped {
-                    request_id: String::new(),
-                }
-            ))
-        );
-        assert_eq!(
-            stream_error.source().map(ToString::to_string),
-            Some(
-                ClientError::ConnectionDropped {
-                    request_id: "request-1".to_owned(),
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            stream_error,
+            ClusterHarnessError::TokenStreamFailed(ClientError::ConnectionDropped { request_id })
+                if request_id == "request-1"
+        ));
     }
 }

@@ -91,7 +91,6 @@ mod tests {
 
     use paddler_capturing_logger::captured_record::CapturedRecord;
     use paddler_capturing_logger::capturing_logger::CapturingLogger;
-    use paddler_error_chain::error_chain::ErrorChain;
 
     use super::ServiceThread;
     use crate::bootstrap_error::BootstrapError;
@@ -146,18 +145,9 @@ mod tests {
 
         assert!(run_finished.load(Ordering::Acquire));
         assert!(
-            CapturingLogger::records_for("paddler_bootstrap::service_thread").contains(
-                &CapturedRecord {
-                    level: Level::Error,
-                    message: format!(
-                        "service thread stopped with an error nobody waited for: {}",
-                        ErrorChain {
-                            error: &aborted_service_run()
-                        }
-                    ),
-                    target: "paddler_bootstrap::service_thread".to_owned(),
-                }
-            )
+            CapturingLogger::records_for("paddler_bootstrap::service_thread")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 

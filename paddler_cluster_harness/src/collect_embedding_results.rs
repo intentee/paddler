@@ -132,17 +132,11 @@ mod tests {
                 .err()
                 .expect("a stream of another kind of message must be refused");
 
-        assert_eq!(
-            collection_error
-                .downcast_ref::<ClusterHarnessError>()
-                .map(ToString::to_string),
-            Some(
-                ClusterHarnessError::EmbeddingStreamMessageUnexpected {
-                    message: Box::new(generated_content_token()),
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::EmbeddingStreamMessageUnexpected { message })
+                if **message == generated_content_token()
+        ));
     }
 
     #[tokio::test]

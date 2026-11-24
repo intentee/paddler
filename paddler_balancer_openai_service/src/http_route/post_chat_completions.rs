@@ -89,6 +89,20 @@ mod tests {
     use super::post_chat_completions;
     use crate::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 
+    fn validated_openai_error_type(response_body: &[u8]) -> Value {
+        let envelope: Value = from_slice(response_body).expect("the error response must be JSON");
+
+        OpenAIValidator::new()
+            .expect("the OpenAI validator must load its schemas")
+            .validate_error_response(&envelope)
+            .expect("the error response must conform to the OpenAI schema");
+
+        envelope
+            .pointer("/error/type")
+            .cloned()
+            .expect("the error response must name its error type")
+    }
+
     fn app_data_without_agents(max_buffered_requests: u64) -> CompatibilityAppData {
         let agent_controller_pool = Arc::new(AgentControllerPool::default());
 
@@ -149,19 +163,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-        let body = read_body(response).await;
-        let parsed: Value = from_slice(&body).unwrap();
-
         assert_eq!(
-            parsed,
-            json!({
-                "error": {
-                    "message": "Required field 'absent' not found in properties",
-                    "type": "invalid_request_error",
-                    "param": null,
-                    "code": null
-                }
-            })
+            validated_openai_error_type(&read_body(response).await),
+            json!("invalid_request_error")
         );
     }
 
@@ -187,16 +191,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-        let body = read_body(response).await;
-        let envelope: Value = from_slice(&body).expect("the error response must be JSON");
-
-        OpenAIValidator::new()
-            .expect("the OpenAI validator must load its schemas")
-            .validate_error_response(&envelope)
-            .expect("the error response must conform to the OpenAI schema");
         assert_eq!(
-            envelope.pointer("/error/type"),
-            Some(&json!("invalid_request_error"))
+            validated_openai_error_type(&read_body(response).await),
+            json!("invalid_request_error")
         );
     }
 
@@ -221,19 +218,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
-        let body = read_body(response).await;
-        let parsed: Value = from_slice(&body).unwrap();
-
         assert_eq!(
-            parsed,
-            json!({
-                "error": {
-                    "message": "Buffered requests overflow",
-                    "type": "server_error",
-                    "param": null,
-                    "code": null
-                }
-            })
+            validated_openai_error_type(&read_body(response).await),
+            json!("server_error")
         );
     }
 }

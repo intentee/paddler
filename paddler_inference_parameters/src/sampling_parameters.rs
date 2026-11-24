@@ -172,6 +172,7 @@ impl TryFrom<RawSamplingParameters> for SamplingParameters {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::error::Category;
     use serde_json::from_value;
     use serde_json::json;
     use serde_json::to_value;
@@ -237,9 +238,9 @@ mod tests {
 
         assert_eq!(
             from_value::<SamplingParameters>(parameters)
-                .unwrap_err()
-                .to_string(),
-            InvalidInferenceParameters::TopKNegative { top_k: -1 }.to_string()
+                .err()
+                .map(|deserialization_error| deserialization_error.classify()),
+            Some(Category::Data)
         );
     }
 

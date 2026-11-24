@@ -25,14 +25,10 @@ mod tests {
 
     #[test]
     fn a_model_at_a_relative_path_cannot_be_desired() {
-        assert_eq!(
-            agent_desired_model_at(Path::new("model.gguf"))
-                .unwrap_err()
-                .to_string(),
-            ModelSourceError::LocalModelPathNotAbsolute {
-                path: "model.gguf".into(),
-            }
-            .to_string()
-        );
+        assert!(matches!(
+            agent_desired_model_at(Path::new("model.gguf")),
+            Err(ModelSourceError::LocalModelPathNotAbsolute { path })
+                if path == Path::new("model.gguf")
+        ));
     }
 }

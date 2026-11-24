@@ -115,16 +115,15 @@ mod tests {
         let budget = ConcurrentConnectionBudget::default();
         let _held_reservations = hold_every_connection(&budget);
 
-        assert_eq!(
-            budget.reserve().err().map(|refusal| refusal.to_string()),
-            Some(
+        assert!(matches!(
+            budget.reserve(),
+            Err(
                 ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
                     held_connections: PORTABLE_LISTEN_BACKLOG,
                     limit: PORTABLE_LISTEN_BACKLOG,
                 }
-                .to_string()
             )
-        );
+        ));
     }
 
     #[test]
@@ -143,19 +142,17 @@ mod tests {
         let budget = ConcurrentConnectionBudget::default();
         let _held_reservations = hold_every_connection(&budget);
 
-        assert_eq!(
+        assert!(matches!(
             budget
                 .hold_during(pending::<Result<(), ClusterHarnessError>>())
-                .now_or_never()
-                .map(|refused_request| refused_request.map_err(|refusal| refusal.to_string())),
+                .now_or_never(),
             Some(Err(
                 ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
                     held_connections: PORTABLE_LISTEN_BACKLOG,
                     limit: PORTABLE_LISTEN_BACKLOG,
                 }
-                .to_string()
             ))
-        );
+        ));
     }
 
     #[test]
@@ -163,18 +160,16 @@ mod tests {
         let budget = ConcurrentConnectionBudget::default();
         let _held_reservations = hold_every_connection(&budget);
 
-        assert_eq!(
+        assert!(matches!(
             budget
                 .hold_while_streaming(pending::<ClientResult<InferenceMessageStream>>())
-                .now_or_never()
-                .map(|refused_stream| refused_stream.err().map(|refusal| refusal.to_string())),
-            Some(Some(
+                .now_or_never(),
+            Some(Err(
                 ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
                     held_connections: PORTABLE_LISTEN_BACKLOG,
                     limit: PORTABLE_LISTEN_BACKLOG,
                 }
-                .to_string()
             ))
-        );
+        ));
     }
 }

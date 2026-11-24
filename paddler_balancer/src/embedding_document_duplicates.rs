@@ -260,19 +260,20 @@ mod tests {
 
     #[test]
     fn passes_an_error_through_once() {
-        let error = || {
-            OutgoingMessage::Error(ErrorEnvelope {
-                request_id: "request".to_owned(),
-                error: JsonRpcError {
-                    code: 504,
-                    description: "timed out".to_owned(),
-                },
-            })
-        };
-
-        assert_eq!(
-            serialized(&duplicates_of_first_document().fan_out(error())),
-            serialized(&[error()])
-        );
+        assert!(matches!(
+            duplicates_of_first_document()
+                .fan_out(OutgoingMessage::Error(ErrorEnvelope {
+                    request_id: "request".to_owned(),
+                    error: JsonRpcError {
+                        code: 504,
+                        description: "timed out".to_owned(),
+                    },
+                }))
+                .as_slice(),
+            [OutgoingMessage::Error(ErrorEnvelope {
+                request_id,
+                error: JsonRpcError { code: 504, .. },
+            })] if request_id == "request"
+        ));
     }
 }

@@ -166,11 +166,25 @@ impl<'de> Deserialize<'de> for ResponsesTextFormat {
 
 #[cfg(test)]
 mod tests {
+    use serde::Deserializer as _;
+    use serde_json::Deserializer as JsonDeserializer;
+    use serde_json::Error as SerdeJsonError;
+    use serde_json::error::Category;
     use serde_json::from_str;
 
     use super::ResponsesTextFormat;
+    use super::ResponsesTextFormatVisitOutcome;
+    use super::ResponsesTextFormatVisitor;
+    use crate::responses_text_format_refusal::ResponsesTextFormatRefusal;
 
-    fn deserialized(format: &str) -> Result<DeserializedFormat, String> {
+    const ARRAY_FORMAT_WITHOUT_A_SCHEMA: &str = r#"["json_schema"]"#;
+    const FORMAT_REPEATING_ITS_SCHEMA: &str =
+        r#"{"type": "json_schema", "schema": {}, "schema": {}}"#;
+    const FORMAT_WITHOUT_A_SCHEMA: &str = r#"{"type": "json_schema"}"#;
+    const JSON_SCHEMA_FORMAT_WITH_AN_ELEMENT_LEFT_OVER: &str = r#"["json_schema", {}, 1]"#;
+    const TEXT_FORMAT_WITH_AN_ELEMENT_LEFT_OVER: &str = r#"["text", 1]"#;
+
+    fn deserialized(format: &str) -> Result<DeserializedFormat, DeserializationFailure> {
         from_str::<ResponsesTextFormat>(format)
             .map(|deserialized_format| match deserialized_format {
                 ResponsesTextFormat::JsonSchema { schema } => {
@@ -178,7 +192,22 @@ mod tests {
                 }
                 ResponsesTextFormat::Text => DeserializedFormat::Text,
             })
-            .map_err(|deserialization_error| deserialization_error.to_string())
+            .map_err(|deserialization_error| DeserializationFailure {
+                category: deserialization_error.classify(),
+                column: deserialization_error.column(),
+                line: deserialization_error.line(),
+            })
+    }
+
+    fn visited(format: &str) -> Result<ResponsesTextFormatVisitOutcome, SerdeJsonError> {
+        JsonDeserializer::from_str(format).deserialize_any(ResponsesTextFormatVisitor)
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct DeserializationFailure {
+        category: Category,
+        column: usize,
+        line: usize,
     }
 
     #[derive(Debug, Eq, PartialEq)]
@@ -227,10 +256,11 @@ mod tests {
     fn refuses_a_format_that_is_neither_an_object_nor_an_array() {
         assert_eq!(
             deserialized(r#""json_schema""#),
-            Err(
-                r#"invalid type: string "json_schema", expected internally tagged enum ResponsesTextFormat at line 1 column 13"#
-                    .to_owned()
-            )
+            Err(DeserializationFailure {
+                category: Category::Data,
+                column: 13,
+                line: 1,
+            })
         );
     }
 
@@ -239,55 +269,93 @@ mod tests {
         assert_eq!(
             [deserialized(r#"{"schema": {}}"#), deserialized("[]")],
             [
-                Err("missing field `type` at line 1 column 14".to_owned()),
-                Err("missing field `type` at line 1 column 2".to_owned()),
+                Err(DeserializationFailure {
+                    category: Category::Data,
+                    column: 14,
+                    line: 1,
+                }),
+                Err(DeserializationFailure {
+                    category: Category::Data,
+                    column: 2,
+                    line: 1,
+                }),
             ]
         );
     }
 
     #[test]
     fn refuses_a_json_schema_format_without_a_schema() {
-        assert_eq!(
-            [
-                deserialized(r#"{"type": "json_schema"}"#),
-                deserialized(r#"["json_schema"]"#),
-            ],
-            [
-                Err("missing field `schema`".to_owned()),
-                Err(
-                    "invalid length 0, expected struct variant ResponsesTextFormat::JsonSchema with 1 element"
-                        .to_owned()
-                ),
-            ]
-        );
+        assert!(matches!(
+            visited(FORMAT_WITHOUT_A_SCHEMA),
+            Ok(ResponsesTextFormatVisitOutcome::Refused(
+                ResponsesTextFormatRefusal::SchemaMissing
+            ))
+        ));
+        assert!(matches!(
+            visited(ARRAY_FORMAT_WITHOUT_A_SCHEMA),
+            Ok(ResponsesTextFormatVisitOutcome::Refused(
+                ResponsesTextFormatRefusal::SchemaElementMissing
+            ))
+        ));
     }
 
     #[test]
     fn refuses_a_format_that_repeats_its_type_or_its_json_schema() {
         assert_eq!(
-            [
-                deserialized(r#"{"type": "text", "type": "text"}"#),
-                deserialized(r#"{"type": "json_schema", "schema": {}, "schema": {}}"#),
-            ],
-            [
-                Err("duplicate field `type` at line 1 column 23".to_owned()),
-                Err("duplicate field `schema`".to_owned()),
-            ]
+            deserialized(r#"{"type": "text", "type": "text"}"#),
+            Err(DeserializationFailure {
+                category: Category::Data,
+                column: 23,
+                line: 1,
+            })
         );
+        assert!(matches!(
+            visited(FORMAT_REPEATING_ITS_SCHEMA),
+            Ok(ResponsesTextFormatVisitOutcome::Refused(
+                ResponsesTextFormatRefusal::SchemaRepeated
+            ))
+        ));
     }
 
     #[test]
     fn refuses_an_array_format_with_elements_left_over() {
-        assert_eq!(
-            [
-                deserialized(r#"["text", 1]"#),
-                deserialized(r#"["json_schema", {}, 1]"#),
-            ],
-            [
-                Err("invalid length 1, expected 0 elements in sequence".to_owned()),
-                Err("invalid length 2, expected 1 element in sequence".to_owned()),
-            ]
-        );
+        assert!(matches!(
+            visited(TEXT_FORMAT_WITH_AN_ELEMENT_LEFT_OVER),
+            Ok(ResponsesTextFormatVisitOutcome::Refused(
+                ResponsesTextFormatRefusal::ElementsLeftOver {
+                    expected_elements: 0,
+                    received_elements: 1,
+                }
+            ))
+        ));
+        assert!(matches!(
+            visited(JSON_SCHEMA_FORMAT_WITH_AN_ELEMENT_LEFT_OVER),
+            Ok(ResponsesTextFormatVisitOutcome::Refused(
+                ResponsesTextFormatRefusal::ElementsLeftOver {
+                    expected_elements: 1,
+                    received_elements: 2,
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn surfaces_every_refusal_as_a_data_error() {
+        for refused_format in [
+            ARRAY_FORMAT_WITHOUT_A_SCHEMA,
+            FORMAT_REPEATING_ITS_SCHEMA,
+            FORMAT_WITHOUT_A_SCHEMA,
+            JSON_SCHEMA_FORMAT_WITH_AN_ELEMENT_LEFT_OVER,
+            TEXT_FORMAT_WITH_AN_ELEMENT_LEFT_OVER,
+        ] {
+            assert!(matches!(
+                deserialized(refused_format),
+                Err(DeserializationFailure {
+                    category: Category::Data,
+                    ..
+                })
+            ));
+        }
     }
 
     #[test]
@@ -299,9 +367,21 @@ mod tests {
                 deserialized(r#"{"type": "text", "name": nul}"#),
             ],
             [
-                Err("key must be a string at line 1 column 18".to_owned()),
-                Err("expected ident at line 1 column 38".to_owned()),
-                Err("expected ident at line 1 column 29".to_owned()),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 18,
+                    line: 1,
+                }),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 38,
+                    line: 1,
+                }),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 29,
+                    line: 1,
+                }),
             ]
         );
     }
@@ -316,10 +396,26 @@ mod tests {
                 deserialized(r#"["json_schema", {}, nul]"#),
             ],
             [
-                Err("expected ident at line 1 column 5".to_owned()),
-                Err("expected ident at line 1 column 20".to_owned()),
-                Err("expected ident at line 1 column 13".to_owned()),
-                Err("expected ident at line 1 column 24".to_owned()),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 5,
+                    line: 1,
+                }),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 20,
+                    line: 1,
+                }),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 13,
+                    line: 1,
+                }),
+                Err(DeserializationFailure {
+                    category: Category::Syntax,
+                    column: 24,
+                    line: 1,
+                }),
             ]
         );
     }

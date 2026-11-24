@@ -38,32 +38,29 @@ mod tests {
 
     #[test]
     fn an_occupied_residency_refuses_a_second_occupant_naming_what_is_resident() {
-        for (resident, refusal) in [
-            (
-                VramResident::LlamaContext(InferenceCapability::Embeddings),
-                AgentRuntimeError::LlamaContextAlreadyResident {
-                    inference_capability: InferenceCapability::Embeddings,
-                },
-            ),
-            (
-                VramResident::ModelWeights,
-                AgentRuntimeError::ModelWeightsAlreadyResident,
-            ),
-            (
-                VramResident::MultimodalProjection,
-                AgentRuntimeError::MultimodalProjectionAlreadyResident,
-            ),
+        for resident in [
+            VramResident::LlamaContext(InferenceCapability::Embeddings),
+            VramResident::ModelWeights,
+            VramResident::MultimodalProjection,
         ] {
             let vram_residency = VramResidency::vacant(resident);
             let _first_occupancy = vram_residency.try_occupy().unwrap();
 
-            assert_eq!(
-                vram_residency
-                    .try_occupy()
-                    .err()
-                    .map(|error| error.to_string()),
-                Some(refusal.to_string())
-            );
+            assert!(matches!(
+                (resident, vram_residency.try_occupy()),
+                (
+                    VramResident::LlamaContext(InferenceCapability::Embeddings),
+                    Err(AgentRuntimeError::LlamaContextAlreadyResident {
+                        inference_capability: InferenceCapability::Embeddings,
+                    }),
+                ) | (
+                    VramResident::ModelWeights,
+                    Err(AgentRuntimeError::ModelWeightsAlreadyResident),
+                ) | (
+                    VramResident::MultimodalProjection,
+                    Err(AgentRuntimeError::MultimodalProjectionAlreadyResident),
+                )
+            ));
         }
     }
 

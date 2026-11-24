@@ -287,6 +287,8 @@ impl StreamableResult for GeneratedTokenResult {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use super::GeneratedTokenResult;
     use crate::generation_finish::GenerationFinish;
     use crate::generation_summary::GenerationSummary;
@@ -298,62 +300,77 @@ mod tests {
     use crate::token_usage::TokenUsage;
 
     fn keeps_the_stream_open(token_result: &GeneratedTokenResult) -> bool {
-        match token_result.clone().into_step() {
-            ResultStep::Final(final_result) => {
-                assert_eq!(&GeneratedTokenResult::from(final_result), token_result);
+        matches!(token_result.clone().into_step(), ResultStep::Partial(_))
+    }
 
-                false
-            }
-            ResultStep::Partial(partial_result) => {
-                assert_eq!(&GeneratedTokenResult::from(partial_result), token_result);
-
-                true
-            }
+    fn step_round_trip(token_result: GeneratedTokenResult) -> GeneratedTokenResult {
+        match token_result.into_step() {
+            ResultStep::Final(final_result) => final_result.into(),
+            ResultStep::Partial(partial_result) => partial_result.into(),
         }
     }
 
-    #[test]
-    fn every_terminal_result_ends_the_stream_without_a_token() {
-        for terminal_result in [
-            GeneratedTokenResult::BatchAssemblyFailed("failure".to_owned()),
-            GeneratedTokenResult::ChatTemplateError("failure".to_owned()),
-            GeneratedTokenResult::DecodeFailed("failure".to_owned()),
-            GeneratedTokenResult::DetokenizationFailed("failure".to_owned()),
-            GeneratedTokenResult::AnswerClassificationFailed("failure".to_owned()),
+    fn detailed_terminal_results() -> [GeneratedTokenResult; 3] {
+        [
             GeneratedTokenResult::Done(GenerationSummary {
                 finish: GenerationFinish::EndOfGeneration,
                 usage: TokenUsage::default(),
             }),
-            GeneratedTokenResult::GrammarIncompatibleWithThinking("failure".to_owned()),
-            GeneratedTokenResult::GrammarInitializationFailed("failure".to_owned()),
-            GeneratedTokenResult::GrammarRejectedModelOutput("failure".to_owned()),
-            GeneratedTokenResult::GrammarSyntaxError("failure".to_owned()),
-            GeneratedTokenResult::ImageDecodingFailed("failure".to_owned()),
-            GeneratedTokenResult::KvCacheClearFailed("failure".to_owned()),
             GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
                 media_tokens: 368,
                 micro_batch_tokens: 100,
             }),
-            GeneratedTokenResult::ModelNotLoaded("failure".to_owned()),
-            GeneratedTokenResult::MultimodalIngestionFailed("failure".to_owned()),
-            GeneratedTokenResult::MultimodalNotSupported("failure".to_owned()),
-            GeneratedTokenResult::MultimodalTokenizationFailed("failure".to_owned()),
-            GeneratedTokenResult::NoSequenceSlotAvailable("failure".to_owned()),
             GeneratedTokenResult::PromptExceedsContextSize(OversizedPromptDetails {
                 prompt_tokens: 9895,
                 sequence_context_size: 8192,
             }),
-            GeneratedTokenResult::PromptTokenizationFailed("failure".to_owned()),
-            GeneratedTokenResult::PromptTokenizedToNothing("failure".to_owned()),
-            GeneratedTokenResult::SamplerChainCreationFailed("failure".to_owned()),
-            GeneratedTokenResult::SamplerError("failure".to_owned()),
-            GeneratedTokenResult::SamplingCandidatesExhausted("failure".to_owned()),
-            GeneratedTokenResult::SchedulerUnavailable("failure".to_owned()),
-            GeneratedTokenResult::ToolSchemaInvalid("failure".to_owned()),
-        ] {
+        ]
+    }
+
+    #[test]
+    fn every_terminal_result_ends_the_stream_without_a_token() {
+        for terminal_result in detailed_terminal_results().into_iter().chain([
+            GeneratedTokenResult::BatchAssemblyFailed(String::new()),
+            GeneratedTokenResult::ChatTemplateError(String::new()),
+            GeneratedTokenResult::DecodeFailed(String::new()),
+            GeneratedTokenResult::DetokenizationFailed(String::new()),
+            GeneratedTokenResult::AnswerClassificationFailed(String::new()),
+            GeneratedTokenResult::GrammarIncompatibleWithThinking(String::new()),
+            GeneratedTokenResult::GrammarInitializationFailed(String::new()),
+            GeneratedTokenResult::GrammarRejectedModelOutput(String::new()),
+            GeneratedTokenResult::GrammarSyntaxError(String::new()),
+            GeneratedTokenResult::ImageDecodingFailed(String::new()),
+            GeneratedTokenResult::KvCacheClearFailed(String::new()),
+            GeneratedTokenResult::ModelNotLoaded(String::new()),
+            GeneratedTokenResult::MultimodalIngestionFailed(String::new()),
+            GeneratedTokenResult::MultimodalNotSupported(String::new()),
+            GeneratedTokenResult::MultimodalTokenizationFailed(String::new()),
+            GeneratedTokenResult::NoSequenceSlotAvailable(String::new()),
+            GeneratedTokenResult::PromptTokenizationFailed(String::new()),
+            GeneratedTokenResult::PromptTokenizedToNothing(String::new()),
+            GeneratedTokenResult::SamplerChainCreationFailed(String::new()),
+            GeneratedTokenResult::SamplerError(String::new()),
+            GeneratedTokenResult::SamplingCandidatesExhausted(String::new()),
+            GeneratedTokenResult::SchedulerUnavailable(String::new()),
+            GeneratedTokenResult::ToolSchemaInvalid(String::new()),
+        ]) {
+            assert_eq!(
+                discriminant(&step_round_trip(terminal_result.clone())),
+                discriminant(&terminal_result)
+            );
             assert!(!keeps_the_stream_open(&terminal_result));
             assert!(!terminal_result.is_token());
             assert_eq!(terminal_result.token_text(), None);
+        }
+    }
+
+    #[test]
+    fn every_detailed_terminal_result_keeps_its_details_through_the_stream_step() {
+        for detailed_terminal_result in detailed_terminal_results() {
+            assert_eq!(
+                step_round_trip(detailed_terminal_result.clone()),
+                detailed_terminal_result
+            );
         }
     }
 
@@ -365,6 +382,7 @@ mod tests {
             GeneratedTokenResult::ToolCallToken("piece".to_owned()),
             GeneratedTokenResult::UndeterminableToken("piece".to_owned()),
         ] {
+            assert_eq!(step_round_trip(token_result.clone()), token_result);
             assert!(keeps_the_stream_open(&token_result));
             assert!(token_result.is_token());
             assert_eq!(token_result.token_text(), Some("piece"));
@@ -375,6 +393,7 @@ mod tests {
     fn tool_call_parsed_is_a_parsed_tool_call_that_keeps_the_stream_open() {
         let event = GeneratedTokenResult::ToolCallParsed(vec![]);
 
+        assert_eq!(step_round_trip(event.clone()), event);
         assert!(keeps_the_stream_open(&event));
         assert!(event.is_tool_call_parsed());
         assert!(!event.is_tool_call_failure());
@@ -382,8 +401,12 @@ mod tests {
 
     #[test]
     fn tool_call_parse_failed_is_failure_but_not_done() {
-        let event = GeneratedTokenResult::ToolCallParseFailed("oops".to_owned());
+        let event = GeneratedTokenResult::ToolCallParseFailed(String::new());
 
+        assert!(matches!(
+            step_round_trip(event.clone()),
+            GeneratedTokenResult::ToolCallParseFailed(_)
+        ));
         assert!(keeps_the_stream_open(&event));
         assert!(!event.is_tool_call_parsed());
         assert!(event.is_tool_call_failure());
@@ -391,8 +414,13 @@ mod tests {
 
     #[test]
     fn tool_call_validation_failed_is_failure_but_not_done() {
-        let event = GeneratedTokenResult::ToolCallValidationFailed(vec!["missing".to_owned()]);
+        let event = GeneratedTokenResult::ToolCallValidationFailed(vec![String::new()]);
 
+        assert!(matches!(
+            step_round_trip(event.clone()),
+            GeneratedTokenResult::ToolCallValidationFailed(validation_failures)
+                if validation_failures.len() == 1
+        ));
         assert!(keeps_the_stream_open(&event));
         assert!(!event.is_tool_call_parsed());
         assert!(event.is_tool_call_failure());
@@ -405,6 +433,7 @@ mod tests {
             expected_format: "peg-native".to_owned(),
         });
 
+        assert_eq!(step_round_trip(event.clone()), event);
         assert!(keeps_the_stream_open(&event));
         assert!(!event.is_token());
         assert!(event.token_text().is_none());

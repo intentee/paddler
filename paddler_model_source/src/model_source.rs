@@ -236,18 +236,15 @@ mod tests {
         let parse_error = ModelSource::parse(uri, &slot_aggregated_status)
             .expect_err("a component that is not utf-8 must be rejected");
 
-        assert_eq!(
-            (
-                parse_error.to_string(),
-                parse_error.source().map(ToString::to_string)
-            ),
-            (
-                format!(
-                    "Hugging Face model URI '{uri}' has a path component that is not valid UTF-8 once percent-decoded"
-                ),
-                Some("invalid utf-8 sequence of 1 bytes from index 5".to_owned())
-            )
-        );
+        assert!(matches!(
+            parse_error,
+            ModelSourceError::HuggingFaceModelUriComponentNotUtf8 {
+                uri: rejected_uri,
+                source: utf8_error,
+            } if rejected_uri == uri
+                && utf8_error.valid_up_to() == 5
+                && utf8_error.error_len() == Some(1)
+        ));
         assert!(
             slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelUriIsMalformed(
                 ModelPath::from(uri)
@@ -264,18 +261,11 @@ mod tests {
         ] {
             let slot_aggregated_status = SlotAggregatedStatus::new(1);
 
-            assert_eq!(
-                ModelSource::parse(uri, &slot_aggregated_status)
-                    .err()
-                    .as_ref()
-                    .map(ToString::to_string),
-                Some(
-                    ModelSourceError::HuggingFaceModelUriMalformed {
-                        uri: uri.to_owned(),
-                    }
-                    .to_string()
-                )
-            );
+            assert!(matches!(
+                ModelSource::parse(uri, &slot_aggregated_status),
+                Err(ModelSourceError::HuggingFaceModelUriMalformed { uri: rejected_uri })
+                    if rejected_uri == uri
+            ));
             assert!(
                 slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelUriIsMalformed(
                     ModelPath::from(uri)
@@ -340,14 +330,10 @@ mod tests {
         let parse_error = ModelSource::parse("not a uri", &slot_aggregated_status)
             .expect_err("a uri that is not a url must be rejected");
 
-        assert_eq!(
-            parse_error.to_string(),
-            ModelSourceError::ModelUriUnparseable {
-                source: ParseError::RelativeUrlWithoutBase,
-                uri: "not a uri".to_owned(),
-            }
-            .to_string()
-        );
+        assert!(matches!(
+            &parse_error,
+            ModelSourceError::ModelUriUnparseable { uri, .. } if uri == "not a uri"
+        ));
         assert_eq!(
             parse_error
                 .source()
@@ -365,28 +351,21 @@ mod tests {
     fn rejects_a_uri_that_cannot_be_downloaded() {
         let slot_aggregated_status = SlotAggregatedStatus::new(1);
         let uri = "ftp://example.com/model.gguf";
-        let unsupported_scheme = || DownloadError::UnsupportedUrlScheme {
-            scheme: "ftp".to_owned(),
-            url: uri.to_owned(),
-        };
         let parse_error = ModelSource::parse(uri, &slot_aggregated_status)
             .expect_err("a uri with a scheme that cannot be downloaded must be rejected");
 
-        assert_eq!(
-            parse_error.to_string(),
-            ModelSourceError::ModelUriNotDownloadable {
-                source: unsupported_scheme(),
-                uri: uri.to_owned(),
-            }
-            .to_string()
-        );
-        assert_eq!(
+        assert!(matches!(
+            &parse_error,
+            ModelSourceError::ModelUriNotDownloadable { uri: rejected_uri, .. }
+                if rejected_uri == uri
+        ));
+        assert!(matches!(
             parse_error
                 .source()
-                .and_then(|source| source.downcast_ref::<DownloadError>())
-                .map(ToString::to_string),
-            Some(unsupported_scheme().to_string())
-        );
+                .and_then(|source| source.downcast_ref::<DownloadError>()),
+            Some(DownloadError::UnsupportedUrlScheme { scheme, url })
+                if scheme == "ftp" && url == uri
+        ));
         assert!(
             slot_aggregated_status
                 .has_issue(&AgentIssue::DownloadUrlIsMalformed(ModelPath::from(uri)))

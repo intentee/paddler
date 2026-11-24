@@ -1,3 +1,4 @@
+use jsonschema::ValidationError;
 use jsonschema::Validator;
 use jsonschema::validator_for;
 use serde_json::Value;
@@ -88,11 +89,11 @@ fn compile_strict_schema(
 fn ensure_conformance(
     validator: &Validator,
     instance: &Value,
-    nonconformance: impl FnOnce(Vec<String>) -> OpenAIValidatorError,
+    nonconformance: impl FnOnce(Vec<ValidationError<'static>>) -> OpenAIValidatorError,
 ) -> Result<(), OpenAIValidatorError> {
-    let violations: Vec<String> = validator
+    let violations: Vec<ValidationError<'static>> = validator
         .iter_errors(instance)
-        .map(|error| error.to_string())
+        .map(ValidationError::to_owned)
         .collect();
 
     if violations.is_empty() {
@@ -233,6 +234,8 @@ impl OpenAIValidator {
 
 #[cfg(test)]
 mod tests {
+    use jsonschema::ValidationError;
+    use jsonschema::error::ValidationErrorKind;
     use serde_json::Value;
     use serde_json::json;
     use yaml_rust2::YamlLoader;
@@ -242,6 +245,36 @@ mod tests {
     use crate::constants::OPENAPI_YAML;
     use crate::openai_validator_error::OpenAIValidatorError;
     use crate::parse_components::parse_components;
+
+    fn violations_of(violations: &[ValidationError<'static>]) -> Vec<Violation> {
+        violations
+            .iter()
+            .map(|violation| match violation.kind() {
+                ValidationErrorKind::AnyOf { .. } => Violation::AnyOf,
+                ValidationErrorKind::OneOfNotValid { .. } => Violation::OneOfNotValid,
+                ValidationErrorKind::Required { property } => Violation::Required {
+                    property: property.clone(),
+                },
+                ValidationErrorKind::UnevaluatedProperties { unexpected } => {
+                    Violation::UnevaluatedProperties {
+                        unexpected: unexpected.clone(),
+                    }
+                }
+                unanticipated_kind => Violation::Unanticipated {
+                    keyword: unanticipated_kind.keyword().to_owned(),
+                },
+            })
+            .collect()
+    }
+
+    fn unevaluated(properties: &[&str]) -> Violation {
+        Violation::UnevaluatedProperties {
+            unexpected: properties
+                .iter()
+                .map(|property| (*property).to_owned())
+                .collect(),
+        }
+    }
 
     fn validator() -> OpenAIValidator {
         OpenAIValidator::new().unwrap()
@@ -369,6 +402,15 @@ mod tests {
         document
     }
 
+    #[derive(Debug, PartialEq)]
+    enum Violation {
+        AnyOf,
+        OneOfNotValid,
+        Required { property: Value },
+        Unanticipated { keyword: String },
+        UnevaluatedProperties { unexpected: Vec<String> },
+    }
+
     #[test]
     fn accepts_a_conformant_request() {
         validator()
@@ -392,9 +434,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::RequestDoesNotConform { violations } if violations == [
-                "Unevaluated properties are not allowed ('chat_template_kwargs' was unexpected)"
-            ]
+            OpenAIValidatorError::RequestDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["chat_template_kwargs"])]
         ));
     }
 
@@ -421,9 +462,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ResponseDoesNotConform { violations } if violations == [
-                "Unevaluated properties are not allowed ('reasoning_content' was unexpected)"
-            ]
+            OpenAIValidatorError::ResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["reasoning_content"])]
         ));
     }
 
@@ -443,9 +483,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ResponseDoesNotConform { violations } if violations == [
-                "Unevaluated properties are not allowed ('image_tokens' was unexpected)"
-            ]
+            OpenAIValidatorError::ResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["image_tokens"])]
         ));
     }
 
@@ -472,9 +511,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::StreamChunkDoesNotConform { violations } if violations == [
-                "Unevaluated properties are not allowed ('reasoning_content' was unexpected)"
-            ]
+            OpenAIValidatorError::StreamChunkDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["reasoning_content"])]
         ));
     }
 
@@ -567,9 +605,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ResponsesRequestDoesNotConform { violations } if violations == [
-                "42 is not valid under any of the schemas listed in the 'anyOf' keyword"
-            ]
+            OpenAIValidatorError::ResponsesRequestDoesNotConform { violations }
+                if violations_of(&violations) == vec![Violation::AnyOf]
         ));
     }
 
@@ -596,9 +633,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations } if violations == [
-                "Unevaluated properties are not allowed ('paddler_extension' was unexpected)"
-            ]
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["paddler_extension"])]
         ));
     }
 
@@ -618,10 +654,21 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations } if violations == [
-                r#"{"id":"msg_0","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello","annotations":[],"logprobs":[],"reasoning_content":"nope"}]} is not valid under any of the schemas listed in the 'oneOf' keyword"#,
-                "Unevaluated properties are not allowed ('id', 'object', 'created_at', 'error', 'incomplete_details', 'instructions', 'output', 'parallel_tool_calls', 'usage' were unexpected)"
-            ]
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![
+                    Violation::OneOfNotValid,
+                    unevaluated(&[
+                        "id",
+                        "object",
+                        "created_at",
+                        "error",
+                        "incomplete_details",
+                        "instructions",
+                        "output",
+                        "parallel_tool_calls",
+                        "usage"
+                    ])
+                ]
         ));
     }
 
@@ -648,9 +695,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations } if violations == [
-                r#"{"type":"response.output_text.delta","item_id":"msg_0","output_index":0,"content_index":0,"delta":"hello","sequence_number":1,"logprobs":[],"paddler_extension":"nope"} is not valid under any of the schemas listed in the 'anyOf' keyword"#
-            ]
+            OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations }
+                if violations_of(&violations) == vec![Violation::AnyOf]
         ));
     }
 
@@ -716,9 +762,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ErrorResponseDoesNotConform { violations } if violations == [
-                "Unevaluated properties are not allowed ('paddler_extension' was unexpected)"
-            ]
+            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["paddler_extension"])]
         ));
     }
 
@@ -739,9 +784,10 @@ mod tests {
 
         assert!(matches!(
             error,
-            OpenAIValidatorError::ErrorResponseDoesNotConform { violations } if violations == [
-                r#""type" is a required property"#
-            ]
+            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![Violation::Required {
+                    property: json!("type")
+                }]
         ));
     }
 

@@ -9,19 +9,33 @@ use yaml_rust2::yaml::Yaml;
 #[derive(Debug, Error)]
 pub enum OpenAIValidatorError {
     #[error("chat completion request does not conform to the OpenAI schema: {violations:?}")]
-    RequestDoesNotConform { violations: Vec<String> },
+    RequestDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("chat completion response does not conform to the OpenAI schema: {violations:?}")]
-    ResponseDoesNotConform { violations: Vec<String> },
+    ResponseDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("chat completion stream chunk does not conform to the OpenAI schema: {violations:?}")]
-    StreamChunkDoesNotConform { violations: Vec<String> },
+    StreamChunkDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("responses request does not conform to the OpenAI schema: {violations:?}")]
-    ResponsesRequestDoesNotConform { violations: Vec<String> },
+    ResponsesRequestDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("responses response does not conform to the OpenAI schema: {violations:?}")]
-    ResponsesResponseDoesNotConform { violations: Vec<String> },
+    ResponsesResponseDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("responses stream event does not conform to the OpenAI schema: {violations:?}")]
-    ResponsesStreamEventDoesNotConform { violations: Vec<String> },
+    ResponsesStreamEventDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("error response does not conform to the OpenAI schema: {violations:?}")]
-    ErrorResponseDoesNotConform { violations: Vec<String> },
+    ErrorResponseDoesNotConform {
+        violations: Vec<ValidationError<'static>>,
+    },
     #[error("the OpenAI OpenAPI document is not valid YAML")]
     SpecNotValidYaml(#[source] ScanError),
     #[error("the OpenAI OpenAPI document is empty")]

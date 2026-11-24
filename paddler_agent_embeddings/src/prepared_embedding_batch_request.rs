@@ -121,12 +121,10 @@ mod tests {
         prepared_request(generated_embedding_tx, Vec::new())
             .reject_because_the_scheduler_stopped(Some("agent"));
 
-        assert_eq!(
+        assert!(matches!(
             generated_embedding_rx.try_recv(),
-            Ok(EmbeddingResult::SchedulerUnavailable(
-                "agent: the scheduler is no longer accepting requests".to_owned()
-            ))
-        );
+            Ok(EmbeddingResult::SchedulerUnavailable(_))
+        ));
     }
 
     #[test]

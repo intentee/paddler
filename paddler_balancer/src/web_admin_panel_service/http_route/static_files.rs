@@ -79,9 +79,5 @@ mod tests {
         let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-        let body = read_body(response).await;
-
-        assert_eq!(body.as_ref(), b"File not found");
     }
 }

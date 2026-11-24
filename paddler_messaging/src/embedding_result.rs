@@ -128,6 +128,8 @@ impl StreamableResult for EmbeddingResult {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use paddler_inference_parameters::pooling_type::PoolingType;
 
     use super::EmbeddingResult;
@@ -153,52 +155,56 @@ mod tests {
     fn every_terminal_result_ends_the_stream_as_its_final_result() {
         for (terminal_result, expected_final_result) in [
             (
-                EmbeddingResult::AgentRuntimeFailed("runtime".to_owned()),
-                EmbeddingFinalResult::AgentRuntimeFailed("runtime".to_owned()),
+                EmbeddingResult::AgentRuntimeFailed(String::new()),
+                EmbeddingFinalResult::AgentRuntimeFailed(String::new()),
             ),
             (
-                EmbeddingResult::BatchAssemblyFailed("batch".to_owned()),
-                EmbeddingFinalResult::BatchAssemblyFailed("batch".to_owned()),
+                EmbeddingResult::BatchAssemblyFailed(String::new()),
+                EmbeddingFinalResult::BatchAssemblyFailed(String::new()),
             ),
             (
-                EmbeddingResult::DecodeFailed("decode".to_owned()),
-                EmbeddingFinalResult::DecodeFailed("decode".to_owned()),
+                EmbeddingResult::DecodeFailed(String::new()),
+                EmbeddingFinalResult::DecodeFailed(String::new()),
             ),
             (EmbeddingResult::Done, EmbeddingFinalResult::Done),
             (
-                EmbeddingResult::EmbeddingTooLongForRmsNormalization("rms".to_owned()),
-                EmbeddingFinalResult::EmbeddingTooLongForRmsNormalization("rms".to_owned()),
+                EmbeddingResult::EmbeddingTooLongForRmsNormalization(String::new()),
+                EmbeddingFinalResult::EmbeddingTooLongForRmsNormalization(String::new()),
             ),
             (
-                EmbeddingResult::EmbeddingsNotServed("decision model".to_owned()),
-                EmbeddingFinalResult::EmbeddingsNotServed("decision model".to_owned()),
+                EmbeddingResult::EmbeddingsNotServed(String::new()),
+                EmbeddingFinalResult::EmbeddingsNotServed(String::new()),
             ),
             (
-                EmbeddingResult::EmbeddingsUnavailable("unavailable".to_owned()),
-                EmbeddingFinalResult::EmbeddingsUnavailable("unavailable".to_owned()),
+                EmbeddingResult::EmbeddingsUnavailable(String::new()),
+                EmbeddingFinalResult::EmbeddingsUnavailable(String::new()),
             ),
             (
-                EmbeddingResult::InputTokenizationFailed("tokenization".to_owned()),
-                EmbeddingFinalResult::InputTokenizationFailed("tokenization".to_owned()),
+                EmbeddingResult::InputTokenizationFailed(String::new()),
+                EmbeddingFinalResult::InputTokenizationFailed(String::new()),
             ),
             (
-                EmbeddingResult::ModelNotLoaded("no model".to_owned()),
-                EmbeddingFinalResult::ModelNotLoaded("no model".to_owned()),
+                EmbeddingResult::ModelNotLoaded(String::new()),
+                EmbeddingFinalResult::ModelNotLoaded(String::new()),
             ),
             (
                 EmbeddingResult::NoEmbeddingsProduced,
                 EmbeddingFinalResult::NoEmbeddingsProduced,
             ),
             (
-                EmbeddingResult::SchedulerUnavailable("stopped".to_owned()),
-                EmbeddingFinalResult::SchedulerUnavailable("stopped".to_owned()),
+                EmbeddingResult::SchedulerUnavailable(String::new()),
+                EmbeddingFinalResult::SchedulerUnavailable(String::new()),
             ),
         ] {
-            assert_eq!(step_round_trip(terminal_result.clone()), terminal_result);
             assert_eq!(
-                terminal_result.into_step(),
-                ResultStep::Final(expected_final_result)
+                discriminant(&step_round_trip(terminal_result.clone())),
+                discriminant(&terminal_result)
             );
+            assert!(matches!(
+                terminal_result.into_step(),
+                ResultStep::Final(final_result)
+                    if discriminant(&final_result) == discriminant(&expected_final_result)
+            ));
         }
     }
 

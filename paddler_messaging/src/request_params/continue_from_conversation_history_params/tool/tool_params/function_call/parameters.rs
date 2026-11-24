@@ -48,6 +48,7 @@ mod tests {
 
     use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::request_params_validation_error::RequestParamsValidationError;
 use crate::validates::Validates;
 use super::Parameters;
 
@@ -119,11 +120,10 @@ use super::Parameters;
         });
 
         assert_eq!(
-            parameters
-                .validate()
-                .err()
-                .map(|validation_error| validation_error.to_string()),
-            Some("Required field 'absent' not found in properties".to_owned())
+            parameters.validate().err(),
+            Some(RequestParamsValidationError::RequiredFieldNotInProperties {
+                field: "absent".to_owned(),
+            })
         );
     }
 }

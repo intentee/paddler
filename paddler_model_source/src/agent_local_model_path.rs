@@ -137,10 +137,13 @@ mod tests {
             .unwrap()
     }
 
-    fn refusal(uri: &str, slot_aggregated_status: &SlotAggregatedStatus) -> String {
-        AgentLocalModelPath::from_agent_url(uri, &Url::parse(uri).unwrap(), slot_aggregated_status)
-            .unwrap_err()
-            .to_string()
+    fn refusal(uri: &str, slot_aggregated_status: &SlotAggregatedStatus) -> ModelSourceError {
+        AgentLocalModelPath::from_agent_url(
+            uri,
+            &Url::parse(uri).expect("the agent URI must be a URL"),
+            slot_aggregated_status,
+        )
+        .expect_err("the agent URI must be refused")
     }
 
     #[test]
@@ -177,28 +180,20 @@ mod tests {
 
     #[test]
     fn refuses_to_format_a_relative_path() {
-        assert_eq!(
-            AgentLocalModelPath::from_absolute_path(Path::new("models/model.gguf"))
-                .unwrap_err()
-                .to_string(),
-            ModelSourceError::LocalModelPathNotAbsolute {
-                path: "models/model.gguf".into(),
-            }
-            .to_string()
-        );
+        assert!(matches!(
+            AgentLocalModelPath::from_absolute_path(Path::new("models/model.gguf")),
+            Err(ModelSourceError::LocalModelPathNotAbsolute { path })
+                if path == Path::new("models/model.gguf")
+        ));
     }
 
     #[test]
     fn refuses_to_format_a_path_that_climbs_to_a_parent_directory() {
-        assert_eq!(
-            AgentLocalModelPath::from_absolute_path(Path::new("/models/../model.gguf"))
-                .unwrap_err()
-                .to_string(),
-            ModelSourceError::LocalModelPathClimbsToParentDirectory {
-                path: "/models/../model.gguf".into(),
-            }
-            .to_string()
-        );
+        assert!(matches!(
+            AgentLocalModelPath::from_absolute_path(Path::new("/models/../model.gguf")),
+            Err(ModelSourceError::LocalModelPathClimbsToParentDirectory { path })
+                if path == Path::new("/models/../model.gguf")
+        ));
     }
 
     #[test]
@@ -233,14 +228,13 @@ mod tests {
         ] {
             let slot_aggregated_status = SlotAggregatedStatus::new(1);
 
-            assert_eq!(
+            assert!(matches!(
                 refusal(uri, &slot_aggregated_status),
                 ModelSourceError::AgentUriNotCanonical {
-                    canonical_uri: canonical_uri.to_owned(),
-                    uri: uri.to_owned(),
-                }
-                .to_string()
-            );
+                    canonical_uri: refused_canonical_uri,
+                    uri: refused_uri,
+                } if refused_canonical_uri == canonical_uri && refused_uri == uri
+            ));
             assert!(
                 slot_aggregated_status.has_issue(&AgentIssue::AgentModelUriIsNotCanonical(
                     AgentModelUriNotCanonicalParams {
@@ -259,13 +253,11 @@ mod tests {
         for uri in ["agent://models/model.gguf", "agent:model.gguf"] {
             let slot_aggregated_status = SlotAggregatedStatus::new(1);
 
-            assert_eq!(
+            assert!(matches!(
                 refusal(uri, &slot_aggregated_status),
-                ModelSourceError::AgentUriNotAnAbsoluteLocalPath {
-                    uri: uri.to_owned(),
-                }
-                .to_string()
-            );
+                ModelSourceError::AgentUriNotAnAbsoluteLocalPath { uri: refused_uri }
+                    if refused_uri == uri
+            ));
             assert!(slot_aggregated_status.has_issue(
                 &AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(ModelPath {
                     model_path: uri.to_owned(),

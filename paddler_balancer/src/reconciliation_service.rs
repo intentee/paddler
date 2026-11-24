@@ -68,6 +68,7 @@ mod tests {
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::balancer_error::BalancerError;
 
     fn reconciliation_service_of_a_closed_store() -> ReconciliationService {
         let (balancer_applicable_state_tx, balancer_applicable_state_rx) =
@@ -99,12 +100,14 @@ mod tests {
 
     #[tokio::test]
     async fn fails_once_its_desired_state_store_stops_announcing_applicable_states() {
-        assert_eq!(
-            Box::new(reconciliation_service_of_a_closed_store())
-                .run(CancellationToken::new())
-                .await
-                .map_err(|reconciliation_error| reconciliation_error.to_string()),
-            Err("the desired state store stopped announcing applicable states".to_owned())
-        );
+        let reconciliation_error = Box::new(reconciliation_service_of_a_closed_store())
+            .run(CancellationToken::new())
+            .await
+            .expect_err("a closed desired state store must fail the reconciliation service");
+
+        assert!(matches!(
+            reconciliation_error.downcast_ref::<BalancerError>(),
+            Some(BalancerError::ApplicableStatesNoLongerAnnounced(_))
+        ));
     }
 }

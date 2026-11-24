@@ -140,22 +140,16 @@ mod tests {
     fn a_rendering_that_lost_an_image_marker_is_rejected() {
         let media_marker = MediaMarker::new(MEDIA_MARKER.to_owned());
 
-        assert_eq!(
+        assert!(matches!(
             MediaMarkedPrompt {
                 media_marker: &media_marker,
                 prompt_parts: &[ChatPromptPart::Input("Describe nothing".to_owned())],
             }
-            .interleave_with(&[image()])
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-            Some(
-                TextGenerationError::RenderedMediaMarkersMismatchImages {
-                    images: 1,
-                    rendered_media_markers: 0,
-                }
-                .to_string()
-            )
-        );
+            .interleave_with(&[image()]),
+            Err(TextGenerationError::RenderedMediaMarkersMismatchImages {
+                images: 1,
+                rendered_media_markers: 0,
+            })
+        ));
     }
 }
