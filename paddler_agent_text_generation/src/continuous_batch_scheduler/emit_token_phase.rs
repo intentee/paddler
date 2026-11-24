@@ -1,5 +1,5 @@
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token_piece::TokenPiece;
+use llama_cpp_model::sampled_token::SampledToken;
 use tokio::sync::mpsc;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -54,9 +54,9 @@ impl EmitTokenPhase<'_> {
 mod tests {
     use std::mem::discriminant;
 
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::TryRecvError;
 

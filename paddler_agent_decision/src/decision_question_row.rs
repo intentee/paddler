@@ -1,4 +1,4 @@
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionQuestionRow {
@@ -17,7 +17,7 @@ impl DecisionQuestionRow {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::DecisionQuestionRow;
 

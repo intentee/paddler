@@ -16,15 +16,10 @@ fn a_malformed_question_is_refused_with_its_id() {
         let request = system_one_request_with_questions(&json!({"broken": malformed_question}))
             .expect("the request must parse");
 
-        assert_eq!(
-            request.translate().err().as_ref().map(ToString::to_string),
-            Some(
-                TypeSafeTranslationError::QuestionMalformed {
-                    question_id: "broken".to_owned(),
-                    source: question_error,
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            request.translate(),
+            Err(TypeSafeTranslationError::QuestionMalformed { question_id, source })
+                if question_id == "broken" && source.classify() == question_error.classify()
+        ));
     }
 }

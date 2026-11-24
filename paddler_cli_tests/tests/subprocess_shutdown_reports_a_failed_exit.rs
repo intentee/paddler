@@ -26,15 +26,9 @@ async fn subprocess_shutdown_reports_a_failed_exit() {
             .await
             .expect_err("a failed exit must be reported at shutdown");
 
-    assert_eq!(
-        shutdown_error
-            .downcast_ref::<SubprocessClusterError>()
-            .map(ToString::to_string),
-        Some(
-            SubprocessClusterError::ProcessExitedWithFailure {
-                exit_status: ExitStatus::from_raw(CLAP_USAGE_ERROR_EXIT_CODE << 8),
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        shutdown_error.downcast_ref::<SubprocessClusterError>(),
+        Some(SubprocessClusterError::ProcessExitedWithFailure { exit_status })
+            if *exit_status == ExitStatus::from_raw(CLAP_USAGE_ERROR_EXIT_CODE << 8)
+    ));
 }

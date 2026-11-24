@@ -32,7 +32,8 @@ web_admin_panel = ["paddler_cli/web_admin_panel", "paddler_tests?/web_admin_pane
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
-llama-cpp-bindings = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-sampler = { workspace = true }
 nix = { workspace = true }
 paddler_agent_text_generation = { workspace = true }
 paddler_balancer = { workspace = true }

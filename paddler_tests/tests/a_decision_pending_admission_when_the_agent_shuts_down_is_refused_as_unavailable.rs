@@ -6,7 +6,6 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
-use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
@@ -47,10 +46,8 @@ fn a_decision_pending_admission_when_the_agent_shuts_down_is_refused_as_unavaila
         })
         .expect("the decision context must be created");
 
-    assert_eq!(
+    assert!(matches!(
         decision_result_rx.try_recv(),
-        Ok(DecisionResult::SchedulerUnavailable(
-            DecisionError::SchedulerUnavailable.to_string()
-        ))
-    );
+        Ok(DecisionResult::SchedulerUnavailable(_))
+    ));
 }

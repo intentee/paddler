@@ -12,10 +12,7 @@ use crate::constants::TYPESAFE_API_PATH_MODELS;
 use crate::decisions_serving::DecisionsServing;
 
 async fn respond(app_data: web::Data<CompatibilityAppData>) -> HttpResponse {
-    match app_data
-        .balancer_applicable_state_holder
-        .decisions_serving()
-    {
+    match app_data.agent_controller_pool.decisions_serving() {
         DecisionsServing::Served => HttpResponse::Ok().json(TypeSafeModels::from(
             app_data
                 .agent_controller_pool

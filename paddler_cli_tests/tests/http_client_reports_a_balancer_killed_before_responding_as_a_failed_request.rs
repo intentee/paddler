@@ -1,5 +1,3 @@
-use std::error::Error as _;
-
 use serde_json::json;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
@@ -7,6 +5,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
+use paddler_client::error::Error as ClientError;
 use paddler_client::http_client::HttpClient;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
@@ -53,23 +52,13 @@ async fn http_client_reports_a_balancer_killed_before_responding_as_a_failed_req
         .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
         .expect("the balancer must serve the OpenAI compatibility service");
 
-    assert_eq!(
+    assert!(matches!(
         chat_completion
             .await
-            .expect("the chat completion task must not panic")
-            .err()
-            .as_ref()
-            .map(|request_error| (
-                request_error.to_string(),
-                request_error.source().map(ToString::to_string)
-            )),
-        Some((
-            "HTTP request failed".to_owned(),
-            Some(format!(
-                "error sending request for url ({chat_completions_url})"
-            ))
-        ))
-    );
+            .expect("the chat completion task must not panic"),
+        Err(ClientError::Http(request_error))
+            if request_error.is_request() && request_error.url() == Some(&chat_completions_url)
+    ));
 
     cluster
         .shutdown()

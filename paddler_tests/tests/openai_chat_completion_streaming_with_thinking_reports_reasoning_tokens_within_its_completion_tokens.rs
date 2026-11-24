@@ -6,6 +6,8 @@ use serde_json::json;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
+const REASONING_AND_ANSWER_BUDGET: u32 = 512;
+
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_streaming_with_thinking_reports_reasoning_tokens_within_its_completion_tokens()
  {
@@ -23,7 +25,7 @@ async fn openai_chat_completion_streaming_with_thinking_reports_reasoning_tokens
             "stream": true,
             "stream_options": {"include_usage": true},
             "reasoning_effort": "medium",
-            "max_completion_tokens": 200
+            "max_completion_tokens": REASONING_AND_ANSWER_BUDGET
         }))
         .await
         .expect("the OpenAI chat completion stream must succeed");

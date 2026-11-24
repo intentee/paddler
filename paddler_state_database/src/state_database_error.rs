@@ -66,7 +66,7 @@ pub enum StateDatabaseError {
         #[source]
         source: SerdeJsonError,
     },
-    #[error("The state database file '{path_display}' uses schema version {found}, but this version of Paddler only reads version 2. Start from a new state database file.", path_display = path.display())]
+    #[error("The state database file '{path_display}' uses schema version {found}, but this version of Paddler only reads versions 2 and 3. Start from a new state database file.", path_display = path.display())]
     SchemaVersionUnsupported {
         found: String,
         path: PathBuf,

@@ -12,8 +12,8 @@ use paddler_agent_runtime::startup_outcome::StartupOutcome;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 #[test]
 fn a_shutdown_while_a_model_loads_cancels_the_load() {
@@ -26,7 +26,9 @@ fn a_shutdown_while_a_model_loads_cancels_the_load() {
                 LlamaModelLoader {
                     inference_runtime_context: agent_inference_runtime_context(1),
                     llama_model_settings: LlamaModelSettings {
-                        model_path: KevCheckpoint::Kev0_8b.target_path("model.gguf"),
+                        model_path: kev_0_8b()
+                            .cached_path()
+                            .expect("the kev model must be in the Hugging Face cache"),
                         n_gpu_layers: ALL_GPU_LAYERS,
                     },
                 }

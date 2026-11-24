@@ -1,8 +1,8 @@
 use std::ops::Deref;
 use std::path::Path;
 
-use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
-use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
+use llama_cpp_mtmd::mtmd_context::MtmdContext;
+use llama_cpp_mtmd::mtmd_context_params::MtmdContextParams;
 
 use paddler_agent_runtime::inference_parallelism::InferenceParallelism;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
@@ -41,7 +41,7 @@ impl ResidentMultimodalContext {
         .alongside(|| {
             MtmdContext::init_from_file(
                 &multimodal_projection_path.to_string_lossy(),
-                model,
+                model.llama_model.clone(),
                 &MtmdContextParams::default(),
             )
             .map_err(

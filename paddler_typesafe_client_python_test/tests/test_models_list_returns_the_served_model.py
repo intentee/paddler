@@ -1,8 +1,15 @@
-from pathlib import Path
+from json import load
+from os import environ
+from urllib.request import urlopen
 
 from typesafe_sdk import TypeSafeClient
 
-KEV_0_8B_MODEL_PATH = str(Path(__file__).parents[2] / "target" / "kev_0_8b" / "model.gguf")
+
+def served_model_paths() -> list[str]:
+    with urlopen(f"{environ['PADDLER_MANAGEMENT_URL']}/api/v1/agents") as agents_response:
+        agents_snapshot: dict[str, list[dict[str, dict[str, str]]]] = load(agents_response)
+
+    return [agent["status"]["model_path"] for agent in agents_snapshot["agents"]]
 
 
 def test_models_list_returns_the_served_model(
@@ -10,4 +17,4 @@ def test_models_list_returns_the_served_model(
 ) -> None:
     models = typesafe_client.models.list()
 
-    assert [model.name for model in models.models] == [KEV_0_8B_MODEL_PATH]
+    assert [model.name for model in models.models] == served_model_paths()

@@ -29,31 +29,26 @@ fn a_request_translated_before_the_unix_epoch_is_refused() {
     let responses_request: ResponsesRequest =
         from_value(json!({"model": "test-model", "input": "hi"}))
             .expect("the responses request must deserialize");
-    let clock_before_unix_epoch = OpenAITranslationError::ClockBeforeUnixEpoch(
-        UNIX_EPOCH
-            .duration_since(UNIX_EPOCH + Duration::from_secs(1))
-            .expect_err("the Unix epoch must precede the second after it"),
-    );
 
     let chat_completion_error = chat_completion_request.translate(before_unix_epoch).err();
     let responses_error = responses_request
         .translate(before_unix_epoch, &SamplingParameters::default())
         .err();
 
-    assert_eq!(
-        chat_completion_error.as_ref().map(ToString::to_string),
-        Some(clock_before_unix_epoch.to_string())
-    );
+    assert!(matches!(
+        chat_completion_error,
+        Some(OpenAITranslationError::ClockBeforeUnixEpoch(_))
+    ));
     assert_eq!(
         chat_completion_error
             .as_ref()
             .and_then(clock_error_duration),
         Some(Duration::from_secs(1))
     );
-    assert_eq!(
-        responses_error.as_ref().map(ToString::to_string),
-        Some(clock_before_unix_epoch.to_string())
-    );
+    assert!(matches!(
+        responses_error,
+        Some(OpenAITranslationError::ClockBeforeUnixEpoch(_))
+    ));
     assert_eq!(
         responses_error.as_ref().and_then(clock_error_duration),
         Some(Duration::from_secs(1))

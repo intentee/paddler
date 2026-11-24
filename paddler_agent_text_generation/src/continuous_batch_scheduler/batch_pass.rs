@@ -1,8 +1,8 @@
 use std::iter::once;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::sampled_token::SampledToken;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
@@ -40,11 +40,11 @@ impl<'batch> BatchPass<'batch> {
 
     /// # Errors
     ///
-    /// Returns the [`BatchAddError`] of the first token the batch refuses.
+    /// Returns the [`ContextError`] of the first token the batch refuses.
     pub fn assemble(
         &mut self,
         requests: &[ContinuousBatchActiveRequest<'_>],
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         self.fill_generating(requests)?;
         self.fill_ingesting(requests)?;
 
@@ -59,7 +59,7 @@ impl<'batch> BatchPass<'batch> {
     fn fill_generating(
         &mut self,
         requests: &[ContinuousBatchActiveRequest<'_>],
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         for (request_index, request) in requests.iter().enumerate() {
             let ContinuousBatchRequestPhase::Generating(
                 ContinuousBatchGenerationStep::AwaitingDecode(pending_token),
@@ -71,7 +71,7 @@ impl<'batch> BatchPass<'batch> {
             let batch_position = self.batch.n_tokens();
             let mut token_positions = request.state.current_token_position..;
 
-            for (token, position) in once(pending_token).zip(&mut token_positions) {
+            for (token, position) in once(*pending_token).zip(&mut token_positions) {
                 self.batch.add(
                     token,
                     position,
@@ -93,7 +93,7 @@ impl<'batch> BatchPass<'batch> {
     fn fill_ingesting(
         &mut self,
         requests: &[ContinuousBatchActiveRequest<'_>],
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         for (request_index, request) in requests.iter().enumerate() {
             if !matches!(
                 request.state.phase,
@@ -112,7 +112,7 @@ impl<'batch> BatchPass<'batch> {
                 .sum::<usize>();
             let chunk_size = compute_ingesting_chunk_size(
                 remaining_count,
-                self.batch.limits().n_batch as usize,
+                self.batch.limits().batch as usize,
                 self.contributions.generating.len(),
                 ingesting_token_count,
             );
@@ -134,7 +134,7 @@ impl<'batch> BatchPass<'batch> {
                 last_batch_position = self.batch.n_tokens();
 
                 self.batch.add(
-                    &SampledToken::Content(*token),
+                    SampledToken::Content(*token),
                     position,
                     &[request.sequence_id_guard.sequence_id().llama_sequence_id()],
                     is_last_chunk && chunk.peek().is_none(),
@@ -156,10 +156,10 @@ impl<'batch> BatchPass<'batch> {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::context::context_limits::ContextLimits;
-    use llama_cpp_bindings::llama_batch::LlamaBatch;
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_context::context_limits::ContextLimits;
+    use llama_cpp_context::llama_batch::LlamaBatch;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
 
     use super::BatchPass;
     use super::compute_ingesting_chunk_size;
@@ -168,14 +168,15 @@ mod tests {
     #[test]
     fn new_clears_tokens_left_by_the_previous_pass() {
         let mut batch = LlamaBatch::new(ContextLimits {
-            n_batch: 16,
-            n_ubatch: 16,
-            n_seq_max: 1,
-            n_vocab: 2,
+            batch: 16,
+            micro_batch: 16,
+            max_sequences: 1,
+            vocabulary_size: 2,
+            sliding_window: 0,
         });
 
         batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
+            .add(SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
             .unwrap();
 
         let batch_pass = BatchPass::new(&mut batch);
@@ -187,10 +188,11 @@ mod tests {
     #[test]
     fn assembling_empty_requests_leaves_the_batch_untouched() {
         let mut batch = LlamaBatch::new(ContextLimits {
-            n_batch: 16,
-            n_ubatch: 16,
-            n_seq_max: 1,
-            n_vocab: 2,
+            batch: 16,
+            micro_batch: 16,
+            max_sequences: 1,
+            vocabulary_size: 2,
+            sliding_window: 0,
         });
         let mut pass = BatchPass::new(&mut batch);
         let requests: [ContinuousBatchActiveRequest; 0] = [];

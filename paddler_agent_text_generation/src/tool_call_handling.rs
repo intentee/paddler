@@ -1,6 +1,6 @@
-use llama_cpp_bindings::chat_reading::ChatReading;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_chat::chat_reading::ChatReading;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_token_usage::token_usage::TokenUsage;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 

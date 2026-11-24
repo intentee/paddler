@@ -1,10 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::token_outside_vocabulary::TokenOutsideVocabulary;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
@@ -19,13 +17,13 @@ use paddler_tests::two_option_question::two_option_question;
 fn a_leading_decision_question_token_outside_the_vocabulary_fails_the_decision() {
     let KevDecisionModel {
         delimiter_tokens,
-        pointer_head,
+        option_scorer,
         runtime,
     } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(2)
         .expect("the decision context must be created");
-    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
+    let mut batch = LlamaBatch::new(llama_context.limits());
     let n_vocab = runtime.loaded_llama_model.model.n_vocab();
     let layout = DecisionTokenLayout::new(
         &delimiter_tokens,
@@ -57,32 +55,25 @@ fn a_leading_decision_question_token_outside_the_vocabulary_fails_the_decision()
                 batch: &mut batch,
                 llama_context: &mut llama_context,
             },
-            &pointer_head,
+            &option_scorer,
             None,
         )
         .expect("the decision must advance");
 
-    assert_eq!(
-        active_decision_request
-            .advance(
-                &mut DecisionDecoder {
-                    batch: &mut batch,
-                    llama_context: &mut llama_context,
-                },
-                &pointer_head,
-                None,
-            )
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            DecisionError::BatchAssemblyFailed(BatchAddError::TokenOutsideVocabulary(
-                TokenOutsideVocabulary {
-                    token: LlamaToken::new(n_vocab),
-                    n_vocab,
-                }
-            ))
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        active_decision_request.advance(
+            &mut DecisionDecoder {
+                batch: &mut batch,
+                llama_context: &mut llama_context,
+            },
+            &option_scorer,
+            None,
+        ),
+        Err(DecisionError::BatchAssemblyFailed(
+            ContextError::TokenOutsideVocabulary {
+                token,
+                n_vocab: reported_n_vocab,
+            }
+        )) if token == LlamaToken::new(n_vocab) && reported_n_vocab == n_vocab
+    ));
 }

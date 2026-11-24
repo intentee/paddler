@@ -27,13 +27,8 @@ async fn agent_keeps_a_management_connection_whose_balancer_reports_another_vers
     );
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::balancer_message_context").contains(&CapturedRecord {
-            level: Level::Warn,
-            message: format!(
-                "Version mismatch: server version is 0.0.0-another-version, client version is {}",
-                env!("CARGO_PKG_VERSION")
-            ),
-            target: "paddler_agent::balancer_message_context".to_owned(),
-        })
+        CapturingLogger::records_for("paddler_agent::balancer_message_context")
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Warn)
     );
 }

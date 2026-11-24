@@ -14,14 +14,10 @@ async fn a_pipeline_that_fails_to_start_is_retried_until_it_is_stuck() {
 
     assert_eq!(
         [
-            arbiter_under_test.conclude_next_progress().await,
-            arbiter_under_test.conclude_next_progress().await,
-            arbiter_under_test.conclude_next_progress().await,
-            arbiter_under_test.conclude_next_progress().await,
+            arbiter_under_test.conclude_next_startup().await,
+            arbiter_under_test.conclude_next_startup().await,
         ],
         [
-            AgentStateApplicationStatus::Fresh,
-            AgentStateApplicationStatus::AttemptedAndRetrying,
             AgentStateApplicationStatus::AttemptedAndRetrying,
             AgentStateApplicationStatus::Stuck,
         ]

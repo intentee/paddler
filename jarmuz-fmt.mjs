@@ -10,7 +10,6 @@ jarmuz({
     "paddler_agent",
     "paddler_agent_decision",
     "paddler_agent_embeddings",
-    "paddler_agent_pointer_head",
     "paddler_agent_runtime",
     "paddler_agent_runtime_tests",
     "paddler_agent_status",

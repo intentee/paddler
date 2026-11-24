@@ -40,12 +40,12 @@ async fn an_http_service_reports_a_server_it_cannot_start_serving() {
     .await
     .expect_err("a server that cannot create its event poll must not serve");
 
-    assert_eq!(
-        service_error.to_string(),
-        format!("Unable to serve {SERVICE_NAME} on {local_addr}")
-    );
     assert!(matches!(
         service_error,
-        BalancerError::HttpServiceFailed { source, .. } if source.raw_os_error() == Some(EPERM)
+        BalancerError::HttpServiceFailed {
+            local_addr: failed_local_addr,
+            service_name: SERVICE_NAME,
+            source,
+        } if failed_local_addr == local_addr && source.raw_os_error() == Some(EPERM)
     ));
 }

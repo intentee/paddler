@@ -1,8 +1,7 @@
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-
+use crate::conversation_chat_templates::ConversationChatTemplates;
 use crate::image_input::ImageInput;
 
 pub struct ConversationPromptSupport {
-    pub chat_templates: ChatTemplates,
+    pub chat_templates: ConversationChatTemplates,
     pub image_input: ImageInput,
 }

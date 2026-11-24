@@ -1,8 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
@@ -25,7 +24,7 @@ fn a_decision_whose_state_sequence_cannot_be_released_still_reports_its_outcome(
     let mut llama_context = runtime
         .create_decision_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the decision context must be created");
-    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
+    let mut batch = LlamaBatch::new(llama_context.limits());
     let layout = DecisionTokenLayout::new(
         &delimiter_tokens,
         vec![LlamaToken::new(0)],

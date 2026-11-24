@@ -48,20 +48,10 @@ async fn inference_socket_connection_drops_pending_requests_when_the_balancer_is
         .kill()
         .expect("the balancer must be killed while the request is pending");
 
-    assert_eq!(
-        response_rx
-            .recv()
-            .await
-            .and_then(Result::err)
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            Error::ConnectionDropped {
-                request_id: PENDING_REQUEST_ID.to_owned(),
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        response_rx.recv().await,
+        Some(Err(Error::ConnectionDropped { request_id })) if request_id == PENDING_REQUEST_ID
+    ));
 
     cluster
         .shutdown()

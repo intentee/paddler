@@ -4,8 +4,8 @@ use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 #[test]
 fn a_model_keeps_its_vram_occupancy_until_its_last_clone_is_dropped() {
@@ -17,7 +17,9 @@ fn a_model_keeps_its_vram_occupancy_until_its_last_clone_is_dropped() {
     let resident_model = LoadedLlamaModel::load(
         &inference_runtime_context,
         LlamaModelSettings {
-            model_path: KevCheckpoint::Kev0_8b.target_path("model.gguf"),
+            model_path: kev_0_8b()
+                .cached_path()
+                .expect("the kev model must be in the Hugging Face cache"),
             n_gpu_layers: ALL_GPU_LAYERS,
         },
     )

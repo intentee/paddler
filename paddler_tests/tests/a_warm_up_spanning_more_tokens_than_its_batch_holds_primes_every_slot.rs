@@ -1,13 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context_memory::context_memory::ContextMemory as _;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 const SLOTS: u16 = 2;
@@ -15,7 +15,9 @@ const SLOTS: u16 = 2;
 #[test]
 fn a_warm_up_spanning_more_tokens_than_its_batch_holds_primes_every_slot() {
     let mut runtime = LlamaRuntime::load(
-        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
+        &kev_0_8b()
+            .cached_path()
+            .expect("the kev model must be in the Hugging Face cache"),
         agent_inference_runtime_context(SLOTS),
     )
     .expect("the kev model must load");
@@ -26,23 +28,19 @@ fn a_warm_up_spanning_more_tokens_than_its_batch_holds_primes_every_slot() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(u32::from(SLOTS))
         .expect("the context must be created");
-    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
+    let mut batch = LlamaBatch::new(llama_context.limits());
 
-    assert_eq!(
-        runtime
-            .loaded_llama_model
-            .warm_up_llama_context(&mut llama_context, &mut batch)
-            .as_ref()
-            .map_err(ToString::to_string),
-        Ok(&())
-    );
+    runtime
+        .loaded_llama_model
+        .warm_up_llama_context(&mut llama_context, &mut batch)
+        .expect("the warm-up must prime every slot");
 
     batch.clear();
 
     for sequence_id in 0..i32::from(SLOTS) {
         batch
             .add(
-                &SampledToken::Content(LlamaToken::new(0)),
+                SampledToken::Content(LlamaToken::new(0)),
                 0,
                 &[sequence_id],
                 true,

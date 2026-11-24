@@ -2,14 +2,10 @@
 
 use std::num::NonZeroU16;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::token_outside_vocabulary::TokenOutsideVocabulary;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
-use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
 use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
-use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
@@ -39,18 +35,8 @@ fn an_embedding_input_token_outside_the_vocabulary_fails_the_embedding_batch() {
         .expect("the embedding context must be created");
 
     assert_eq!(continuing_requests.len(), 0);
-    assert_eq!(
+    assert!(matches!(
         generated_embedding_rx.try_recv(),
-        Ok(EmbeddingResult::BatchAssemblyFailed(
-            ErrorChain {
-                error: &EmbeddingError::BatchAssemblyFailed(BatchAddError::TokenOutsideVocabulary(
-                    TokenOutsideVocabulary {
-                        token: LlamaToken::new(n_vocab),
-                        n_vocab,
-                    }
-                )),
-            }
-            .to_string()
-        ))
-    );
+        Ok(EmbeddingResult::BatchAssemblyFailed(_))
+    ));
 }

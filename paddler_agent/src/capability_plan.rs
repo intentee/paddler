@@ -46,15 +46,15 @@ mod tests {
     #[tokio::test]
     async fn keeps_a_capability_whose_settings_did_not_change() {
         assert_eq!(
-            discriminant(&CapabilityPlan::retaining(ServedDecisions::Disabled, &1, &1).await),
-            discriminant(&CapabilityPlan::Keep(ServedDecisions::Disabled))
+            discriminant(&CapabilityPlan::retaining(ServedDecisions::NotServed, &1, &1).await),
+            discriminant(&CapabilityPlan::Keep(ServedDecisions::NotServed))
         );
     }
 
     #[tokio::test]
     async fn restarts_a_capability_whose_settings_changed() {
         assert_eq!(
-            discriminant(&CapabilityPlan::retaining(ServedDecisions::Disabled, &1, &2).await),
+            discriminant(&CapabilityPlan::retaining(ServedDecisions::NotServed, &1, &2).await),
             discriminant(&CapabilityPlan::<ServedDecisions>::Start)
         );
     }

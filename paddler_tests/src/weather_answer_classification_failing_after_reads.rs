@@ -2,11 +2,10 @@ use std::num::NonZeroU32;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS;
+use llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
@@ -70,7 +69,8 @@ impl WeatherAnswerClassificationFailingAfterReads {
     ) -> Result<ContinuousBatchTerminalOutcome> {
         let model = &runtime.loaded_llama_model.model;
 
-        ChatTemplates::new(model)
+        model
+            .chat_templates()
             .context("the model must embed a chat template")
             .and_then(|chat_templates| {
                 let _classification_fails = ArmedFault::after_passing(
@@ -78,7 +78,7 @@ impl WeatherAnswerClassificationFailingAfterReads {
                     self.reads_that_succeed,
                 );
 
-                weather_chat_session(model, &chat_templates)
+                weather_chat_session(model, chat_templates)
                     .context("the model's template must serve the weather question")
                     .and_then(|chat_session| {
                         LlamaSampler::greedy()

@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::llama_backend::LlamaBackend;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::params::LlamaModelParams;
+use llama_cpp_backend::llama_backend::LlamaBackend;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 
 use paddler_agent_runtime::shared_llama_backend::SharedLlamaBackend;
 

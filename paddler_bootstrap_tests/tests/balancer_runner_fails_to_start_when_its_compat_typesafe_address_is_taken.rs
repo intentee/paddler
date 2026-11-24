@@ -1,4 +1,3 @@
-use std::io::Error as IoError;
 use std::io::ErrorKind;
 
 use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
@@ -23,13 +22,9 @@ async fn balancer_runner_fails_to_start_when_its_compat_typesafe_address_is_take
     .await
     .expect("starting a runner on a taken address must fail");
 
-    assert_eq!(
-        start_attempt.start_error.to_string(),
-        BootstrapError::CompatTypeSafeBindFailed {
-            addr: start_attempt.taken_addr,
-            source: IoError::from(ErrorKind::AddrInUse),
-        }
-        .to_string()
-    );
+    assert!(matches!(
+        start_attempt.start_error,
+        BootstrapError::CompatTypeSafeBindFailed { addr, .. } if addr == start_attempt.taken_addr
+    ));
     assert_eq!(start_attempt.bind_error_kind(), Some(ErrorKind::AddrInUse));
 }

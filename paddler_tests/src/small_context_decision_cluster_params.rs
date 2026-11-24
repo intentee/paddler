@@ -10,7 +10,6 @@ pub fn small_context_decision_cluster_params() -> DecisionClusterParams {
         desired_state: DecisionDesiredState {
             context_size: SMALL_DECISION_CONTEXT_SIZE,
             n_batch: BatchSize::default().at_most(SMALL_DECISION_CONTEXT_SIZE),
-            ..DecisionDesiredState::default()
         },
         ..DecisionClusterParams::default()
     }

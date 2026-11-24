@@ -1,7 +1,8 @@
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory as _;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
 
 use paddler_agent_runtime::sequence_id::SequenceId;
 
@@ -18,7 +19,7 @@ impl DecisionDecoder<'_, '_> {
     ///
     /// Returns [`DecisionError::KvCacheRemovalFailed`] when the destination sequence cannot be cleared, and [`DecisionError::KvCacheCopyFailed`] when llama.cpp cannot copy the source sequence into it.
     pub fn copy_sequence(
-        &mut self,
+        &self,
         source_sequence_id: SequenceId,
         destination_sequence_id: SequenceId,
     ) -> Result<(), DecisionError> {
@@ -57,7 +58,7 @@ impl DecisionDecoder<'_, '_> {
         for ((position, token), row_offset) in row_chunk {
             self.batch
                 .add(
-                    &SampledToken::Content(*token),
+                    SampledToken::Content(*token),
                     position,
                     &[sequence_id.llama_sequence_id()],
                     row.is_output(row_offset),
@@ -98,7 +99,7 @@ impl DecisionDecoder<'_, '_> {
         {
             self.batch
                 .add(
-                    &SampledToken::Content(*token),
+                    SampledToken::Content(*token),
                     position,
                     &[sequence_id.llama_sequence_id()],
                     false,
@@ -116,7 +117,7 @@ impl DecisionDecoder<'_, '_> {
     /// # Errors
     ///
     /// Returns [`DecisionError::KvCacheRemovalFailed`] when llama.cpp cannot remove the sequence from the KV cache.
-    pub fn remove_sequence(&mut self, sequence_id: SequenceId) -> Result<(), DecisionError> {
+    pub fn remove_sequence(&self, sequence_id: SequenceId) -> Result<(), DecisionError> {
         sequence_id
             .clear_kv_cache_in(self.llama_context)
             .map_err(DecisionError::KvCacheRemovalFailed)
@@ -140,6 +141,6 @@ impl DecisionDecoder<'_, '_> {
     }
 
     const fn tokens_per_decode(&self) -> usize {
-        self.batch.limits().n_batch as usize
+        self.batch.limits().batch as usize
     }
 }

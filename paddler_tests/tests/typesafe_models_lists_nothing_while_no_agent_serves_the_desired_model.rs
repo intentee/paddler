@@ -1,27 +1,16 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
-use paddler_tests::desired_state_serving_decisions::desired_state_serving_decisions;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_models_lists_nothing_while_no_agent_serves_the_desired_model() {
-    let cluster = start_cluster(ClusterParams {
-        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model: AgentDesiredModel::Uri(
-                "https://huggingface.co/intentee/kev/blob/main/kev-0.8b.gguf".to_owned(),
-            ),
-            ..desired_state_serving_decisions()
-        })),
-        ..cluster_without_agents_serving_decisions()
-    })
-    .await
-    .expect("the cluster must start");
+    let cluster_with_a_downloading_agent =
+        ClusterWithAnAgentDownloadingItsModel::start(ClusterParams::default())
+            .await
+            .expect("a cluster whose agent downloads its model must start");
+    let cluster = &cluster_with_a_downloading_agent.cluster;
     let response = cluster
         .typesafe_models()
         .await
@@ -30,7 +19,7 @@ async fn typesafe_models_lists_nothing_while_no_agent_serves_the_desired_model()
     assert_eq!(response.status, StatusCode::OK);
     assert_eq!(response.body, json!({"models": []}));
 
-    cluster
+    cluster_with_a_downloading_agent
         .shutdown()
         .await
         .expect("the cluster must shut down cleanly");

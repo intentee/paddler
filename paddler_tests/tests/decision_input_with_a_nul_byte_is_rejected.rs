@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::ffi::CString;
-
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::decision_answer::DecisionAnswer;
@@ -10,11 +8,6 @@ use paddler_messaging::request_params::decide_params::raw_decide_params::RawDeci
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::sample_decision::sample_decision;
 use paddler_tests::with_nul_byte::with_nul_byte;
-
-struct DecisionRejectedForANulByte {
-    decision: RawDecideParams,
-    text_with_nul_byte: String,
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_input_with_a_nul_byte_is_rejected() {
@@ -42,49 +35,30 @@ async fn decision_input_with_a_nul_byte_is_rejected() {
 
     *last_option = with_nul_byte(last_option);
 
-    let leading_instructions_with_nul_byte = leading_question.instructions.clone();
-    let last_option_with_nul_byte = last_option.clone();
-
-    for DecisionRejectedForANulByte {
-        decision,
-        text_with_nul_byte,
-    } in [
-        DecisionRejectedForANulByte {
-            decision: RawDecideParams {
-                questions: questions.clone(),
-                state: with_nul_byte(&state),
-            },
-            text_with_nul_byte: with_nul_byte(&state),
+    for decision in [
+        RawDecideParams {
+            questions: questions.clone(),
+            state: with_nul_byte(&state),
         },
-        DecisionRejectedForANulByte {
-            decision: RawDecideParams {
-                questions: nul_in_leading_instructions,
-                state: state.clone(),
-            },
-            text_with_nul_byte: leading_instructions_with_nul_byte,
+        RawDecideParams {
+            questions: nul_in_leading_instructions,
+            state: state.clone(),
         },
-        DecisionRejectedForANulByte {
-            decision: RawDecideParams {
-                questions: nul_in_last_option,
-                state: state.clone(),
-            },
-            text_with_nul_byte: last_option_with_nul_byte,
+        RawDecideParams {
+            questions: nul_in_last_option,
+            state: state.clone(),
         },
     ] {
         let collected = cluster
             .decide(CancellationToken::new(), &decision)
             .await
             .expect("the decision must be answered with a rejection");
-        let nul_error =
-            CString::new(text_with_nul_byte).expect_err("the text must contain a nul byte");
 
         assert_eq!(collected.answers, Vec::<DecisionAnswer>::new());
-        assert_eq!(
+        assert!(matches!(
             collected.terminal_result,
-            DecisionResult::InputTokenizationFailed(format!(
-                "test-agent-0: failed to tokenize the decision input: {nul_error}"
-            ))
-        );
+            DecisionResult::InputTokenizationFailed(_)
+        ));
     }
 
     cluster

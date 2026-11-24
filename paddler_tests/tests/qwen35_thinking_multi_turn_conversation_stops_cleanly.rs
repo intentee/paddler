@@ -4,20 +4,44 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
-use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use paddler_tests::start_cluster::start_cluster;
+
+const LLAMA_CPP_DEFAULT_PENALTY_WINDOW: i32 = 64;
+const QWEN3_5_THINKING_PRESENCE_PENALTY: f32 = 1.5;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() {
-    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false)
-        .await
-        .expect("the cluster must start");
+    let qwen3_5_desired_state = qwen3_5_0_8b().into_desired_state();
+    let cluster = start_cluster(ClusterParams {
+        agents: vec![AgentConfig::single(1)],
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            text_generation: BalancerTextGenerationSettings {
+                sampling_parameters: SamplingParameters {
+                    penalty_last_n: LLAMA_CPP_DEFAULT_PENALTY_WINDOW,
+                    penalty_presence: QWEN3_5_THINKING_PRESENCE_PENALTY,
+                    ..SamplingParameters::deterministic()
+                },
+                ..qwen3_5_desired_state.text_generation.clone()
+            },
+            ..qwen3_5_desired_state
+        })),
+        ..ClusterParams::default()
+    })
+    .await
+    .expect("the cluster must start");
 
     let conversation_history = ConversationHistory::new(vec![
         ConversationMessage::Message {

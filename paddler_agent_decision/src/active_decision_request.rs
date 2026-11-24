@@ -2,10 +2,9 @@ use std::collections::VecDeque;
 use std::mem;
 use std::time::Instant;
 
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 use tokio::sync::mpsc;
 
-use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_runtime::receives_stop_request::ReceivesStopRequest as _;
 use paddler_agent_runtime::sequence_id::SequenceId;
 use paddler_agent_runtime::sequence_id_guard::SequenceIdGuard;
@@ -21,6 +20,7 @@ use crate::decision_error::DecisionError;
 use crate::decision_question_row::DecisionQuestionRow;
 use crate::decision_request_phase::DecisionRequestPhase;
 use crate::decision_token_layout::DecisionTokenLayout;
+use crate::kev_option_scorer::KevOptionScorer;
 use crate::prepared_decision_request::PreparedDecisionRequest;
 use crate::question_lane::QuestionLane;
 use crate::reports_decision_outcome::ReportsDecisionOutcome;
@@ -84,7 +84,7 @@ impl ActiveDecisionRequest {
     pub fn advance(
         &mut self,
         decoder: &mut DecisionDecoder,
-        pointer_head: &PointerHead,
+        option_scorer: &KevOptionScorer,
         agent_name: Option<&str>,
     ) -> Result<DecisionAdvance, DecisionError> {
         match self.phase {
@@ -109,14 +109,14 @@ impl ActiveDecisionRequest {
 
                     self.answer_leading_question(
                         decoder,
-                        pointer_head,
+                        option_scorer,
                         agent_name,
                         lane_sequence_id,
                         next_offset,
                     )
                 }
                 QuestionLane::Released => {
-                    self.answer_last_question(decoder, pointer_head, agent_name, next_offset)
+                    self.answer_last_question(decoder, option_scorer, agent_name, next_offset)
                 }
             },
         }
@@ -151,7 +151,7 @@ impl ActiveDecisionRequest {
     fn answer_last_question(
         &mut self,
         decoder: &mut DecisionDecoder,
-        pointer_head: &PointerHead,
+        option_scorer: &KevOptionScorer,
         agent_name: Option<&str>,
         next_offset: usize,
     ) -> Result<DecisionAdvance, DecisionError> {
@@ -164,7 +164,7 @@ impl ActiveDecisionRequest {
             return Ok(DecisionAdvance::Continuing);
         }
 
-        self.send_answer(pointer_head)?;
+        self.send_answer(option_scorer)?;
 
         Ok(self.finish_question(decoder, agent_name))
     }
@@ -172,7 +172,7 @@ impl ActiveDecisionRequest {
     fn answer_leading_question(
         &mut self,
         decoder: &mut DecisionDecoder,
-        pointer_head: &PointerHead,
+        option_scorer: &KevOptionScorer,
         agent_name: Option<&str>,
         lane_sequence_id: SequenceId,
         next_offset: usize,
@@ -189,7 +189,7 @@ impl ActiveDecisionRequest {
             return Ok(DecisionAdvance::Continuing);
         }
 
-        self.send_answer(pointer_head)?;
+        self.send_answer(option_scorer)?;
 
         Ok(self.finish_question(decoder, agent_name))
     }
@@ -242,8 +242,8 @@ impl ActiveDecisionRequest {
         }
     }
 
-    fn send_answer(&mut self, pointer_head: &PointerHead) -> Result<(), DecisionError> {
-        let probabilities = pointer_head.option_probabilities(&self.hidden_states);
+    fn send_answer(&mut self, option_scorer: &KevOptionScorer) -> Result<(), DecisionError> {
+        let probabilities = option_scorer.option_probabilities(&self.hidden_states);
 
         self.hidden_states.clear();
         self.decision_result_tx

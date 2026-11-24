@@ -1,7 +1,7 @@
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::token_piece::TokenPiece;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
 pub struct ClassifiedToken {
     pub sampled_token: SampledToken,
@@ -36,10 +36,10 @@ impl ClassifiedToken {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-    use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
     use super::ClassifiedToken;
 

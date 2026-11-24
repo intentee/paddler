@@ -5,17 +5,17 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::embedding_documents_fixture::EmbeddingDocumentsFixture;
-use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 const DOCUMENT_COUNT: usize = 64;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_embedding_request_accepted_before_its_scheduler_stops_is_finished() {
-    let KevModelServingWithoutDecisions {
+    let ModelServingTextGenerationAndEmbeddings {
         llama_runtime,
         served_model,
         ..
-    } = KevModelServingWithoutDecisions::start(&CancellationToken::new())
+    } = ModelServingTextGenerationAndEmbeddings::start(&CancellationToken::new())
         .await
         .expect("the model must load")
         .expect("text generation and embeddings must start");
@@ -34,8 +34,7 @@ async fn an_embedding_request_accepted_before_its_scheduler_stops_is_finished() 
     served_model
         .capabilities
         .embeddings
-        .request_preparer
-        .prepare(agent_request);
+        .forward(None, agent_request);
     served_model.shut_down().await;
 
     let embedding_results =

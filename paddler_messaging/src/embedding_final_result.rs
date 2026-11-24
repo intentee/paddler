@@ -5,6 +5,7 @@ pub enum EmbeddingFinalResult {
     DecodeFailed(String),
     Done,
     EmbeddingTooLongForRmsNormalization(String),
+    EmbeddingsNotServed(String),
     EmbeddingsUnavailable(String),
     InputTokenizationFailed(String),
     ModelNotLoaded(String),

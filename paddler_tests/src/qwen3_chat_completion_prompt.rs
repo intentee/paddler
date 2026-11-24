@@ -2,13 +2,12 @@ use std::time::SystemTime;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings_types::chat_message::ChatMessage;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_model::llama_model::LlamaModel;
 use serde_json::Value;
 use serde_json::from_value;
 
@@ -48,12 +47,13 @@ fn conversation_messages(chat_completion_request: Value) -> Result<Vec<ChatMessa
 fn rendered_prompt(model: &LlamaModel, chat_completion_request: Value) -> Result<String> {
     conversation_messages(chat_completion_request)
         .and_then(|messages| {
-            ChatTemplates::new(model)
+            model
+                .chat_templates()
                 .context("the Qwen3 chat template must compile")
                 .and_then(|chat_templates| {
                     ChatSession::new(
                         model,
-                        &chat_templates,
+                        chat_templates,
                         &messages,
                         &[],
                         &ChatSessionOptions {

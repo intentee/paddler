@@ -21,13 +21,10 @@ async fn cluster_harness_reports_the_end_of_a_snapshots_stream() {
 
     let observation = agents_watcher.until(|_snapshot| false).await;
 
-    assert_eq!(
-        observation.err().map(|stream_end| stream_end.to_string()),
-        Some(
-            ClusterHarnessError::SnapshotsStreamClosed {
-                snapshots_stream: SnapshotsStream::Agents
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        observation,
+        Err(ClusterHarnessError::SnapshotsStreamClosed {
+            snapshots_stream: SnapshotsStream::Agents
+        })
+    ));
 }

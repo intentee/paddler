@@ -2,13 +2,13 @@ use std::num::NonZeroU32;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
+use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 
 use crate::admitted_decision::AdmittedDecision;
@@ -24,7 +24,7 @@ impl KevDecisionInAKvCache {
     /// # Errors
     ///
     /// Returns an error when the kev decision model cannot load, when its decision context cannot be created, and when the decision is not admitted.
-    pub fn first_two_advances(&self) -> Result<Vec<Result<DecisionAdvance, String>>> {
+    pub fn first_two_advances(&self) -> Result<Vec<Result<DecisionAdvance, DecisionError>>> {
         KevDecisionModel::load(1)
             .and_then(|kev_decision_model| self.advance_twice(kev_decision_model))
     }
@@ -33,17 +33,17 @@ impl KevDecisionInAKvCache {
         &self,
         KevDecisionModel {
             delimiter_tokens,
-            pointer_head,
+            option_scorer,
             mut runtime,
         }: KevDecisionModel,
-    ) -> Result<Vec<Result<DecisionAdvance, String>>> {
+    ) -> Result<Vec<Result<DecisionAdvance, DecisionError>>> {
         runtime.model_runtime_parameters.context_size = self.cache_cells;
 
         runtime
             .create_decision_llama_context(1)
             .context("the decision context must be created")
             .and_then(|mut llama_context| {
-                let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
+                let mut batch = LlamaBatch::new(llama_context.limits());
 
                 AdmittedDecision::admit(
                     &DecisionCapacityLedger::new(1),
@@ -67,16 +67,14 @@ impl KevDecisionInAKvCache {
                      }| {
                         (0..2)
                             .map(|_advance_index| {
-                                active_decision_request
-                                    .advance(
-                                        &mut DecisionDecoder {
-                                            batch: &mut batch,
-                                            llama_context: &mut llama_context,
-                                        },
-                                        &pointer_head,
-                                        None,
-                                    )
-                                    .map_err(|decision_error| decision_error.to_string())
+                                active_decision_request.advance(
+                                    &mut DecisionDecoder {
+                                        batch: &mut batch,
+                                        llama_context: &mut llama_context,
+                                    },
+                                    &option_scorer,
+                                    None,
+                                )
                             })
                             .collect()
                     },

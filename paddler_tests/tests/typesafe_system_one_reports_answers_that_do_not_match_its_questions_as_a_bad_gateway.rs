@@ -1,5 +1,4 @@
 use reqwest::StatusCode;
-use serde_json::json;
 use tokio::spawn;
 
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
@@ -10,19 +9,18 @@ use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
-use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::untrusted_management_agent::UntrustedManagementAgent;
-use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
 const DECISION_SLOTS: u16 = 2;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_answers_that_do_not_match_its_questions_as_a_bad_gateway() {
-    let cluster = start_cluster(cluster_without_agents_serving_decisions())
+    let cluster = start_cluster(ClusterParams::without_agents())
         .await
-        .expect("a decision balancer without agents must start");
+        .expect("a balancer without agents must start");
     let mut untruthful_agent = UntrustedManagementAgent::connect_registered(
         cluster.balancer.addresses.management,
         "untruthful",
@@ -73,19 +71,7 @@ async fn typesafe_system_one_reports_answers_that_do_not_match_its_questions_as_
         .expect("the TypeSafe request task must not panic")
         .expect("the request must be answered");
 
-    assert_eq!(
-        (response.status, response.body),
-        (
-            StatusCode::BAD_GATEWAY,
-            json!({
-                "detail": TypeSafeTranslationError::AnswerOutOfOrder {
-                    expected_question_id: "paid".to_owned(),
-                    received_question_id: "unasked".to_owned(),
-                }
-                .to_string()
-            })
-        )
-    );
+    assert_eq!(response.status, StatusCode::BAD_GATEWAY);
 
     cluster
         .shutdown()

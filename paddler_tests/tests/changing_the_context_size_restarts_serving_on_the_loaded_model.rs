@@ -5,25 +5,23 @@ use std::num::NonZeroU32;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
+use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_tests::swappable_model_file::SwappableModelFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn changing_the_context_size_restarts_serving_on_the_loaded_model() {
-    let swappable_model_file =
-        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"))
-            .expect("the model must be linked into a swappable model file");
+    let swappable_model_file = SwappableModelFile::link_to(
+        &qwen3_5_0_8b()
+            .cached_path()
+            .expect("the Qwen3.5 model must be in the Hugging Face cache"),
+    )
+    .expect("the model must be linked into a swappable model file");
     let initial_desired_state = BalancerDesiredState {
-        decision: DecisionSettings::default(),
         model: swappable_model_file
             .agent_desired_model()
             .expect("the swappable model file must be at an absolute path"),
-        ..KevCheckpoint::Kev0_8b
-            .decision_desired_state()
-            .into_balancer_desired_state()
-            .expect("the kev desired state must name absolute paths")
+        ..qwen3_5_0_8b().into_desired_state()
     };
     let mut serving_pipeline_arbiter =
         ServingPipelineArbiter::new(1).expect("the model downloader must start");

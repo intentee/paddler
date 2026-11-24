@@ -2,7 +2,6 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_failed_params::HuggingFaceDownloadFailedParams;
 use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 
 #[derive(Debug)]
@@ -15,9 +14,6 @@ pub enum AgentIssueFix {
     ModelDownloadCompleted(ModelPath),
     ModelDownloadStarted(ModelPath),
     MultimodalProjectionIsLoaded(ModelPath),
-    PointerHeadFileExists(ModelPath),
-    PointerHeadIsCompatibleWithModel(ModelPath),
-    PointerHeadIsLoaded(ModelPath),
     SlotStarted(u32),
 }
 
@@ -60,8 +56,7 @@ impl AgentIssueFix {
             },
             AgentIssue::LocalModelFileCannotBeChecked(issue_model_path) => match self {
                 Self::ModelFileExists(fix_model_path)
-                | Self::MultimodalProjectionIsLoaded(fix_model_path)
-                | Self::PointerHeadFileExists(fix_model_path) => {
+                | Self::MultimodalProjectionIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
                 _ => false,
@@ -75,6 +70,8 @@ impl AgentIssueFix {
             },
             AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(_)
             | AgentIssue::AgentModelUriIsNotCanonical(_)
+            | AgentIssue::DecisionModelIsMalformed(_)
+            | AgentIssue::DecisionTypeIsUnsupported(_)
             | AgentIssue::HuggingFaceModelUriIsMalformed(_)
             | AgentIssue::ModelUriIsUnparseable(_)
             | AgentIssue::SlotsInsufficientForDecisions(_)
@@ -82,24 +79,6 @@ impl AgentIssueFix {
             AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
                 matches!(self, Self::MultimodalProjectionIsLoaded(_))
             }
-            AgentIssue::PointerHeadCannotBeLoaded(issue_pointer_head_path) => match self {
-                Self::PointerHeadFileExists(fix_pointer_head_path)
-                | Self::PointerHeadIsLoaded(fix_pointer_head_path) => {
-                    issue_pointer_head_path.eq(fix_pointer_head_path)
-                }
-                _ => false,
-            },
-            AgentIssue::PointerHeadIncompatibleWithModel(
-                PointerHeadIncompatibleWithModelParams {
-                    incompatibility: _,
-                    pointer_head_path: issue_pointer_head_path,
-                },
-            ) => match self {
-                Self::PointerHeadIsCompatibleWithModel(fix_pointer_head_path) => {
-                    issue_pointer_head_path.eq(fix_pointer_head_path)
-                }
-                _ => false,
-            },
             AgentIssue::SlotCannotStart(SlotCannotStartParams {
                 error: _,
                 inference_capability: _,
@@ -142,8 +121,6 @@ mod tests {
     use paddler_messaging::agent_issue_params::hugging_face_download_failure::HuggingFaceDownloadFailure;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
-    use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
-    use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
     use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
     use paddler_messaging::inference_capability::InferenceCapability;
@@ -159,6 +136,8 @@ mod tests {
                 canonical_uri: "agent:///model_a".to_owned(),
                 model_path: issue_path.clone(),
             }),
+            AgentIssue::DecisionModelIsMalformed(issue_path.clone()),
+            AgentIssue::DecisionTypeIsUnsupported(issue_path.clone()),
             AgentIssue::HuggingFaceModelUriIsMalformed(issue_path.clone()),
             AgentIssue::ModelUriIsUnparseable(issue_path.clone()),
             AgentIssue::SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams {
@@ -175,10 +154,7 @@ mod tests {
             AgentIssueFix::ModelDownloadStarted(issue_path.clone()),
             AgentIssueFix::ModelFileExists(issue_path.clone()),
             AgentIssueFix::ModelIsLoaded(issue_path.clone()),
-            AgentIssueFix::MultimodalProjectionIsLoaded(issue_path.clone()),
-            AgentIssueFix::PointerHeadFileExists(issue_path.clone()),
-            AgentIssueFix::PointerHeadIsCompatibleWithModel(issue_path.clone()),
-            AgentIssueFix::PointerHeadIsLoaded(issue_path),
+            AgentIssueFix::MultimodalProjectionIsLoaded(issue_path),
             AgentIssueFix::SlotStarted(0),
         ];
 
@@ -190,67 +166,10 @@ mod tests {
     }
 
     #[test]
-    fn pointer_head_file_exists_fixes_only_the_pointer_head_it_names() {
-        let fix = AgentIssueFix::PointerHeadFileExists(ModelPath::from("pointer_head_a"));
-
-        assert!(
-            fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(ModelPath::from(
-                "pointer_head_a"
-            )))
-        );
-        assert!(
-            !fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(ModelPath::from(
-                "pointer_head_b"
-            )))
-        );
-    }
-
-    #[test]
-    fn pointer_head_is_loaded_fixes_only_the_pointer_head_it_names() {
-        let fix = AgentIssueFix::PointerHeadIsLoaded(ModelPath::from("pointer_head_a"));
-
-        assert!(
-            fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(ModelPath::from(
-                "pointer_head_a"
-            )))
-        );
-        assert!(
-            !fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(ModelPath::from(
-                "pointer_head_b"
-            )))
-        );
-    }
-
-    #[test]
-    fn pointer_head_is_compatible_with_model_fixes_only_the_incompatibility_of_the_pointer_head_it_names()
-     {
-        let fix =
-            AgentIssueFix::PointerHeadIsCompatibleWithModel(ModelPath::from("pointer_head_a"));
-        let incompatibility_of = |pointer_head_path: &str| {
-            AgentIssue::PointerHeadIncompatibleWithModel(PointerHeadIncompatibleWithModelParams {
-                incompatibility: PointerHeadIncompatibility::HiddenSizeMismatch {
-                    model_hidden_size: 1024,
-                    pointer_head_hidden_size: 512,
-                },
-                pointer_head_path: ModelPath::from(pointer_head_path),
-            })
-        };
-
-        assert!(fix.can_fix(&incompatibility_of("pointer_head_a")));
-        assert!(!fix.can_fix(&incompatibility_of("pointer_head_b")));
-        assert!(
-            !fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(ModelPath::from(
-                "pointer_head_a"
-            )))
-        );
-    }
-
-    #[test]
     fn a_local_model_file_that_cannot_be_checked_is_cleared_once_that_file_is_found() {
         let found_file_fixes = [
             AgentIssueFix::ModelFileExists(ModelPath::from("model_a")),
             AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath::from("model_a")),
-            AgentIssueFix::PointerHeadFileExists(ModelPath::from("model_a")),
         ];
 
         for fix in &found_file_fixes {
@@ -277,8 +196,6 @@ mod tests {
             AgentIssueFix::ModelDownloadCompleted(ModelPath::from("model_a")),
             AgentIssueFix::ModelDownloadStarted(ModelPath::from("model_a")),
             AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a")),
-            AgentIssueFix::PointerHeadIsCompatibleWithModel(ModelPath::from("model_a")),
-            AgentIssueFix::PointerHeadIsLoaded(ModelPath::from("model_a")),
             AgentIssueFix::SlotStarted(0),
         ];
 

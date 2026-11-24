@@ -1,9 +1,9 @@
 use std::num::NonZeroU32;
 use std::vec::IntoIter;
 
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
 use crate::constants::LAST_LOGITS_BATCH_POSITION;
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
@@ -116,9 +116,9 @@ mod tests {
     use std::mem::discriminant;
     use std::num::NonZeroU32;
 
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_finish::GenerationFinish;

@@ -15,9 +15,8 @@ use crate::arbiter_under_test::ArbiterUnderTest;
 async fn conclude_the_superseding_startup(
     mut arbiter_under_test: ArbiterUnderTest,
 ) -> Result<Arc<SlotAggregatedStatus>, AgentTestsError> {
-    arbiter_under_test.conclude_next_progress().await;
-    arbiter_under_test.conclude_next_progress().await;
-    arbiter_under_test.conclude_next_progress().await;
+    arbiter_under_test.conclude_next_startup().await;
+    arbiter_under_test.conclude_next_startup().await;
 
     let slot_aggregated_status = arbiter_under_test
         .inference_runtime_context
@@ -53,14 +52,14 @@ impl StartupSupersededWhileItsBlockingWorkWaits {
             .pipeline_arbiter
             .apply(self.superseded_state);
 
-        while let Some(serving_startup_progress) = arbiter_under_test
+        while let Some(finished_serving_startup) = arbiter_under_test
             .pipeline_arbiter
             .next_finished_startup()
             .now_or_never()
         {
             arbiter_under_test
                 .pipeline_arbiter
-                .conclude(serving_startup_progress);
+                .conclude(finished_serving_startup);
         }
 
         arbiter_under_test

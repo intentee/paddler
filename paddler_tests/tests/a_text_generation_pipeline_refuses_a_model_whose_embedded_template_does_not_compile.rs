@@ -2,7 +2,7 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
+use llama_cpp_model::model_error::ModelError;
 use tempfile::TempDir;
 
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
@@ -11,7 +11,6 @@ use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
-use paddler_tests::constants::UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
 use paddler_tests::write_patched_gguf::write_patched_gguf;
@@ -38,7 +37,7 @@ async fn a_text_generation_pipeline_refuses_a_model_whose_embedded_template_does
     )
     .expect("the model with a template that does not compile must be writable");
 
-    assert_eq!(
+    assert!(matches!(
         TextGenerationPipelineParts {
             chat_template_source: ChatTemplateSource::EmbeddedInModel,
             llama_runtime: LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
@@ -47,11 +46,8 @@ async fn a_text_generation_pipeline_refuses_a_model_whose_embedded_template_does
         }
         .spawn_refusal()
         .await,
-        Some(
-            TextGenerationError::ChatTemplateDoesNotCompile(ChatTemplatesError::Reported {
-                message: UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE.to_owned(),
-            })
-            .to_string()
-        )
-    );
+        Some(TextGenerationError::ChatTemplateDoesNotCompile(
+            ModelError::ChatTemplatesReported { .. }
+        ))
+    ));
 }

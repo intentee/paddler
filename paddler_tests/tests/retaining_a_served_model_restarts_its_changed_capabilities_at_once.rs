@@ -14,27 +14,25 @@ use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingT
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
-use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 #[test]
 fn retaining_a_served_model_restarts_its_changed_capabilities_at_once() {
     single_blocking_thread_runtime()
         .expect("the test runtime must build")
         .block_on(async {
-            let KevModelServingWithoutDecisions {
-                model_serving_settings,
-                served_model,
-                ..
-            } = KevModelServingWithoutDecisions::start(&CancellationToken::new())
+            let serving = ModelServingTextGenerationAndEmbeddings::start(&CancellationToken::new())
                 .await
                 .expect("the model must load")
                 .expect("text generation and embeddings must start");
-            let embeddings_preparations = served_model
-                .capabilities
-                .embeddings
-                .request_preparer
-                .preparation_tasks
-                .clone();
+            let embeddings_preparations = serving
+                .embeddings_preparation_tasks()
+                .expect("a model that makes no decisions must serve embeddings");
+            let ModelServingTextGenerationAndEmbeddings {
+                model_serving_settings,
+                served_model,
+                ..
+            } = serving;
             let text_generation_preparations = served_model
                 .capabilities
                 .text_generation

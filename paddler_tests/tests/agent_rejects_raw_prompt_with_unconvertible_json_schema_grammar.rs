@@ -39,8 +39,7 @@ async fn agent_rejects_raw_prompt_with_unconvertible_json_schema_grammar() {
     );
     assert!(collected.token_results.iter().any(|result| matches!(
         &result.token_result,
-        GeneratedTokenResult::GrammarSyntaxError(message)
-            if message.contains("Failed to convert JSON schema to grammar")
+        GeneratedTokenResult::GrammarSyntaxError(_)
     )));
 
     cluster

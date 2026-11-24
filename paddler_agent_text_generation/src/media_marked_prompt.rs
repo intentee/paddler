@@ -1,7 +1,7 @@
-use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
-use llama_cpp_bindings::mtmd::mtmd_input_text_part::MtmdInputTextPart;
+use llama_cpp_chat::chat_prompt_part::ChatPromptPart;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_input_part::MtmdInputPart;
+use llama_cpp_mtmd::mtmd_input_text_part::MtmdInputTextPart;
 
 use crate::media_marker::MediaMarker;
 use crate::text_generation_error::TextGenerationError;
@@ -61,9 +61,9 @@ impl MediaMarkedPrompt<'_> {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
-    use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-    use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
+    use llama_cpp_chat::chat_prompt_part::ChatPromptPart;
+    use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+    use llama_cpp_mtmd::mtmd_input_part::MtmdInputPart;
 
     use super::MediaMarkedPrompt;
     use crate::media_marker::MediaMarker;

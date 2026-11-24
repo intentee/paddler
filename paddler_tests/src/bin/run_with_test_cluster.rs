@@ -6,7 +6,6 @@ use anyhow::Error;
 use anyhow::Result;
 use clap::Parser;
 use futures_util::TryFutureExt as _;
-use futures_util::future::ready;
 use tokio::process::Command;
 
 use paddler_balancer::balancer_addresses::BalancerAddresses;
@@ -83,9 +82,7 @@ async fn main() -> Result<ExitCode> {
         program,
         arguments,
     } = RunWithTestClusterArguments::parse();
-    let command_status: Result<ExitStatus> = ready(preset.cluster_params())
-        .err_into()
-        .and_then(start_cluster)
+    let command_status: Result<ExitStatus> = start_cluster(preset.cluster_params())
         .and_then(|cluster| run_against_cluster(cluster, program, arguments))
         .await;
 

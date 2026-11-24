@@ -3,15 +3,15 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
-use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn shutting_down_a_served_model_stops_its_schedulers_and_frees_their_contexts() {
-    let KevModelServingWithoutDecisions {
+    let ModelServingTextGenerationAndEmbeddings {
         llama_runtime,
         served_model,
         ..
-    } = KevModelServingWithoutDecisions::start(&CancellationToken::new())
+    } = ModelServingTextGenerationAndEmbeddings::start(&CancellationToken::new())
         .await
         .expect("the model must load")
         .expect("text generation and embeddings must start");

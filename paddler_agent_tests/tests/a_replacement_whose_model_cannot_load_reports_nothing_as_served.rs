@@ -13,20 +13,18 @@ async fn a_replacement_whose_model_cannot_load_reports_nothing_as_served() {
     arbiter_under_test
         .pipeline_arbiter
         .apply(state_overriding_the_chat_template());
-    arbiter_under_test.conclude_next_progress().await;
 
     assert_eq!(
-        arbiter_under_test.conclude_next_progress().await,
+        arbiter_under_test.conclude_next_startup().await,
         AgentStateApplicationStatus::Applied
     );
 
     arbiter_under_test
         .pipeline_arbiter
         .apply(state_whose_model_cannot_load());
-    arbiter_under_test.conclude_next_progress().await;
 
     assert_eq!(
-        arbiter_under_test.conclude_next_progress().await,
+        arbiter_under_test.conclude_next_startup().await,
         AgentStateApplicationStatus::AttemptedAndRetrying
     );
     assert_eq!(

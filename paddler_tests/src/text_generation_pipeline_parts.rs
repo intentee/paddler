@@ -1,6 +1,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
+use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::text_generation_pipeline::TextGenerationPipeline;
 use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
@@ -42,12 +43,10 @@ impl TextGenerationPipelineParts {
         }
     }
 
-    pub async fn spawn_refusal(self) -> Option<String> {
+    pub async fn spawn_refusal(self) -> Option<TextGenerationError> {
         self.into_text_generation_pipeline()
             .spawn(&CancellationToken::new())
             .await
             .err()
-            .as_ref()
-            .map(ToString::to_string)
     }
 }

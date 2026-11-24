@@ -1,25 +1,24 @@
-use std::path::Path;
-
-use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
-use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
 use crate::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
-use crate::constants::UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE;
 
-#[must_use]
-pub fn uncompilable_chat_template_issue(model_path: &Path) -> AgentIssue {
-    AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-        error: ErrorChain {
-            error: &TextGenerationError::ChatTemplateDoesNotCompile(ChatTemplatesError::Reported {
-                message: UNCOMPILABLE_CHAT_TEMPLATE_PARSE_FAILURE.to_owned(),
-            }),
-        }
-        .to_string(),
-        model_path: ModelPath::from(model_path),
-        template_content: UNCOMPILABLE_CHAT_TEMPLATE_CONTENT.to_owned(),
-    })
+pub struct UncompilableChatTemplateIssue {
+    pub model_path: ModelPath,
+}
+
+impl UncompilableChatTemplateIssue {
+    #[must_use]
+    pub fn is_reported_by(&self, issue: &AgentIssue) -> bool {
+        matches!(
+            issue,
+            AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
+                model_path,
+                template_content,
+                ..
+            }) if *model_path == self.model_path
+                && template_content == UNCOMPILABLE_CHAT_TEMPLATE_CONTENT
+        )
+    }
 }

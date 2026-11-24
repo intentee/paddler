@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::error::meta_val_error::MetaValError;
+use llama_cpp_model::model_error::ModelError;
 use tempfile::TempDir;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
@@ -29,17 +29,10 @@ fn a_model_with_a_metadata_key_that_is_not_utf8_reports_unreadable_metadata() {
     )
     .expect("the patched model must be writable");
 
-    assert_eq!(
-        LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            AgentRuntimeError::ModelMetadataUnreadable(MetaValError::FromUtf8Error(
-                String::from_utf8(b"general.\xff".to_vec())
-                    .expect_err("the bytes must not be UTF-8")
-            ))
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        LlamaRuntime::load(&model_path, agent_inference_runtime_context(1)),
+        Err(AgentRuntimeError::ModelMetadataUnreadable(
+            ModelError::MetaValueNotUtf8(_)
+        ))
+    ));
 }

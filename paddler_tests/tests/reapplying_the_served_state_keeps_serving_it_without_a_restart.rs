@@ -29,8 +29,6 @@ async fn reapplying_the_served_state_keeps_serving_it_without_a_restart() {
         desired_state_reconciled_discriminant()
     );
 
-    serving_pipeline_arbiter.conclude_next_progress().await;
-
     assert_eq!(
         serving_pipeline_arbiter
             .inference_runtime_context

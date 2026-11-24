@@ -41,8 +41,7 @@ impl From<DecisionFinalResult> for DecisionOutcome {
             | DecisionFinalResult::SchedulerUnavailable(detail) => {
                 failure(UpstreamFailure::Unavailable.status_code(), detail)
             }
-            DecisionFinalResult::AgentRuntimeFailed(detail)
-            | DecisionFinalResult::BatchAssemblyFailed(detail)
+            DecisionFinalResult::BatchAssemblyFailed(detail)
             | DecisionFinalResult::DecodeFailed(detail)
             | DecisionFinalResult::HiddenStateUnavailable(detail)
             | DecisionFinalResult::KvCacheCopyFailed(detail)
@@ -102,8 +101,8 @@ mod tests {
                 failed(StatusCode::UNPROCESSABLE_ENTITY, "nul byte"),
             ),
             (
-                DecisionFinalResult::DecisionsNotServed("no pointer head".to_owned()),
-                failed(StatusCode::SERVICE_UNAVAILABLE, "no pointer head"),
+                DecisionFinalResult::DecisionsNotServed("decisions not served".to_owned()),
+                failed(StatusCode::SERVICE_UNAVAILABLE, "decisions not served"),
             ),
             (
                 DecisionFinalResult::ModelNotLoaded("no model".to_owned()),
@@ -112,10 +111,6 @@ mod tests {
             (
                 DecisionFinalResult::SchedulerUnavailable("stopped".to_owned()),
                 failed(StatusCode::SERVICE_UNAVAILABLE, "stopped"),
-            ),
-            (
-                DecisionFinalResult::AgentRuntimeFailed("runtime".to_owned()),
-                failed(StatusCode::INTERNAL_SERVER_ERROR, "runtime"),
             ),
             (
                 DecisionFinalResult::BatchAssemblyFailed("batch".to_owned()),

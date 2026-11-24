@@ -20,9 +20,8 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<RawDecideParams>,
 ) -> Result<impl Responder, Error> {
-    if let DecisionsServing::NotServed(cluster_serves_no_decisions) = app_data
-        .balancer_applicable_state_holder
-        .decisions_serving()
+    if let DecisionsServing::NotServed(cluster_serves_no_decisions) =
+        app_data.agent_controller_pool.decisions_serving()
     {
         return Err(ErrorServiceUnavailable(cluster_serves_no_decisions));
     }

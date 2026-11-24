@@ -32,23 +32,14 @@ async fn balancer_keeps_an_agent_connected_after_it_answers_a_request_that_timed
         .join(&ApiPath::agent_model_metadata(&pausable_agent.id))
         .expect("the model metadata path must extend the management address");
 
-    assert_eq!(
+    assert!(matches!(
         cluster
             .client_management
             .get_model_metadata(CancellationToken::new(), &pausable_agent.id)
-            .await
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            ClientError::UnexpectedResponseStatus {
-                message: String::new(),
-                status: StatusCode::GATEWAY_TIMEOUT,
-                url: model_metadata_url.to_string(),
-            }
-            .to_string()
-        )
-    );
+            .await,
+        Err(ClientError::UnexpectedResponseStatus { status, url, .. })
+            if status == StatusCode::GATEWAY_TIMEOUT && url == model_metadata_url.as_str()
+    ));
 
     pausable_agent
         .signals

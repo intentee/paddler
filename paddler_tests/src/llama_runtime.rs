@@ -1,13 +1,11 @@
 use std::path::Path;
-use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result as AnyhowResult;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_llama_context_settings::DecisionLlamaContextSettings;
@@ -20,7 +18,7 @@ use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_agent_runtime::resident_llama_context::ResidentLlamaContext;
 use paddler_agent_text_generation::constants::LAST_LOGITS_BATCH_POSITION;
-use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSupport;
+use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::resident_multimodal_context::ResidentMultimodalContext;
 use paddler_agent_text_generation::sampler_chain_factory::SamplerChainFactory;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
@@ -120,7 +118,7 @@ impl LlamaRuntime {
             .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
             .context("the prompt must tokenize")
             .and_then(|prompt_tokens| {
-                let mut batch = LlamaBatch::new(ContextLimits::of(llama_context));
+                let mut batch = LlamaBatch::new(llama_context.limits());
 
                 batch
                     .add_sequence(&prompt_tokens, 0, false)
@@ -140,13 +138,11 @@ impl LlamaRuntime {
     /// # Errors
     ///
     /// Returns an error when another multimodal projection is resident, and when the multimodal projection at `multimodal_projection_path` cannot load.
-    pub fn multimodal_prompt_support(
+    pub fn multimodal_ingestion(
         &self,
         llama_context: &LlamaContext<'_>,
         multimodal_projection_path: &Path,
-    ) -> AnyhowResult<MultimodalPromptSupport> {
-        let n_batch = self.model_runtime_parameters.n_batch;
-
+    ) -> AnyhowResult<MultimodalIngestion> {
         self.inference_runtime_context
             .vram_residencies
             .multimodal_projection
@@ -160,11 +156,9 @@ impl LlamaRuntime {
                 )
                 .context("the multimodal projection must load")
             })
-            .map(|multimodal_context| MultimodalPromptSupport {
-                micro_batch_tokens: ContextLimits::of(llama_context)
-                    .micro_batch_tokens(n_batch.tokens()),
-                multimodal_context: Arc::new(multimodal_context),
-                n_batch: n_batch.tokens_i32(),
+            .map(|multimodal_context| MultimodalIngestion::Supported {
+                multimodal_context,
+                n_batch: self.model_runtime_parameters.n_batch.tokens_i32(),
                 sequence_context_size: llama_context.n_ctx_seq(),
             })
     }

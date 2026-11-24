@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::error::decode_error::DecodeError;
+use llama_cpp_context::context_error::ContextError;
 
 use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_error::DecisionError;
@@ -13,17 +13,20 @@ const STATE_TOKENS_OVERFLOWING_THE_CACHE_BESIDE_THE_DELIMITER: usize = 256;
 
 #[test]
 fn a_decision_state_the_kv_cache_cannot_hold_fails_the_decision() {
-    assert_eq!(
+    assert!(matches!(
         KevDecisionInAKvCache {
             cache_cells: CACHE_CELLS,
             state_tokens_after_the_delimiter:
                 STATE_TOKENS_OVERFLOWING_THE_CACHE_BESIDE_THE_DELIMITER,
         }
         .first_two_advances()
-        .expect("the decision must be admitted to the kv cache"),
+        .expect("the decision must be admitted to the kv cache")
+        .as_slice(),
         [
             Ok(DecisionAdvance::Continuing),
-            Err(DecisionError::DecodeFailed(DecodeError::NoKvCacheSlot).to_string()),
+            Err(DecisionError::DecodeFailed(
+                ContextError::DecodeNoKvCacheSlot
+            )),
         ]
-    );
+    ));
 }

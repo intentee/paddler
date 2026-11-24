@@ -1,11 +1,11 @@
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
-use crate::multimodal_prompt_ingestion::MultimodalPromptIngestion;
+use crate::multimodal_prompt::MultimodalPrompt;
 
 #[derive(Debug)]
 pub enum ContinuousBatchRequestPhase {
     IngestingText,
-    IngestingMultimodal(MultimodalPromptIngestion),
+    IngestingMultimodal(MultimodalPrompt),
     Generating(ContinuousBatchGenerationStep),
     Completed(ContinuousBatchTerminalOutcome),
 }

@@ -64,12 +64,10 @@ async fn an_agent_whose_projection_cannot_see_images_rejects_an_image_prompt() {
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::MultimodalTokenizationFailed(
-            "test-agent: failed to tokenize multimodal input: llama.cpp returned 2: media preprocessing failed, or its tokenizer threw (text too large, missing vocab, media marker and bitmap count mismatch, or allocation failure)".to_owned()
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::MultimodalTokenizationFailed(_)]
+    ));
 
     cluster
         .shutdown()

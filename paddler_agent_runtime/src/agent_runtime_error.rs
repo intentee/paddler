@@ -2,12 +2,9 @@ use std::io;
 use std::num::TryFromIntError;
 use std::path::PathBuf;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
-use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
-use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
-use llama_cpp_bindings::error::meta_val_error::MetaValError;
+use llama_cpp_backend::backend_error::BackendError;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_model::model_error::ModelError;
 
 use paddler_messaging::inference_capability::InferenceCapability;
 
@@ -17,10 +14,10 @@ pub enum AgentRuntimeError {
     AvailableParallelismUnknown(#[source] io::Error),
 
     #[error("unable to initialize the llama.cpp backend")]
-    BackendInitializationFailed(#[source] LlamaCppError),
+    BackendInitializationFailed(#[source] BackendError),
 
     #[error("unable to create the llama.cpp context")]
-    ContextCreationFailed(#[source] LlamaContextLoadError),
+    ContextCreationFailed(#[source] ContextError),
 
     #[error("a {inference_capability:?} context is already resident in VRAM")]
     LlamaContextAlreadyResident {
@@ -38,11 +35,14 @@ pub enum AgentRuntimeError {
     ModelLoadFailed {
         model_path: PathBuf,
         #[source]
-        source: LlamaModelLoadError,
+        source: ModelError,
     },
 
+    #[error("unable to tell which decision type the loaded model is")]
+    ModelDecisionTypeUnreadable(#[source] ModelError),
+
     #[error("unable to read the metadata of the loaded model")]
-    ModelMetadataUnreadable(#[source] MetaValError),
+    ModelMetadataUnreadable(#[source] ModelError),
 
     #[error("model weights are already resident in VRAM")]
     ModelWeightsAlreadyResident,
@@ -54,8 +54,8 @@ pub enum AgentRuntimeError {
     ThreadCountOutOfRange(#[source] TryFromIntError),
 
     #[error("unable to assemble the warm-up batch")]
-    WarmUpBatchAssemblyFailed(#[source] BatchAddError),
+    WarmUpBatchAssemblyFailed(#[source] ContextError),
 
     #[error("llama.cpp rejected the warm-up batch")]
-    WarmUpDecodeFailed(#[source] DecodeError),
+    WarmUpDecodeFailed(#[source] ContextError),
 }

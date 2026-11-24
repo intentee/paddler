@@ -2,10 +2,10 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::model::llama_chat_template::LlamaChatTemplate;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 
+use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -52,38 +52,26 @@ fn a_conversation_whose_template_renders_invalid_utf8_cannot_be_tokenized() {
             .clone(),
     );
 
-    assert_eq!(
+    assert!(matches!(
         ChatTemplatesRequestPreparer {
-            chat_templates: ChatTemplates::with_override(
-                model,
-                &LlamaChatTemplate::new(&first_byte_of_the_first_message_chat_template().content)
-                    .expect("the template holds no NUL byte"),
-            )
-            .expect("llama.cpp must prepare the template"),
+            chat_templates: ConversationChatTemplates::Override(
+                model
+                    .chat_templates_with_override(
+                        &LlamaChatTemplate::new(
+                            &first_byte_of_the_first_message_chat_template().content
+                        )
+                        .expect("the template holds no NUL byte"),
+                    )
+                    .expect("llama.cpp must prepare the template"),
+            ),
             image_input: ImageInput::Unsupported,
             llama_runtime: &runtime,
             sequence_context_size: runtime.model_runtime_parameters.context_size.get(),
         }
         .into_generation_request_preparer()
-        .prepare_conversation_history(agent_request)
-        .err()
-        .as_ref()
-        .map(ToString::to_string),
-        Some(
-            TextGenerationError::ChatPromptTokenizationFailed(
-                ChatSessionError::SessionTextNotUtf8(
-                    String::from_utf8(
-                        MESSAGE_STARTING_WITH_A_TWO_BYTE_CHARACTER
-                            .as_bytes()
-                            .first_chunk::<1>()
-                            .expect("the message must start with a byte")
-                            .to_vec()
-                    )
-                    .expect_err("the first byte of a two byte character is not UTF-8")
-                    .utf8_error()
-                )
-            )
-            .to_string()
-        )
-    );
+        .prepare_conversation_history(agent_request),
+        Err(TextGenerationError::ChatPromptTokenizationFailed(
+            ChatError::SessionTextNotUtf8(_)
+        ))
+    ));
 }

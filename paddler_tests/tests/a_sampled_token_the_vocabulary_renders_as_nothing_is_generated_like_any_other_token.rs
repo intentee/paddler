@@ -1,8 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_bindings::token::logit_bias::LlamaLogitBias;
+use llama_cpp_model::llama_logit_bias::LlamaLogitBias;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;

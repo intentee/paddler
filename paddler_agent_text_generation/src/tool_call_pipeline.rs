@@ -1,12 +1,12 @@
 use std::ops::RangeFrom;
 
-use llama_cpp_bindings::chat_classification::ChatClassification;
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings::chat_reading::ChatReading;
-use llama_cpp_bindings::raw_chat_message::RawChatMessage;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_chat::chat_classification::ChatClassification;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_chat::chat_reading::ChatReading;
+use llama_cpp_chat::raw_chat_message::RawChatMessage;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_token_usage::token_usage::TokenUsage;
 
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
@@ -35,21 +35,17 @@ impl ToolCallPipeline {
         &mut self,
         reading: &'reading ChatReading,
         final_section: SampledTokenSection,
-        &TokenUsage {
-            tool_call_tokens, ..
-        }: &TokenUsage,
+        &TokenUsage { tool_call, .. }: &TokenUsage,
     ) -> Option<ToolCallEvent<'reading>> {
         match reading.classification() {
             ChatClassification::OutputDoesNotMatchFormat(RawChatMessage {
                 text,
                 expected_format,
                 ..
-            }) if tool_call_tokens > 0 => {
-                Some(ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
-                    text: text.clone(),
-                    expected_format: expected_format.clone(),
-                }))
-            }
+            }) if tool_call > 0 => Some(ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
+                text: text.clone(),
+                expected_format: expected_format.clone(),
+            })),
             ChatClassification::Spans(_) if final_section == SampledTokenSection::ToolCall => {
                 self.resolve_tool_calls_of(reading)
             }

@@ -2,7 +2,6 @@ use std::future::Future;
 use std::num::NonZeroUsize;
 
 use anyhow::Context as _;
-use anyhow::Error;
 use anyhow::Result;
 use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
@@ -16,12 +15,11 @@ use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
+use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -47,7 +45,6 @@ use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::concurrent_connection_budget::ConcurrentConnectionBudget;
 use crate::connection_keep_alive::ConnectionKeepAlive;
 use crate::connection_runtime::ConnectionRuntime;
-use crate::every_agent_serves_decisions::every_agent_serves_decisions;
 use crate::openai_api_client::OpenAIApiClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
@@ -358,40 +355,6 @@ impl Cluster {
 
     /// # Errors
     ///
-    /// Fails when the balancer desired state cannot be read or replaced, and returns [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before every agent stops serving decisions.
-    pub async fn remove_pointer_head(&mut self) -> Result<AgentControllerPoolSnapshot> {
-        let client_management = &self.client_management;
-        let agents_watcher = &mut self.agents_watcher;
-        let agent_ids = &self.agent_ids;
-
-        client_management
-            .get_balancer_desired_state(CancellationToken::new())
-            .err_into::<Error>()
-            .and_then(|desired_state| async move {
-                client_management
-                    .put_balancer_desired_state(
-                        CancellationToken::new(),
-                        &BalancerDesiredState {
-                            decision: DecisionSettings::default(),
-                            ..desired_state
-                        },
-                    )
-                    .err_into()
-                    .await
-            })
-            .and_then(|()| {
-                agents_watcher
-                    .until(every_agent_serves_decisions(
-                        agent_ids,
-                        AgentDecisionsServing::NotServed,
-                    ))
-                    .err_into()
-            })
-            .await
-    }
-
-    /// # Errors
-    ///
     /// Fails when an agent or the balancer cannot be terminated, or ends with a failure.
     pub async fn shutdown(self) -> Result<()> {
         let Self {
@@ -513,6 +476,18 @@ impl Cluster {
     {
         self.wait_for_first_agent(|AgentControllerSnapshot { status, .. }| {
             status.issues.iter().any(&issue_matcher)
+        })
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent downloads its model.
+    pub async fn wait_for_first_agent_to_download(
+        &mut self,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
+        self.wait_for_first_agent(|AgentControllerSnapshot { status, .. }| {
+            status.download_status != ModelDownloadStatus::NotDownloading
         })
         .await
     }

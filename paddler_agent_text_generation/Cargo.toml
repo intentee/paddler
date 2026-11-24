@@ -15,7 +15,14 @@ doctest = false
 encoding_rs = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
+llama-cpp-chat = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-context-memory = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
+llama-cpp-sampler = { workspace = true }
+llama-cpp-token-usage = { workspace = true }
 log = { workspace = true }
 rand = { workspace = true }
 serde_json = { workspace = true }
@@ -30,9 +37,6 @@ paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_sha256_hex = { workspace = true }
 paddler_tool_call_validator = { workspace = true }
-
-[dev-dependencies]
-llama-cpp-ffi-status = { workspace = true }
 
 [features]
 default = []

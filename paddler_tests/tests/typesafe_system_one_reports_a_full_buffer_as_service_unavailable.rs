@@ -2,17 +2,18 @@ use reqwest::StatusCode;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
-use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_a_full_buffer_as_service_unavailable() {
-    let cluster = start_cluster(ClusterParams {
-        max_buffered_requests: 0,
-        ..cluster_without_agents_serving_decisions()
-    })
-    .await
-    .expect("a decision balancer without agents must start");
+    let cluster_with_a_downloading_agent =
+        ClusterWithAnAgentDownloadingItsModel::start(ClusterParams {
+            max_buffered_requests: 0,
+            ..ClusterParams::default()
+        })
+        .await
+        .expect("a cluster whose agent downloads its model must start");
+    let cluster = &cluster_with_a_downloading_agent.cluster;
 
     assert_eq!(
         cluster
@@ -23,7 +24,7 @@ async fn typesafe_system_one_reports_a_full_buffer_as_service_unavailable() {
         StatusCode::SERVICE_UNAVAILABLE
     );
 
-    cluster
+    cluster_with_a_downloading_agent
         .shutdown()
         .await
         .expect("the cluster must shut down cleanly");

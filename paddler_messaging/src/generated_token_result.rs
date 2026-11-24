@@ -28,7 +28,6 @@ pub enum GeneratedTokenResult {
     ImageDecodingFailed(String),
     KvCacheClearFailed(String),
     MediaExceedsMicroBatch(OversizedMediaDetails),
-    MediaMicroBatchCheckFailed(String),
     ModelNotLoaded(String),
     MultimodalIngestionFailed(String),
     MultimodalNotSupported(String),
@@ -123,9 +122,6 @@ impl From<GeneratedTokenFinalResult> for GeneratedTokenResult {
             }
             GeneratedTokenFinalResult::MediaExceedsMicroBatch(details) => {
                 Self::MediaExceedsMicroBatch(details)
-            }
-            GeneratedTokenFinalResult::MediaMicroBatchCheckFailed(detail) => {
-                Self::MediaMicroBatchCheckFailed(detail)
             }
             GeneratedTokenFinalResult::ModelNotLoaded(detail) => Self::ModelNotLoaded(detail),
             GeneratedTokenFinalResult::MultimodalIngestionFailed(detail) => {
@@ -230,9 +226,6 @@ impl StreamableResult for GeneratedTokenResult {
             }
             Self::MediaExceedsMicroBatch(details) => {
                 GeneratedTokenFinalResult::MediaExceedsMicroBatch(details).into()
-            }
-            Self::MediaMicroBatchCheckFailed(detail) => {
-                GeneratedTokenFinalResult::MediaMicroBatchCheckFailed(detail).into()
             }
             Self::ModelNotLoaded(detail) => {
                 GeneratedTokenFinalResult::ModelNotLoaded(detail).into()
@@ -341,7 +334,6 @@ mod tests {
                 media_tokens: 368,
                 micro_batch_tokens: 100,
             }),
-            GeneratedTokenResult::MediaMicroBatchCheckFailed("failure".to_owned()),
             GeneratedTokenResult::ModelNotLoaded("failure".to_owned()),
             GeneratedTokenResult::MultimodalIngestionFailed("failure".to_owned()),
             GeneratedTokenResult::MultimodalNotSupported("failure".to_owned()),

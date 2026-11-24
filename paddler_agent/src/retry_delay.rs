@@ -15,18 +15,14 @@ pub enum RetryDelay {
 impl RetryDelay {
     pub async fn elapse(self, cancellation_token: &CancellationToken) -> RetryDelayOutcome {
         match self {
-            Self::AfterRetryInterval => {
-                cancellation_token
-                    .run_until_cancelled(sleep(RETRY_INTERVAL))
-                    .await;
-            }
-            Self::Immediately => {}
-        }
-
-        if cancellation_token.is_cancelled() {
-            RetryDelayOutcome::Cancelled
-        } else {
-            RetryDelayOutcome::Elapsed
+            Self::AfterRetryInterval => match cancellation_token
+                .run_until_cancelled(sleep(RETRY_INTERVAL))
+                .await
+            {
+                Some(()) => RetryDelayOutcome::Elapsed,
+                None => RetryDelayOutcome::Cancelled,
+            },
+            Self::Immediately => RetryDelayOutcome::Elapsed,
         }
     }
 }

@@ -72,7 +72,7 @@ mod tests {
     use std::num::NonZeroU16;
     use std::sync::Arc;
 
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::TryRecvError;
 

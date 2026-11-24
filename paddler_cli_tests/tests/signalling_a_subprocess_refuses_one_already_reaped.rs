@@ -19,11 +19,8 @@ async fn signalling_a_subprocess_refuses_one_already_reaped() {
         .await
         .expect("the agent must be killed and reaped");
 
-    assert_eq!(
-        SignalledSubprocess::new(agent)
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(SubprocessClusterError::ProcessAlreadyReaped.to_string())
-    );
+    assert!(matches!(
+        SignalledSubprocess::new(agent),
+        Err(SubprocessClusterError::ProcessAlreadyReaped)
+    ));
 }

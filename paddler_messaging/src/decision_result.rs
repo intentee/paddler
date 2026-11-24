@@ -11,7 +11,6 @@ use crate::streamable_result::StreamableResult;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum DecisionResult {
-    AgentRuntimeFailed(String),
     BatchAssemblyFailed(String),
     DecisionsNotServed(String),
     DecodeFailed(String),
@@ -36,7 +35,6 @@ impl From<DecisionAnswer> for DecisionResult {
 impl From<DecisionFinalResult> for DecisionResult {
     fn from(final_result: DecisionFinalResult) -> Self {
         match final_result {
-            DecisionFinalResult::AgentRuntimeFailed(detail) => Self::AgentRuntimeFailed(detail),
             DecisionFinalResult::BatchAssemblyFailed(detail) => Self::BatchAssemblyFailed(detail),
             DecisionFinalResult::DecisionsNotServed(detail) => Self::DecisionsNotServed(detail),
             DecisionFinalResult::DecodeFailed(detail) => Self::DecodeFailed(detail),
@@ -65,9 +63,6 @@ impl StreamableResult for DecisionResult {
 
     fn into_step(self) -> ResultStep<DecisionAnswer, DecisionFinalResult> {
         match self {
-            Self::AgentRuntimeFailed(detail) => {
-                ResultStep::Final(DecisionFinalResult::AgentRuntimeFailed(detail))
-            }
             Self::BatchAssemblyFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::BatchAssemblyFailed(detail))
             }
@@ -143,16 +138,12 @@ mod tests {
     fn every_other_result_ends_the_stream_as_its_final_result() {
         for (decision_result, expected_final_result) in [
             (
-                DecisionResult::AgentRuntimeFailed("runtime".to_owned()),
-                DecisionFinalResult::AgentRuntimeFailed("runtime".to_owned()),
-            ),
-            (
                 DecisionResult::BatchAssemblyFailed("batch".to_owned()),
                 DecisionFinalResult::BatchAssemblyFailed("batch".to_owned()),
             ),
             (
-                DecisionResult::DecisionsNotServed("no pointer head".to_owned()),
-                DecisionFinalResult::DecisionsNotServed("no pointer head".to_owned()),
+                DecisionResult::DecisionsNotServed("decisions not served".to_owned()),
+                DecisionFinalResult::DecisionsNotServed("decisions not served".to_owned()),
             ),
             (
                 DecisionResult::DecodeFailed("decode".to_owned()),

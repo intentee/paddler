@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::model::llama_chat_template::LlamaChatTemplate;
+use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 use log::info;
 use log::warn;
 use tokio::sync::mpsc::UnboundedSender;
@@ -33,13 +30,14 @@ use paddler_messaging::inference_capability::InferenceCapability;
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
+use crate::conversation_capabilities::ConversationCapabilities;
+use crate::conversation_chat_templates::ConversationChatTemplates;
 use crate::conversation_prompt_support::ConversationPromptSupport;
 use crate::conversation_support::ConversationSupport;
 use crate::generation_request_preparer::GenerationRequestPreparer;
-use crate::image_input::ImageInput;
 use crate::model_bos_token::ModelBosToken;
+use crate::multimodal_ingestion::MultimodalIngestion;
 use crate::multimodal_projection::MultimodalProjection;
-use crate::multimodal_prompt_support::MultimodalPromptSupport;
 use crate::prompt_tokenizer::PromptTokenizer;
 use crate::resident_multimodal_context::ResidentMultimodalContext;
 use crate::sampler_chain_factory::SamplerChainFactory;
@@ -74,7 +72,7 @@ impl TextGenerationPipeline {
     fn chat_templates(
         &self,
         chat_template: ChatTemplate,
-    ) -> Result<ChatTemplates, TextGenerationError> {
+    ) -> Result<ConversationChatTemplates, TextGenerationError> {
         let model_issue_path = self
             .loaded_llama_model
             .llama_model_settings
@@ -105,11 +103,10 @@ impl TextGenerationPipeline {
         }
     }
 
-    fn conversation_support(
+    fn conversation_capabilities(
         &self,
-        llama_context: &LlamaContext<'_>,
         prompt_tokenizer: &PromptTokenizer,
-    ) -> Result<ConversationSupport, TextGenerationError> {
+    ) -> Result<ConversationCapabilities, TextGenerationError> {
         let chat_template = match &self.text_generation_settings.chat_template_source {
             ChatTemplateSource::Override(chat_template_override) => chat_template_override.clone(),
             ChatTemplateSource::EmbeddedInModel => {
@@ -123,38 +120,44 @@ impl TextGenerationPipeline {
                         self.inference_runtime_context.agent_name
                     );
 
-                    return Ok(ConversationSupport::ChatTemplateMissing(
-                        self.loaded_llama_model
-                            .llama_model_settings
-                            .reported_model_path(),
-                    ));
+                    return Ok(ConversationCapabilities {
+                        conversation_support: ConversationSupport::ChatTemplateMissing(
+                            self.loaded_llama_model
+                                .llama_model_settings
+                                .reported_model_path(),
+                        ),
+                        multimodal_ingestion: MultimodalIngestion::Unsupported,
+                    });
                 };
 
                 embedded_chat_template
             }
         };
         let chat_templates = self.chat_templates(chat_template)?;
+        let multimodal_ingestion = self.multimodal_ingestion(prompt_tokenizer)?;
 
-        Ok(ConversationSupport::Available(Box::new(
-            ConversationPromptSupport {
-                chat_templates,
-                image_input: self.image_input(llama_context, prompt_tokenizer)?,
-            },
-        )))
+        Ok(ConversationCapabilities {
+            conversation_support: ConversationSupport::Available(Box::new(
+                ConversationPromptSupport {
+                    chat_templates,
+                    image_input: multimodal_ingestion.image_input(),
+                },
+            )),
+            multimodal_ingestion,
+        })
     }
 
-    fn image_input(
+    fn multimodal_ingestion(
         &self,
-        llama_context: &LlamaContext<'_>,
         &PromptTokenizer {
             sequence_context_size,
             ..
         }: &PromptTokenizer,
-    ) -> Result<ImageInput, TextGenerationError> {
+    ) -> Result<MultimodalIngestion, TextGenerationError> {
         let MultimodalProjection::File(multimodal_projection_path) =
             &self.text_generation_settings.multimodal_projection
         else {
-            return Ok(ImageInput::Unsupported);
+            return Ok(MultimodalIngestion::Unsupported);
         };
         let multimodal_projection_issue_path =
             ModelPath::from(multimodal_projection_path.as_path());
@@ -180,13 +183,11 @@ impl TextGenerationPipeline {
                     multimodal_projection_path.display()
                 );
 
-                Ok(ImageInput::Supported(MultimodalPromptSupport {
-                    micro_batch_tokens: ContextLimits::of(llama_context)
-                        .micro_batch_tokens(self.model_runtime_parameters.n_batch.tokens()),
-                    multimodal_context: Arc::new(resident_multimodal_context),
+                Ok(MultimodalIngestion::Supported {
+                    multimodal_context: resident_multimodal_context,
                     n_batch: self.model_runtime_parameters.n_batch.tokens_i32(),
                     sequence_context_size,
-                }))
+                })
             }
             Err(projection_load_error) => {
                 slot_aggregated_status.register_pipeline_issue(
@@ -203,16 +204,19 @@ impl TextGenerationPipeline {
     fn prepared_chat_templates(
         &self,
         ChatTemplate { content }: &ChatTemplate,
-    ) -> Result<ChatTemplates, TextGenerationError> {
+    ) -> Result<ConversationChatTemplates, TextGenerationError> {
         let model = &self.loaded_llama_model.model;
 
         match &self.text_generation_settings.chat_template_source {
-            ChatTemplateSource::Override(_) => ChatTemplates::with_override(
-                model,
-                &LlamaChatTemplate::new(content)
-                    .map_err(TextGenerationError::ChatTemplateContainsNul)?,
-            ),
-            ChatTemplateSource::EmbeddedInModel => ChatTemplates::new(model),
+            ChatTemplateSource::Override(_) => model
+                .chat_templates_with_override(
+                    &LlamaChatTemplate::new(content)
+                        .map_err(TextGenerationError::ChatTemplateContainsNul)?,
+                )
+                .map(ConversationChatTemplates::Override),
+            ChatTemplateSource::EmbeddedInModel => model
+                .chat_templates()
+                .map(|_prepared_chat_templates| ConversationChatTemplates::EmbeddedInModel),
         }
         .map_err(TextGenerationError::ChatTemplateDoesNotCompile)
     }
@@ -255,8 +259,10 @@ impl TextGenerationPipeline {
             };
 
             continue_startup_unless_shutting_down(agent_shutdown, || {
-                let conversation_support =
-                    self.conversation_support(&llama_context, &prompt_tokenizer)?;
+                let ConversationCapabilities {
+                    conversation_support,
+                    multimodal_ingestion,
+                } = self.conversation_capabilities(&prompt_tokenizer)?;
 
                 continue_startup_unless_shutting_down(agent_shutdown, || {
                     loaded_llama_model
@@ -300,6 +306,7 @@ impl TextGenerationPipeline {
                                             agent_name: self.inference_runtime_context.agent_name,
                                             desired_slots_total,
                                             model: &loaded_llama_model.model,
+                                            multimodal_ingestion,
                                             sequence_context_size,
                                         },
                                     })

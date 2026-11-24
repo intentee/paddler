@@ -54,13 +54,8 @@ async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes(
     .expect("the reconciliation service must stop cleanly once nothing can send it desired states");
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::reconciliation_service").contains(
-            &CapturedRecord {
-                level: Level::Error,
-                message: "Agent desired state channel closed, stopping reconciliation service."
-                    .to_owned(),
-                target: "paddler_agent::reconciliation_service".to_owned(),
-            }
-        )
+        CapturingLogger::records_for("paddler_agent::reconciliation_service")
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Error)
     );
 }

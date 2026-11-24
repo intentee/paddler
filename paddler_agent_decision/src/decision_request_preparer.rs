@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::time::Instant;
 
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;

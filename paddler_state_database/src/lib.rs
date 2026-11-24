@@ -1,3 +1,4 @@
+mod balancer_desired_state_v2;
 mod schema;
 mod schema_version_header;
 pub mod state_database;

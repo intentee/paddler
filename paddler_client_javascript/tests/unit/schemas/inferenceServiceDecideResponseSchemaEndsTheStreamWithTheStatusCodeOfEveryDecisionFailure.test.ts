@@ -5,7 +5,6 @@ import { InferenceServiceDecideResponseSchema } from "../../../src/schemas/Infer
 import { decisionResponse } from "./decisionResponse";
 
 const decisionFailureCodes = [
-  { code: 500, variant: "AgentRuntimeFailed" },
   { code: 500, variant: "BatchAssemblyFailed" },
   { code: 503, variant: "DecisionsNotServed" },
   { code: 500, variant: "DecodeFailed" },

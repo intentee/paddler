@@ -2,9 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::context_limits::ContextLimits;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
@@ -12,8 +11,6 @@ use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
-use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
@@ -31,17 +28,6 @@ const ANSWER: &str = "two llamas";
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(16).unwrap();
 const SLOTS: u16 = 2;
 const TOKENS_THE_BATCH_HOLDS: u32 = 1;
-
-fn batch_assembly_failure() -> GeneratedTokenResult {
-    GeneratedTokenResult::BatchAssemblyFailed(
-        ErrorChain {
-            error: &TextGenerationError::BatchAssemblyFailed(BatchAddError::BatchFull {
-                n_batch: TOKENS_THE_BATCH_HOLDS,
-            }),
-        }
-        .to_string(),
-    )
-}
 
 #[test]
 fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
@@ -61,17 +47,16 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
         llama_runtime: &runtime,
         sequence_context_size,
     }
-    .into_multimodal_generation_request_preparer(
-        runtime
-            .multimodal_prompt_support(
-                &llama_context,
-                &smolvlm2_256m_mmproj()
-                    .cached_path()
-                    .expect("the multimodal projection must be in the Hugging Face cache"),
-            )
-            .expect("the multimodal projection must load"),
-    )
+    .into_multimodal_generation_request_preparer()
     .expect("the first message content chat template must be prepared");
+    let multimodal_ingestion = runtime
+        .multimodal_ingestion(
+            &llama_context,
+            &smolvlm2_256m_mmproj()
+                .cached_path()
+                .expect("the multimodal projection must be in the Hugging Face cache"),
+        )
+        .expect("the multimodal projection must load");
     let image_data_uri = load_test_image_data_uri().expect("the test image must load");
     let image_question = || {
         ConversationGeneration::new(
@@ -118,30 +103,29 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
     ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
         agent_shutdown: CancellationToken::new(),
         batch: LlamaBatch::new(ContextLimits {
-            n_batch: TOKENS_THE_BATCH_HOLDS,
-            ..ContextLimits::of(&llama_context)
+            batch: TOKENS_THE_BATCH_HOLDS,
+            ..llama_context.limits()
         }),
         llama_context,
         scheduler_context: ContinuousBatchSchedulerContext {
             agent_name: None,
             desired_slots_total: SLOTS,
             model,
+            multimodal_ingestion,
             sequence_context_size,
         },
         scheduler_message_rx,
     })
     .run();
 
-    let batch_assembly_failure = batch_assembly_failure();
-
-    assert_eq!(
+    assert!(matches!(
         [
             last_generated_token_result(first_generated_tokens_rx),
             last_generated_token_result(second_generated_tokens_rx),
         ],
         [
-            Some(batch_assembly_failure.clone()),
-            Some(batch_assembly_failure)
+            Some(GeneratedTokenResult::BatchAssemblyFailed(_)),
+            Some(GeneratedTokenResult::BatchAssemblyFailed(_)),
         ]
-    );
+    ));
 }

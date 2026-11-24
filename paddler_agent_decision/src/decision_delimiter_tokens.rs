@@ -1,9 +1,7 @@
-use llama_cpp_bindings::llama_token_attr::LlamaTokenAttr;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::llama_token_attr::LlamaTokenAttr;
 
-use paddler_agent_pointer_head::pointer_head_delimiters::PointerHeadDelimiters;
-use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
-
+use crate::decision_delimiters::DecisionDelimiters;
 use crate::decision_error::DecisionError;
 use crate::delimiter_vocabulary::DelimiterVocabulary;
 
@@ -11,19 +9,15 @@ fn resolve_control_token<TVocabulary: DelimiterVocabulary>(
     vocabulary: &TVocabulary,
     delimiter: &str,
 ) -> Result<LlamaToken, DecisionError> {
-    let not_a_control_token = || DecisionError::PointerHeadIncompatibleWithModel {
-        incompatibility: PointerHeadIncompatibility::DelimiterIsNotAControlToken {
-            delimiter: delimiter.to_owned(),
-        },
+    let not_a_control_token = || DecisionError::DelimiterIsNotAControlToken {
+        delimiter: delimiter.to_owned(),
     };
-    let tokens = vocabulary
-        .tokenize_delimiter(delimiter)
-        .map_err(|tokenization_error| {
-            DecisionError::for_delimiter_tokenization_error(
-                delimiter.to_owned(),
-                tokenization_error,
-            )
-        })?;
+    let tokens = vocabulary.tokenize_delimiter(delimiter).map_err(|source| {
+        DecisionError::DelimiterTokenizationFailed {
+            delimiter: delimiter.to_owned(),
+            source,
+        }
+    })?;
     let control_token = match tokens.as_slice() {
         [token] => vocabulary
             .token_attributes(*token)
@@ -51,16 +45,16 @@ pub struct DecisionDelimiterTokens {
 impl DecisionDelimiterTokens {
     /// # Errors
     ///
-    /// Returns [`DecisionError::DelimiterContainsNul`], [`DecisionError::DelimiterLengthUnrepresentable`] or [`DecisionError::DelimiterTokenizationFailed`] when a delimiter cannot be tokenized, [`DecisionError::DelimiterAttributesUnreadable`] when the attributes of its token cannot be read, and [`DecisionError::PointerHeadIncompatibleWithModel`] when a delimiter is not a single control token of the vocabulary.
+    /// Returns [`DecisionError::DelimiterTokenizationFailed`] when a delimiter cannot be tokenized, [`DecisionError::DelimiterAttributesUnreadable`] when the attributes of its token cannot be read, and [`DecisionError::DelimiterIsNotAControlToken`] when a delimiter is not a single control token of the vocabulary.
     pub fn resolve<TVocabulary: DelimiterVocabulary>(
         vocabulary: &TVocabulary,
-        PointerHeadDelimiters {
+        DecisionDelimiters {
             decide,
             option_end,
             option_start,
             question,
             state,
-        }: &PointerHeadDelimiters,
+        }: &DecisionDelimiters<'_>,
     ) -> Result<Self, DecisionError> {
         let mut control_tokens = [LlamaToken::new(0); 5];
 
@@ -86,15 +80,12 @@ impl DecisionDelimiterTokens {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
-    use llama_cpp_bindings::error::token_attr_error::TokenAttrError;
-    use llama_cpp_bindings::llama_token_attrs::LlamaTokenAttrs;
-    use llama_cpp_bindings::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
-    use llama_cpp_bindings::token::LlamaToken;
-
-    use paddler_agent_pointer_head::pointer_head_delimiters::PointerHeadDelimiters;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::llama_token_attrs::LlamaTokenAttrs;
+    use llama_cpp_model::model_error::ModelError;
 
     use super::DecisionDelimiterTokens;
+    use crate::constants::KEV_DECISION_DELIMITERS;
     use crate::decision_error::DecisionError;
     use crate::delimiter_vocabulary::DelimiterVocabulary;
 
@@ -103,45 +94,26 @@ mod tests {
     struct VocabularyWithUnreadableAttributes;
 
     impl DelimiterVocabulary for VocabularyWithUnreadableAttributes {
-        fn token_attributes(&self, _token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
-            Err(TokenAttrError::UnknownAttributes(
-                LlamaTokenAttrsFromIntError::UnknownValue(UNKNOWN_ATTRIBUTE_BITS),
-            ))
+        fn token_attributes(&self, _token: LlamaToken) -> Result<LlamaTokenAttrs, ModelError> {
+            Err(ModelError::UnknownTokenAttributes(UNKNOWN_ATTRIBUTE_BITS))
         }
 
-        fn tokenize_delimiter(
-            &self,
-            _delimiter: &str,
-        ) -> Result<Vec<LlamaToken>, StringToTokenError> {
+        fn tokenize_delimiter(&self, _delimiter: &str) -> Result<Vec<LlamaToken>, ModelError> {
             Ok(vec![LlamaToken::new(0)])
         }
     }
 
     #[test]
     fn a_delimiter_whose_token_attributes_are_unreadable_is_refused() {
-        assert_eq!(
+        assert!(matches!(
             DecisionDelimiterTokens::resolve(
                 &VocabularyWithUnreadableAttributes,
-                &PointerHeadDelimiters {
-                    decide: "<decide>".to_owned(),
-                    option_end: "<option_end>".to_owned(),
-                    option_start: "<option_start>".to_owned(),
-                    question: "<question>".to_owned(),
-                    state: "<state>".to_owned(),
-                },
-            )
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-            Some(
-                DecisionError::DelimiterAttributesUnreadable {
-                    delimiter: "<decide>".to_owned(),
-                    source: TokenAttrError::UnknownAttributes(
-                        LlamaTokenAttrsFromIntError::UnknownValue(UNKNOWN_ATTRIBUTE_BITS),
-                    ),
-                }
-                .to_string()
-            )
-        );
+                &KEV_DECISION_DELIMITERS
+            ),
+            Err(DecisionError::DelimiterAttributesUnreadable {
+                delimiter,
+                source: ModelError::UnknownTokenAttributes(UNKNOWN_ATTRIBUTE_BITS),
+            }) if delimiter == KEV_DECISION_DELIMITERS.decide
+        ));
     }
 }

@@ -23,7 +23,7 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
-llama-cpp-bindings = { workspace = true }
+llama-cpp-backend = { workspace = true }
 log = { workspace = true }
 paddler_capturing_logger = { workspace = true }
 paddler_messaging = { workspace = true }

@@ -24,14 +24,11 @@ async fn subprocess_signals_report_a_killed_process_that_cannot_be_paused() {
 
     signals.kill().expect("the agent must be killed");
 
-    assert_eq!(
-        signals.pause().err().as_ref().map(ToString::to_string),
-        Some(
-            SubprocessClusterError::ProcessDidNotStop {
-                pid: signals.pid,
-                status: WaitStatus::Signaled(signals.pid, Signal::SIGKILL, false),
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        signals.pause(),
+        Err(SubprocessClusterError::ProcessDidNotStop {
+            pid,
+            status: WaitStatus::Signaled(signalled_pid, Signal::SIGKILL, false),
+        }) if pid == signals.pid && signalled_pid == signals.pid
+    ));
 }

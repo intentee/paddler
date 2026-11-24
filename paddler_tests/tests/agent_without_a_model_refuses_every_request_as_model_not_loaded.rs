@@ -1,10 +1,6 @@
 use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 
-use paddler_agent_decision::decision_error::DecisionError;
-use paddler_agent_embeddings::embedding_error::EmbeddingError;
-use paddler_agent_runtime::rejection_description::rejection_description;
-use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
@@ -23,8 +19,6 @@ use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::reserved_request::ReservedRequest;
 use paddler_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
-
-const AGENT_NAME: Option<&str> = Some("test-agent");
 
 fn requests_of_every_kind() -> [RequestEnvelope<AgentJsonRpcRequest>; 4] {
     [
@@ -123,43 +117,36 @@ async fn agent_without_a_model_refuses_every_request_as_model_not_loaded() {
          }| first_request_id.cmp(second_request_id),
     );
 
-    assert_eq!(
-        responses,
-        vec![
+    assert!(matches!(
+        responses.as_slice(),
+        [
             ResponseEnvelope {
                 generated_by: None,
-                request_id: "conversation".to_owned(),
+                request_id: conversation_request_id,
                 response: AgentJsonRpcResponse::GeneratedToken(
-                    GeneratedTokenResult::ModelNotLoaded(rejection_description(
-                        AGENT_NAME,
-                        &TextGenerationError::ModelNotLoaded
-                    ))
+                    GeneratedTokenResult::ModelNotLoaded(_)
                 ),
             },
             ResponseEnvelope {
                 generated_by: None,
-                request_id: "decision".to_owned(),
-                response: AgentJsonRpcResponse::Decision(DecisionResult::ModelNotLoaded(
-                    rejection_description(AGENT_NAME, &DecisionError::ModelNotLoaded)
-                )),
+                request_id: decision_request_id,
+                response: AgentJsonRpcResponse::Decision(DecisionResult::ModelNotLoaded(_)),
             },
             ResponseEnvelope {
                 generated_by: None,
-                request_id: "embedding-batch".to_owned(),
-                response: AgentJsonRpcResponse::Embedding(EmbeddingResult::ModelNotLoaded(
-                    rejection_description(AGENT_NAME, &EmbeddingError::ModelNotLoaded)
-                )),
+                request_id: embedding_batch_request_id,
+                response: AgentJsonRpcResponse::Embedding(EmbeddingResult::ModelNotLoaded(_)),
             },
             ResponseEnvelope {
                 generated_by: None,
-                request_id: "raw-prompt".to_owned(),
+                request_id: raw_prompt_request_id,
                 response: AgentJsonRpcResponse::GeneratedToken(
-                    GeneratedTokenResult::ModelNotLoaded(rejection_description(
-                        AGENT_NAME,
-                        &TextGenerationError::ModelNotLoaded
-                    ))
+                    GeneratedTokenResult::ModelNotLoaded(_)
                 ),
             },
-        ]
-    );
+        ] if conversation_request_id == "conversation"
+            && decision_request_id == "decision"
+            && embedding_batch_request_id == "embedding-batch"
+            && raw_prompt_request_id == "raw-prompt"
+    ));
 }

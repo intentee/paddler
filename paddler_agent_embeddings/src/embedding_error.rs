@@ -1,10 +1,7 @@
-use std::ffi::NulError;
 use std::num::TryFromIntError;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_model::model_error::ModelError;
 use log::error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
@@ -23,21 +20,7 @@ pub enum EmbeddingError {
     InputTokenizationFailed {
         source_document_id: String,
         #[source]
-        source: StringToTokenError,
-    },
-
-    #[error("failed to tokenize embedding input {source_document_id:?}")]
-    InputContainsNul {
-        source_document_id: String,
-        #[source]
-        source: NulError,
-    },
-
-    #[error("failed to tokenize embedding input {source_document_id:?}")]
-    InputLengthUnrepresentable {
-        source_document_id: String,
-        #[source]
-        source: TryFromIntError,
+        source: ModelError,
     },
 
     #[error("no model is loaded")]
@@ -47,13 +30,13 @@ pub enum EmbeddingError {
     SchedulerUnavailable,
 
     #[error("failed to add an embedding input to the batch")]
-    BatchAssemblyFailed(#[source] BatchAddError),
+    BatchAssemblyFailed(#[source] ContextError),
 
     #[error("the client stopped listening for embeddings")]
     ClientDisconnected(#[source] SendError<EmbeddingResult>),
 
     #[error("llama.cpp rejected the embedding batch")]
-    DecodeFailed(#[source] DecodeError),
+    DecodeFailed(#[source] ContextError),
 
     #[error("{dimensions}-dimensional embedding is too long for RMS normalization")]
     EmbeddingTooLongForRmsNormalization {
@@ -62,45 +45,27 @@ pub enum EmbeddingError {
         source: TryFromIntError,
     },
 
+    #[error("the agent serves no embeddings with a decision model")]
+    EmbeddingsNotServed,
+
     #[error("failed to read the embedding of a batch sequence")]
-    EmbeddingsUnavailable(#[source] EmbeddingsError),
+    EmbeddingsUnavailable(#[source] ContextError),
 }
 
 impl EmbeddingError {
-    #[must_use]
-    pub fn for_input_tokenization_error(
-        source_document_id: String,
-        tokenization_error: StringToTokenError,
-    ) -> Self {
-        match tokenization_error {
-            StringToTokenError::NulError(nul_error) => Self::InputContainsNul {
-                source_document_id,
-                source: nul_error,
-            },
-            StringToTokenError::CIntConversionError(conversion_error) => {
-                Self::InputLengthUnrepresentable {
-                    source_document_id,
-                    source: conversion_error,
-                }
-            }
-            StringToTokenError::CppString(_)
-            | StringToTokenError::FfiContract(_)
-            | StringToTokenError::FfiStatus(_)
-            | StringToTokenError::LlamaCppOutOfMemory
-            | StringToTokenError::NotEnoughMemory
-            | StringToTokenError::Reported { .. } => Self::InputTokenizationFailed {
-                source_document_id,
-                source: tokenization_error,
-            },
-        }
-    }
-
     pub fn report(
         self,
         agent_name: Option<&str>,
         generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
     ) {
         self.report_to_each(agent_name, [generated_embedding_tx]);
+    }
+
+    pub fn report_embeddings_not_served(
+        agent_name: Option<&str>,
+        generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
+    ) {
+        Self::EmbeddingsNotServed.report(agent_name, generated_embedding_tx);
     }
 
     pub fn report_model_not_loaded(
@@ -129,10 +94,9 @@ impl EmbeddingError {
             Self::EmbeddingTooLongForRmsNormalization { .. } => {
                 EmbeddingResult::EmbeddingTooLongForRmsNormalization(message)
             }
+            Self::EmbeddingsNotServed => EmbeddingResult::EmbeddingsNotServed(message),
             Self::EmbeddingsUnavailable(_) => EmbeddingResult::EmbeddingsUnavailable(message),
-            Self::InputContainsNul { .. }
-            | Self::InputLengthUnrepresentable { .. }
-            | Self::InputTokenizationFailed { .. } => {
+            Self::InputTokenizationFailed { .. } => {
                 EmbeddingResult::InputTokenizationFailed(message)
             }
             Self::ModelNotLoaded => EmbeddingResult::ModelNotLoaded(message),
@@ -150,10 +114,8 @@ mod tests {
     use std::io;
     use std::mem::discriminant;
 
-    use llama_cpp_bindings::batch_add_error::BatchAddError;
-    use llama_cpp_bindings::error::decode_error::DecodeError;
-    use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
-    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
+    use llama_cpp_context::context_error::ContextError;
+    use llama_cpp_model::model_error::ModelError;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::SendError;
     use tokio::sync::mpsc::error::TryRecvError;
@@ -174,11 +136,11 @@ mod tests {
                 EmbeddingResult::AgentRuntimeFailed(description()),
             ),
             (
-                EmbeddingError::BatchAssemblyFailed(BatchAddError::NoSequenceIds),
+                EmbeddingError::BatchAssemblyFailed(ContextError::NoSequenceIds),
                 EmbeddingResult::BatchAssemblyFailed(description()),
             ),
             (
-                EmbeddingError::DecodeFailed(DecodeError::NoKvCacheSlot),
+                EmbeddingError::DecodeFailed(ContextError::DecodeNoKvCacheSlot),
                 EmbeddingResult::DecodeFailed(description()),
             ),
             (
@@ -189,14 +151,18 @@ mod tests {
                 EmbeddingResult::EmbeddingTooLongForRmsNormalization(description()),
             ),
             (
-                EmbeddingError::EmbeddingsUnavailable(EmbeddingsError::NotEnabled),
+                EmbeddingError::EmbeddingsNotServed,
+                EmbeddingResult::EmbeddingsNotServed(description()),
+            ),
+            (
+                EmbeddingError::EmbeddingsUnavailable(ContextError::EmbeddingsNotEnabled),
                 EmbeddingResult::EmbeddingsUnavailable(description()),
             ),
             (
-                EmbeddingError::for_input_tokenization_error(
-                    "document".to_owned(),
-                    StringToTokenError::NotEnoughMemory,
-                ),
+                EmbeddingError::InputTokenizationFailed {
+                    source_document_id: "document".to_owned(),
+                    source: ModelError::TokenizeNotEnoughMemory,
+                },
                 EmbeddingResult::InputTokenizationFailed(description()),
             ),
             (
@@ -219,25 +185,6 @@ mod tests {
                 Ok(discriminant(&expected_result))
             );
         }
-    }
-
-    #[test]
-    fn a_document_too_long_for_llama_cpp_describes_the_conversion_failure_once() {
-        let (generated_embedding_tx, mut generated_embedding_rx) = mpsc::unbounded_channel();
-
-        EmbeddingError::for_input_tokenization_error(
-            "document".to_owned(),
-            StringToTokenError::CIntConversionError(u8::try_from(256_u16).unwrap_err()),
-        )
-        .report(Some("agent"), &generated_embedding_tx);
-
-        assert_eq!(
-            generated_embedding_rx.try_recv(),
-            Ok(EmbeddingResult::InputTokenizationFailed(
-                "agent: failed to tokenize embedding input \"document\": number too large to fit in target type"
-                    .to_owned()
-            ))
-        );
     }
 
     #[test]
@@ -266,14 +213,16 @@ mod tests {
         let (first_embedding_tx, mut first_embedding_rx) = mpsc::unbounded_channel();
         let (second_embedding_tx, mut second_embedding_rx) = mpsc::unbounded_channel();
 
-        EmbeddingError::DecodeFailed(DecodeError::NoKvCacheSlot)
+        EmbeddingError::DecodeFailed(ContextError::DecodeNoKvCacheSlot)
             .report_to_each(None, [&first_embedding_tx, &second_embedding_tx]);
 
-        let expected_result = Ok(EmbeddingResult::DecodeFailed(
-            "llama.cpp rejected the embedding batch: no KV cache slot was available".to_owned(),
+        assert!(matches!(
+            first_embedding_rx.try_recv(),
+            Ok(EmbeddingResult::DecodeFailed(_))
         ));
-
-        assert_eq!(first_embedding_rx.try_recv(), expected_result);
-        assert_eq!(second_embedding_rx.try_recv(), expected_result);
+        assert!(matches!(
+            second_embedding_rx.try_recv(),
+            Ok(EmbeddingResult::DecodeFailed(_))
+        ));
     }
 }

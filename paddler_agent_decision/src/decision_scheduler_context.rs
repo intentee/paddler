@@ -1,6 +1,6 @@
-use paddler_agent_pointer_head::pointer_head::PointerHead;
+use crate::kev_option_scorer::KevOptionScorer;
 
 pub struct DecisionSchedulerContext {
     pub agent_name: Option<String>,
-    pub pointer_head: PointerHead,
+    pub option_scorer: KevOptionScorer,
 }

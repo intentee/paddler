@@ -1,5 +1,5 @@
 use llama_cpp_bindings::generation_progress::GenerationProgress;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_token_usage::token_usage::TokenUsage;
 
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
@@ -33,7 +33,7 @@ impl CompletionCheckPhase<'_> {
     fn reached_max_tokens(&self) -> bool {
         self.request_state
             .sampled_tokens
-            .saturating_sub(self.usage.tool_call_tokens)
+            .saturating_sub(self.usage.tool_call)
             >= u64::from(self.request_state.max_tokens.get())
     }
 }
@@ -43,8 +43,8 @@ mod tests {
     use std::num::NonZeroU32;
 
     use llama_cpp_bindings::generation_progress::GenerationProgress;
-    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
+    use llama_cpp_token_usage::token_usage::TokenUsage;
 
     use super::CompletionCheckPhase;
     use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn tokens_held_back_from_usage_count_toward_max_tokens() {
         let usage = TokenUsage {
-            content_tokens: 1,
+            content: 1,
             ..TokenUsage::new()
         };
 
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn finalized_tool_call_tokens_do_not_count_toward_max_tokens() {
         let usage = TokenUsage {
-            tool_call_tokens: 3,
+            tool_call: 3,
             ..TokenUsage::new()
         };
 

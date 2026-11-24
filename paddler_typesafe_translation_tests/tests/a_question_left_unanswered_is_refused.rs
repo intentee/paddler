@@ -3,13 +3,8 @@ use paddler_typesafe_translation_tests::refusal_of_a_lone_answer_to_two_noul_que
 
 #[test]
 fn a_question_left_unanswered_is_refused() {
-    assert_eq!(
+    assert!(matches!(
         refusal_of_a_lone_answer_to_two_noul_questions("first", vec![0.5, 0.5]),
-        Some(
-            TypeSafeTranslationError::AnswerMissing {
-                question_id: "second".to_owned(),
-            }
-            .to_string()
-        )
-    );
+        Some(TypeSafeTranslationError::AnswerMissing { question_id }) if question_id == "second"
+    ));
 }

@@ -18,6 +18,7 @@ use tokio::sync::Mutex;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_spawn_resuming_panic::spawn_blocking_resuming_panic::spawn_blocking_resuming_panic;
 
+use crate::balancer_desired_state_v2::BalancerDesiredStateV2;
 use crate::schema::Schema;
 use crate::schema_version_header::SchemaVersionHeader;
 use crate::state_database_error::StateDatabaseError;
@@ -42,7 +43,7 @@ fn replacement_permissions(state_path: &Path) -> Result<Permissions, StateDataba
 fn write_replacement(
     replacement: &File,
     replacement_path: &Path,
-    schema: &Schema,
+    schema: &Schema<BalancerDesiredState>,
 ) -> Result<(), StateDatabaseError> {
     to_writer_pretty(replacement, schema).map_err(|source| {
         StateDatabaseError::FileWriteFailed {
@@ -59,7 +60,10 @@ fn write_replacement(
         })
 }
 
-fn replace_state_file(state_path: &Path, schema: &Schema) -> Result<(), StateDatabaseError> {
+fn replace_state_file(
+    state_path: &Path,
+    schema: &Schema<BalancerDesiredState>,
+) -> Result<(), StateDatabaseError> {
     let state_directory =
         state_path
             .parent()
@@ -116,7 +120,7 @@ impl StateDatabaseFile {
     ) -> Result<StoredBalancerDesiredState, StateDatabaseError> {
         match read_to_string(&self.path).await {
             Ok(content) => Ok(StoredBalancerDesiredState::Stored(Box::new(
-                self.parse_schema(&content)?.balancer_desired_state,
+                self.parse_balancer_desired_state(&content)?,
             ))),
             Err(read_error) if read_error.kind() == ErrorKind::NotFound => {
                 Ok(StoredBalancerDesiredState::NothingStored)
@@ -152,22 +156,41 @@ impl StateDatabaseFile {
         .await
     }
 
-    fn parse_schema(&self, content: &str) -> Result<Schema, StateDatabaseError> {
+    fn parse_balancer_desired_state(
+        &self,
+        content: &str,
+    ) -> Result<BalancerDesiredState, StateDatabaseError> {
         let SchemaVersionHeader { version } =
             from_str(content).map_err(|source| StateDatabaseError::FileContentsInvalid {
                 path: self.path.clone(),
                 source,
             })?;
+        let schema_version =
+            from_value::<StateDatabaseSchemaVersion>(version.clone()).map_err(|source| {
+                StateDatabaseError::SchemaVersionUnsupported {
+                    found: version.to_string(),
+                    path: self.path.clone(),
+                    source,
+                }
+            })?;
 
-        from_value::<StateDatabaseSchemaVersion>(version.clone()).map_err(|source| {
-            StateDatabaseError::SchemaVersionUnsupported {
-                found: version.to_string(),
-                path: self.path.clone(),
-                source,
-            }
-        })?;
-
-        from_str(content).map_err(|source| StateDatabaseError::FileContentsInvalid {
+        match schema_version {
+            StateDatabaseSchemaVersion::V2 => from_str::<Schema<BalancerDesiredStateV2>>(content)
+                .map(
+                    |Schema {
+                         balancer_desired_state,
+                         ..
+                     }| BalancerDesiredState::from(balancer_desired_state),
+                ),
+            StateDatabaseSchemaVersion::V3 => from_str::<Schema<BalancerDesiredState>>(content)
+                .map(
+                    |Schema {
+                         balancer_desired_state,
+                         ..
+                     }| balancer_desired_state,
+                ),
+        }
+        .map_err(|source| StateDatabaseError::FileContentsInvalid {
             path: self.path.clone(),
             source,
         })
@@ -176,7 +199,6 @@ impl StateDatabaseFile {
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error as _;
     #[cfg(target_os = "linux")]
     use std::fs::OpenOptions;
     use std::fs::Permissions;
@@ -187,6 +209,10 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use serde_json::error::Category;
+    use serde_json::json;
+    use serde_json::to_value;
+    use serde_json::to_vec;
     use tempfile::NamedTempFile;
     use tempfile::TempDir;
     use tokio::fs::metadata;
@@ -459,7 +485,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reading_a_file_of_an_older_schema_version_names_the_version_it_found() {
+    async fn reading_a_file_of_an_unsupported_schema_version_names_the_version_it_found() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_path_buf();
 
@@ -467,37 +493,46 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
+        assert!(matches!(
             StateDatabaseFile::new(path.clone())
                 .read_balancer_desired_state()
-                .await
-                .err()
-                .as_ref()
-                .map(ToString::to_string),
-            Some(format!(
-                r#"The state database file '{}' uses schema version "1", but this version of Paddler only reads version 2. Start from a new state database file."#,
-                path.display()
-            ))
-        );
+                .await,
+            Err(StateDatabaseError::SchemaVersionUnsupported {
+                found,
+                path: refused_path,
+                source,
+            }) if found == r#""1""# && refused_path == path && source.classify() == Category::Data
+        ));
     }
 
     #[tokio::test]
-    async fn reading_a_file_of_an_older_schema_version_keeps_why_the_version_was_refused() {
+    async fn reading_a_file_of_schema_version_2_drops_its_pointer_head_settings() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_path_buf();
+        let desired_state = desired_state_with_model("stored_model_uri");
+        let mut stored_desired_state = to_value(&desired_state).unwrap();
 
-        write(&path, br#"{"balancer_desired_state": {}, "version": "1"}"#)
-            .await
-            .unwrap();
-
-        let refusal = StateDatabaseFile::new(path)
-            .read_balancer_desired_state()
-            .await
-            .unwrap_err();
+        stored_desired_state.as_object_mut().unwrap().insert(
+            "decision".to_owned(),
+            json!({"pointer_head": {"Uri": "pointer_head.gguf"}}),
+        );
+        write(
+            &path,
+            to_vec(&json!({
+                "balancer_desired_state": stored_desired_state,
+                "version": "2",
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
-            refusal.source().map(ToString::to_string),
-            Some("unknown variant `1`, expected `2`".to_owned())
+            StateDatabaseFile::new(path)
+                .read_balancer_desired_state()
+                .await
+                .unwrap(),
+            StoredBalancerDesiredState::Stored(Box::new(desired_state))
         );
     }
 }

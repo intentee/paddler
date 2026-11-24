@@ -10,24 +10,21 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
-use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 #[test]
 fn shutting_down_a_served_model_closes_every_capability_at_once() {
     single_blocking_thread_runtime()
         .expect("the test runtime must build")
         .block_on(async {
-            let KevModelServingWithoutDecisions { served_model, .. } =
-                KevModelServingWithoutDecisions::start(&CancellationToken::new())
-                    .await
-                    .expect("the model must load")
-                    .expect("text generation and embeddings must start");
-            let embeddings_preparations = served_model
-                .capabilities
-                .embeddings
-                .request_preparer
-                .preparation_tasks
-                .clone();
+            let serving = ModelServingTextGenerationAndEmbeddings::start(&CancellationToken::new())
+                .await
+                .expect("the model must load")
+                .expect("text generation and embeddings must start");
+            let embeddings_preparations = serving
+                .embeddings_preparation_tasks()
+                .expect("a model that makes no decisions must serve embeddings");
+            let ModelServingTextGenerationAndEmbeddings { served_model, .. } = serving;
             let text_generation_preparations = served_model
                 .capabilities
                 .text_generation

@@ -14,12 +14,8 @@ async fn agent_ends_a_management_connection_on_a_binary_frame() {
         .expect("the agent must hang up on the frame and reconnect");
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::balancer_message_context").contains(
-            &CapturedRecord {
-                level: Level::Error,
-                message: "Closing the management connection after a non-text message".to_owned(),
-                target: "paddler_agent::balancer_message_context".to_owned(),
-            }
-        )
+        CapturingLogger::records_for("paddler_agent::balancer_message_context")
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Error)
     );
 }

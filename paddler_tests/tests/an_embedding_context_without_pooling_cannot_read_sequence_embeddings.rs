@@ -2,13 +2,10 @@
 
 use std::num::NonZeroU16;
 
-use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
-use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
 use paddler_agent_embeddings::embedding_normalization::EmbeddingNormalization;
-use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
@@ -33,13 +30,8 @@ fn an_embedding_context_without_pooling_cannot_read_sequence_embeddings() {
         .expect("the embedding context must be created");
 
     assert_eq!(continuing_requests.len(), 0);
-    assert_eq!(
+    assert!(matches!(
         generated_embedding_rx.try_recv(),
-        Ok(EmbeddingResult::EmbeddingsUnavailable(
-            ErrorChain {
-                error: &EmbeddingError::EmbeddingsUnavailable(EmbeddingsError::NonePoolType),
-            }
-            .to_string()
-        ))
-    );
+        Ok(EmbeddingResult::EmbeddingsUnavailable(_))
+    ));
 }

@@ -64,6 +64,7 @@ pub async fn collect_embedding_results(
                     | EmbeddingResult::BatchAssemblyFailed(_)
                     | EmbeddingResult::DecodeFailed(_)
                     | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+                    | EmbeddingResult::EmbeddingsNotServed(_)
                     | EmbeddingResult::EmbeddingsUnavailable(_)
                     | EmbeddingResult::InputTokenizationFailed(_)
                     | EmbeddingResult::ModelNotLoaded(_)

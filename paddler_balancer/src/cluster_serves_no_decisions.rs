@@ -7,6 +7,8 @@ pub struct ClusterServesNoDecisions;
 
 impl Display for ClusterServesNoDecisions {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        formatter.write_str("No pointer head is configured, so the cluster serves no decisions")
+        formatter.write_str(
+            "No agent serves or is loading a decision model, so the cluster serves no decisions",
+        )
     }
 }

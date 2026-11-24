@@ -1,13 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::answered_decision_probabilities::answered_decision_probabilities;
-use paddler_tests::decision_backbone::DecisionBackbone;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
-use paddler_tests::decision_desired_state::DecisionDesiredState;
+use paddler_tests::model_declaring_decision_metadata::ModelDeclaringDecisionMetadata;
 use paddler_tests::sample_decision::sample_decision;
+use paddler_tests::start_cluster::start_cluster;
 
 fn decision_with_many_options() -> RawDecideParams {
     RawDecideParams {
@@ -33,14 +36,25 @@ fn decision_with_many_options() -> RawDecideParams {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decisions_on_an_attention_only_model_read_the_hidden_states_of_their_own_input() {
-    let cluster = DecisionClusterParams {
-        desired_state: DecisionDesiredState {
-            backbone: DecisionBackbone::HuggingFace(qwen3_0_6b()),
-            ..DecisionDesiredState::default()
-        },
-        ..DecisionClusterParams::default()
-    }
-    .start_cluster()
+    let attention_only_kev_model =
+        ModelDeclaringDecisionMetadata::write(qwen3_0_6b(), |gguf_context| {
+            gguf_context.set_val_str(c"qwen3.decision.type", c"kev");
+            gguf_context.set_val_str(c"qwen3.decision.temperature.choice", c"1.0");
+            gguf_context.set_val_str(c"qwen3.decision.temperature.noul", c"1.0");
+            gguf_context.set_val_str(c"qwen3.decision.temperature.score", c"1.0");
+
+            Ok(())
+        })
+        .expect("the attention-only model declaring a kev decision type must be written");
+    let cluster = start_cluster(ClusterParams {
+        agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM.get()),
+        desired_state: ClusterDesiredState::Apply(Box::new(
+            attention_only_kev_model
+                .desired_state()
+                .expect("the decision model must lie at an absolute path"),
+        )),
+        ..ClusterParams::default()
+    })
     .await
     .expect("a decision cluster on an attention-only model must start");
 

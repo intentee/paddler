@@ -6,20 +6,13 @@ use paddler_agent_runtime::agent_vram_residencies::AgentVramResidencies;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::decision_settings::DecisionSettings;
+use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_down() {
-    let superseded_desired_state = BalancerDesiredState {
-        decision: DecisionSettings::default(),
-        ..KevCheckpoint::Kev0_8b
-            .decision_desired_state()
-            .into_balancer_desired_state()
-            .expect("the kev desired state must name absolute paths")
-    };
+    let superseded_desired_state = qwen3_5_0_8b().into_desired_state();
     let mut serving_pipeline_arbiter =
         ServingPipelineArbiter::new(1).expect("the model downloader must start");
     let AgentVramResidencies {
@@ -41,7 +34,6 @@ async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_d
         ),
         desired_state_reconciled_discriminant()
     );
-    serving_pipeline_arbiter.conclude_next_progress().await;
     assert_eq!(
         discriminant(
             &serving_pipeline_arbiter
@@ -56,9 +48,8 @@ async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_d
         ),
         desired_state_reconciled_discriminant()
     );
-    serving_pipeline_arbiter.conclude_next_progress().await;
-    serving_pipeline_arbiter.conclude_next_progress().await;
-    serving_pipeline_arbiter.conclude_next_progress().await;
+    serving_pipeline_arbiter.conclude_next_startup().await;
+    serving_pipeline_arbiter.conclude_next_startup().await;
     serving_pipeline_arbiter.shut_down().await;
 
     assert!(

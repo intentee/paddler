@@ -12,8 +12,12 @@ version.workspace = true
 doctest = false
 
 [dependencies]
-llama-cpp-bindings = { workspace = true }
+llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-context-memory = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-params = { workspace = true }
 log = { workspace = true }
 parking_lot = { workspace = true }
 thiserror = { workspace = true }
@@ -27,9 +31,9 @@ paddler_spawn_resuming_panic = { workspace = true }
 
 [features]
 default = []
-cuda = ["llama-cpp-bindings/cuda"]
-metal = ["llama-cpp-bindings/metal"]
-vulkan = ["llama-cpp-bindings/vulkan"]
+cuda = ["llama-cpp-backend/cuda"]
+metal = ["llama-cpp-backend/metal"]
+vulkan = ["llama-cpp-backend/vulkan"]
 
 [lints]
 workspace = true

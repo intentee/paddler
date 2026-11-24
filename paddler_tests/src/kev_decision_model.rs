@@ -1,57 +1,61 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::llama_token::LlamaToken;
 
+use paddler_agent_decision::constants::KEV_DECISION_DELIMITERS;
 use paddler_agent_decision::decision_delimiter_tokens::DecisionDelimiterTokens;
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_decision::decision_scheduler::DecisionScheduler;
 use paddler_agent_decision::decision_scheduler_context::DecisionSchedulerContext;
 use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
-use paddler_agent_pointer_head::pointer_head::PointerHead;
+use paddler_agent_decision::kev_option_scorer::KevOptionScorer;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 use crate::decision_scheduler_run::DecisionSchedulerRun;
-use crate::kev_0_8b_pointer_head::kev_0_8b_pointer_head;
-use crate::kev_checkpoint::KevCheckpoint;
 use crate::llama_runtime::LlamaRuntime;
 use crate::two_option_question::two_option_question;
 
 pub struct KevDecisionModel {
     pub delimiter_tokens: DecisionDelimiterTokens,
-    pub pointer_head: PointerHead,
+    pub option_scorer: KevOptionScorer,
     pub runtime: LlamaRuntime,
 }
 
 impl KevDecisionModel {
     /// # Errors
     ///
-    /// Returns an error when the kev model, its pointer head, or the delimiters of that pointer head cannot load.
+    /// Returns an error when the kev model is not cached or cannot load, when it cannot score options, and when its vocabulary does not hold the kev delimiters.
     pub fn load(slots: u16) -> Result<Self> {
-        LlamaRuntime::load(
-            &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
-            agent_inference_runtime_context(slots),
-        )
-        .context("the kev model must load")
-        .and_then(Self::with_the_kev_pointer_head)
+        kev_0_8b()
+            .cached_path()
+            .context("the kev model must be in the Hugging Face cache")
+            .and_then(|model_path| {
+                LlamaRuntime::load(&model_path, agent_inference_runtime_context(slots))
+                    .context("the kev model must load")
+            })
+            .and_then(Self::scoring_with_the_kev_delimiters)
     }
 
-    fn with_the_kev_pointer_head(runtime: LlamaRuntime) -> Result<Self> {
-        kev_0_8b_pointer_head()
-            .context("the kev pointer head must load")
-            .and_then(|pointer_head| {
-                DecisionDelimiterTokens::resolve(
-                    &runtime.loaded_llama_model.model.llama_model,
-                    &pointer_head.delimiters,
-                )
-                .context("the kev pointer head delimiters must resolve")
-                .map(|delimiter_tokens| Self {
-                    delimiter_tokens,
-                    pointer_head,
-                    runtime,
-                })
-            })
+    fn scoring_with_the_kev_delimiters(runtime: LlamaRuntime) -> Result<Self> {
+        let loaded_llama_model = &runtime.loaded_llama_model;
+        let option_scorer = KevOptionScorer::of(
+            &loaded_llama_model.model_metadata,
+            loaded_llama_model.model.n_embd_out(),
+        )
+        .context("the kev model must score options")?;
+        let delimiter_tokens = DecisionDelimiterTokens::resolve(
+            &*loaded_llama_model.model.llama_model,
+            &KEV_DECISION_DELIMITERS,
+        )
+        .context("the kev delimiters must resolve")?;
+
+        Ok(Self {
+            delimiter_tokens,
+            option_scorer,
+            runtime,
+        })
     }
 
     /// # Errors
@@ -69,7 +73,7 @@ impl KevDecisionModel {
         }: DecisionSchedulerRun,
     ) -> Result<(), DecisionError> {
         let Self {
-            pointer_head,
+            option_scorer,
             runtime,
             ..
         } = self;
@@ -80,13 +84,13 @@ impl KevDecisionModel {
                 DecisionScheduler {
                     active_requests,
                     agent_shutdown,
-                    batch: LlamaBatch::new(ContextLimits::of(&llama_context)),
+                    batch: LlamaBatch::new(llama_context.limits()),
                     capacity_ledger,
                     llama_context,
                     pending_requests,
                     scheduler_context: DecisionSchedulerContext {
                         agent_name: None,
-                        pointer_head,
+                        option_scorer,
                     },
                     scheduler_inbox,
                 }

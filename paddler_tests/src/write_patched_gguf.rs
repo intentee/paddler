@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use llama_cpp_bindings::gguf_context::GgufContext;
-use llama_cpp_bindings::gguf_context_error::GgufContextError;
+use llama_cpp_gguf::gguf_context::GgufContext;
+use llama_cpp_gguf::gguf_context_error::GgufContextError;
 
 /// # Errors
 ///

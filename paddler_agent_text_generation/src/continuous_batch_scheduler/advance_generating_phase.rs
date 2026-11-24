@@ -1,8 +1,8 @@
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::ingest_error::IngestError;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
+use llama_cpp_model::sampled_token::SampledToken;
 use log::error;
 use log::warn;
 
@@ -227,7 +227,7 @@ impl AdvanceGeneratingPhase<'_> {
         }))
     }
 
-    fn completed_by_ingest_error(&self, ingest_error: IngestError) -> AdvanceOutcome {
+    fn completed_by_ingest_error(&self, ingest_error: LlamaCppError) -> AdvanceOutcome {
         AdvanceOutcome::Completed(
             TextGenerationError::for_ingest_error(ingest_error)
                 .into_generated_token_result(self.scheduler_context.agent_name.as_deref()),

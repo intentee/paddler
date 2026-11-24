@@ -16,7 +16,6 @@ const terminalErrorCodes = [
   { code: 400, variant: "GrammarSyntaxError" },
   { code: 400, variant: "ImageDecodingFailed" },
   { code: 500, variant: "KvCacheClearFailed" },
-  { code: 500, variant: "MediaMicroBatchCheckFailed" },
   { code: 503, variant: "ModelNotLoaded" },
   { code: 500, variant: "MultimodalIngestionFailed" },
   { code: 400, variant: "MultimodalNotSupported" },

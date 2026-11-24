@@ -32,10 +32,10 @@ impl ArbiterUnderTest {
         }
     }
 
-    pub async fn conclude_next_progress(&mut self) -> AgentStateApplicationStatus {
-        let serving_startup_progress = self.pipeline_arbiter.next_finished_startup().await;
+    pub async fn conclude_next_startup(&mut self) -> AgentStateApplicationStatus {
+        let finished_serving_startup = self.pipeline_arbiter.next_finished_startup().await;
 
-        self.pipeline_arbiter.conclude(serving_startup_progress);
+        self.pipeline_arbiter.conclude(finished_serving_startup);
 
         self.inference_runtime_context
             .slot_aggregated_status

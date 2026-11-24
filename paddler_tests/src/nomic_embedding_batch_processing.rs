@@ -2,9 +2,8 @@ use std::num::NonZeroU16;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 
 use paddler_agent_embeddings::active_embedding_request::ActiveEmbeddingRequest;
 use paddler_agent_embeddings::embedding_batch_processor::EmbeddingBatchProcessor;
@@ -79,7 +78,7 @@ impl NomicEmbeddingBatchProcessing {
         normalization: TNormalization,
         active_requests: Vec<ActiveEmbeddingRequest>,
     ) -> Vec<ActiveEmbeddingRequest> {
-        let mut batch = LlamaBatch::new(ContextLimits::of(llama_context));
+        let mut batch = LlamaBatch::new(llama_context.limits());
 
         EmbeddingBatchProcessor {
             batch: &mut batch,

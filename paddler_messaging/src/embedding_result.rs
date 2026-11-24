@@ -22,6 +22,7 @@ pub enum EmbeddingResult {
     Done,
     Embedding(Embedding),
     EmbeddingTooLongForRmsNormalization(String),
+    EmbeddingsNotServed(String),
     EmbeddingsUnavailable(String),
     InputTokenizationFailed(String),
     ModelNotLoaded(String),
@@ -39,6 +40,7 @@ impl From<EmbeddingFinalResult> for EmbeddingResult {
             EmbeddingFinalResult::EmbeddingTooLongForRmsNormalization(detail) => {
                 Self::EmbeddingTooLongForRmsNormalization(detail)
             }
+            EmbeddingFinalResult::EmbeddingsNotServed(detail) => Self::EmbeddingsNotServed(detail),
             EmbeddingFinalResult::EmbeddingsUnavailable(detail) => {
                 Self::EmbeddingsUnavailable(detail)
             }
@@ -102,6 +104,9 @@ impl StreamableResult for EmbeddingResult {
             Self::EmbeddingTooLongForRmsNormalization(detail) => ResultStep::Final(
                 EmbeddingFinalResult::EmbeddingTooLongForRmsNormalization(detail),
             ),
+            Self::EmbeddingsNotServed(detail) => {
+                ResultStep::Final(EmbeddingFinalResult::EmbeddingsNotServed(detail))
+            }
             Self::EmbeddingsUnavailable(detail) => {
                 ResultStep::Final(EmbeddingFinalResult::EmbeddingsUnavailable(detail))
             }
@@ -163,6 +168,10 @@ mod tests {
             (
                 EmbeddingResult::EmbeddingTooLongForRmsNormalization("rms".to_owned()),
                 EmbeddingFinalResult::EmbeddingTooLongForRmsNormalization("rms".to_owned()),
+            ),
+            (
+                EmbeddingResult::EmbeddingsNotServed("decision model".to_owned()),
+                EmbeddingFinalResult::EmbeddingsNotServed("decision model".to_owned()),
             ),
             (
                 EmbeddingResult::EmbeddingsUnavailable("unavailable".to_owned()),

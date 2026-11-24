@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU16;
 
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 use tokio::sync::mpsc::error::TryRecvError;
 
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;

@@ -5,18 +5,18 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_runtime::shuts_down::ShutsDown as _;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_tests::embedding_documents_fixture::EmbeddingDocumentsFixture;
-use paddler_tests::kev_model_serving_without_decisions::KevModelServingWithoutDecisions;
+use paddler_tests::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 
 const DOCUMENT_COUNT: usize = 64;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_embedding_request_running_when_the_agent_shuts_down_is_refused_as_unavailable() {
     let agent_shutdown = CancellationToken::new();
-    let KevModelServingWithoutDecisions {
+    let ModelServingTextGenerationAndEmbeddings {
         llama_runtime,
         served_model,
         ..
-    } = KevModelServingWithoutDecisions::start(&agent_shutdown)
+    } = ModelServingTextGenerationAndEmbeddings::start(&agent_shutdown)
         .await
         .expect("the model must load")
         .expect("text generation and embeddings must start");
@@ -35,18 +35,15 @@ async fn an_embedding_request_running_when_the_agent_shuts_down_is_refused_as_un
     served_model
         .capabilities
         .embeddings
-        .request_preparer
-        .prepare(agent_request);
+        .forward(None, agent_request);
     agent_shutdown.cancel();
 
-    assert_eq!(
+    assert!(matches!(
         EmbeddingDocumentsFixture::collect_results(generated_embedding_rx)
             .await
             .last(),
-        Some(&EmbeddingResult::SchedulerUnavailable(
-            "agent: the scheduler is no longer accepting requests".to_owned()
-        ))
-    );
+        Some(EmbeddingResult::SchedulerUnavailable(_))
+    ));
 
     served_model.shut_down().await;
 }

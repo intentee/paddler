@@ -1,14 +1,14 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::ready_to_sample_request::ReadyToSampleRequest;
 
@@ -17,7 +17,9 @@ const PROMPT: &str = "Paddler balances";
 #[test]
 fn a_sampler_chain_that_selects_no_candidate_ends_the_generation() {
     let runtime = LlamaRuntime::load(
-        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
+        &kev_0_8b()
+            .cached_path()
+            .expect("the kev model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");

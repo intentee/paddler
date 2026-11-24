@@ -1,5 +1,4 @@
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-
+use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::conversation_prompt_support::ConversationPromptSupport;
 use paddler_agent_text_generation::conversation_support::ConversationSupport;
 use paddler_agent_text_generation::generation_request_preparer::GenerationRequestPreparer;
@@ -11,7 +10,7 @@ use paddler_messaging::multimodal_settings::MultimodalSettings;
 use crate::llama_runtime::LlamaRuntime;
 
 pub struct ChatTemplatesRequestPreparer<'runtime> {
-    pub chat_templates: ChatTemplates,
+    pub chat_templates: ConversationChatTemplates,
     pub image_input: ImageInput,
     pub llama_runtime: &'runtime LlamaRuntime,
     pub sequence_context_size: u32,

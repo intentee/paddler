@@ -27,19 +27,10 @@ fn a_chat_completion_request_with_an_unsatisfiable_tool_is_refused() {
     }))
     .expect("the request must deserialize");
 
-    assert_eq!(
-        chat_completion_request
-            .translate(UNIX_EPOCH)
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            OpenAITranslationError::ToolRejected(
-                RequestParamsValidationError::RequiredFieldNotInProperties {
-                    field: "absent".to_owned(),
-                }
-            )
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        chat_completion_request.translate(UNIX_EPOCH),
+        Err(OpenAITranslationError::ToolRejected(
+            RequestParamsValidationError::RequiredFieldNotInProperties { field }
+        )) if field == "absent"
+    ));
 }

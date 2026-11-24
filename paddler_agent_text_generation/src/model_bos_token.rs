@@ -1,5 +1,5 @@
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Copy)]
 pub enum ModelBosToken {
@@ -27,7 +27,7 @@ impl ModelBosToken {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::ModelBosToken;
 

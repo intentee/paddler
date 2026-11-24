@@ -26,7 +26,7 @@ async fn a_text_generation_pipeline_refuses_to_start_while_its_context_is_reside
         .try_occupy()
         .expect("the test must occupy the text generation context residency");
 
-    assert_eq!(
+    assert!(matches!(
         TextGenerationPipelineParts {
             chat_template_source: ChatTemplateSource::EmbeddedInModel,
             llama_runtime,
@@ -34,11 +34,10 @@ async fn a_text_generation_pipeline_refuses_to_start_while_its_context_is_reside
         }
         .spawn_refusal()
         .await,
-        Some(
-            TextGenerationError::AgentRuntime(AgentRuntimeError::LlamaContextAlreadyResident {
+        Some(TextGenerationError::AgentRuntime(
+            AgentRuntimeError::LlamaContextAlreadyResident {
                 inference_capability: InferenceCapability::TextGeneration,
-            })
-            .to_string()
-        )
-    );
+            }
+        ))
+    ));
 }

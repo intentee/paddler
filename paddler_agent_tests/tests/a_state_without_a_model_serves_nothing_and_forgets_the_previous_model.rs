@@ -25,11 +25,7 @@ async fn a_state_without_a_model_serves_nothing_and_forgets_the_previous_model()
         .apply(AgentApplicableState::NotConfigured);
 
     assert_eq!(
-        arbiter_under_test.conclude_next_progress().await,
-        AgentStateApplicationStatus::Fresh
-    );
-    assert_eq!(
-        arbiter_under_test.conclude_next_progress().await,
+        arbiter_under_test.conclude_next_startup().await,
         AgentStateApplicationStatus::Applied
     );
     assert_eq!(

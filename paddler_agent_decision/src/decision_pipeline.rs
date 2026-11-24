@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
@@ -17,13 +18,10 @@ use paddler_agent_runtime::scheduler_ready::SchedulerReady;
 use paddler_agent_runtime::scheduler_request_preparer::SchedulerRequestPreparer;
 use paddler_agent_runtime::start_scheduler_thread::start_scheduler_thread;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
-use paddler_agent_status::agent_issue_fix::AgentIssueFix;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
-use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
 
+use crate::constants::KEV_DECISION_DELIMITERS;
 use crate::decision_capacity_ledger::DecisionCapacityLedger;
 use crate::decision_delimiter_tokens::DecisionDelimiterTokens;
 use crate::decision_error::DecisionError;
@@ -32,19 +30,19 @@ use crate::decision_request_preparer::DecisionRequestPreparer;
 use crate::decision_scheduler::DecisionScheduler;
 use crate::decision_scheduler_context::DecisionSchedulerContext;
 use crate::decision_text_tokenizer::DecisionTextTokenizer;
-use crate::met_decision_prerequisites::MetDecisionPrerequisites;
+use crate::kev_option_scorer::KevOptionScorer;
 
 pub struct DecisionPipeline {
+    pub decision_slots: NonZeroU16,
     pub inference_runtime_context: InferenceRuntimeContext,
     pub loaded_llama_model: LoadedLlamaModel,
-    pub met_decision_prerequisites: MetDecisionPrerequisites,
     pub model_runtime_parameters: ModelRuntimeParameters,
 }
 
 impl DecisionPipeline {
     /// # Errors
     ///
-    /// Returns [`DecisionError::PointerHeadIncompatibleWithModel`] when the hidden size or a delimiter of the pointer head does not fit the model, [`DecisionError::DelimiterContainsNul`], [`DecisionError::DelimiterLengthUnrepresentable`], [`DecisionError::DelimiterTokenizationFailed`] or [`DecisionError::DelimiterAttributesUnreadable`] when a delimiter cannot be resolved against the vocabulary, and [`DecisionError::AgentRuntime`] when the decision context cannot be created or warmed up.
+    /// Returns [`DecisionError::KevArchitectureUnknown`], [`DecisionError::KevHeadDimensionUnrepresentable`], [`DecisionError::KevTemperatureMissing`], [`DecisionError::KevTemperatureUnparseable`] or [`DecisionError::KevTemperatureOutOfRange`] when the model cannot score options, [`DecisionError::DelimiterIsNotAControlToken`], [`DecisionError::DelimiterTokenizationFailed`] or [`DecisionError::DelimiterAttributesUnreadable`] when a kev delimiter cannot be resolved against the vocabulary, and [`DecisionError::AgentRuntime`] when the decision context cannot be created or warmed up.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,
@@ -58,65 +56,37 @@ impl DecisionPipeline {
         .await
     }
 
-    fn register_compatibility(&self) {
+    fn register_malformed_decision_model(&self, defect: DecisionError) -> DecisionError {
         self.inference_runtime_context
             .slot_aggregated_status
-            .register_fix(&AgentIssueFix::PointerHeadIsCompatibleWithModel(
-                ModelPath::from(
-                    self.met_decision_prerequisites
-                        .loaded_pointer_head
-                        .pointer_head_path
-                        .as_path(),
-                ),
-            ));
-    }
-
-    fn register_incompatibility(
-        &self,
-        incompatibility: PointerHeadIncompatibility,
-    ) -> DecisionError {
-        self.inference_runtime_context
-            .slot_aggregated_status
-            .register_pipeline_issue(AgentIssue::PointerHeadIncompatibleWithModel(
-                PointerHeadIncompatibleWithModelParams {
-                    incompatibility: incompatibility.clone(),
-                    pointer_head_path: ModelPath::from(
-                        self.met_decision_prerequisites
-                            .loaded_pointer_head
-                            .pointer_head_path
-                            .as_path(),
-                    ),
-                },
+            .register_pipeline_issue(AgentIssue::DecisionModelIsMalformed(
+                self.loaded_llama_model
+                    .llama_model_settings
+                    .reported_model_path(),
             ));
 
-        DecisionError::PointerHeadIncompatibleWithModel { incompatibility }
+        defect
     }
 
     fn resolve_delimiter_tokens(&self) -> Result<DecisionDelimiterTokens, DecisionError> {
-        let model_hidden_size = i64::from(self.loaded_llama_model.model.n_embd_out());
-        let pointer_head = &self
-            .met_decision_prerequisites
-            .loaded_pointer_head
-            .pointer_head;
-
-        if pointer_head.hidden_size() != model_hidden_size {
-            return Err(self.register_incompatibility(
-                PointerHeadIncompatibility::HiddenSizeMismatch {
-                    model_hidden_size,
-                    pointer_head_hidden_size: pointer_head.hidden_size(),
-                },
-            ));
-        }
-
-        match DecisionDelimiterTokens::resolve(
-            &self.loaded_llama_model.model.llama_model,
-            &pointer_head.delimiters,
-        ) {
-            Err(DecisionError::PointerHeadIncompatibleWithModel { incompatibility }) => {
-                Err(self.register_incompatibility(incompatibility))
+        DecisionDelimiterTokens::resolve(
+            &*self.loaded_llama_model.model.llama_model,
+            &KEV_DECISION_DELIMITERS,
+        )
+        .map_err(|resolution_error| match resolution_error {
+            DecisionError::DelimiterIsNotAControlToken { .. } => {
+                self.register_malformed_decision_model(resolution_error)
             }
-            resolution => resolution.inspect(|_delimiter_tokens| self.register_compatibility()),
-        }
+            unresolvable => unresolvable,
+        })
+    }
+
+    fn resolve_option_scorer(&self) -> Result<KevOptionScorer, DecisionError> {
+        KevOptionScorer::of(
+            &self.loaded_llama_model.model_metadata,
+            self.loaded_llama_model.model.n_embd_out(),
+        )
+        .map_err(|defect| self.register_malformed_decision_model(defect))
     }
 
     fn run_scheduler(
@@ -127,8 +97,9 @@ impl DecisionPipeline {
         >,
     ) -> Result<(), DecisionError> {
         continue_startup_unless_shutting_down(agent_shutdown, || {
+            let option_scorer = self.resolve_option_scorer()?;
             let delimiter_tokens = self.resolve_delimiter_tokens()?;
-            let decision_slots = self.met_decision_prerequisites.decision_slots;
+            let decision_slots = self.decision_slots;
             let llama_context = DecisionLlamaContextSettings {
                 llama_context_settings: self.loaded_llama_model.llama_context_settings(
                     &self.model_runtime_parameters,
@@ -153,11 +124,6 @@ impl DecisionPipeline {
                                         cells_per_slot,
                                         delimiter_tokens,
                                         text_tokenizer: DecisionTextTokenizer {
-                                            input_normalization: self
-                                                .met_decision_prerequisites
-                                                .loaded_pointer_head
-                                                .pointer_head
-                                                .input_normalization,
                                             model: self.loaded_llama_model.model.clone(),
                                         },
                                     },
@@ -177,10 +143,7 @@ impl DecisionPipeline {
                                     pending_requests: VecDeque::new(),
                                     scheduler_context: DecisionSchedulerContext {
                                         agent_name: self.inference_runtime_context.agent_name,
-                                        pointer_head: self
-                                            .met_decision_prerequisites
-                                            .loaded_pointer_head
-                                            .pointer_head,
+                                        option_scorer,
                                     },
                                     scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
                                 }

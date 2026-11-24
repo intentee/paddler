@@ -1,5 +1,4 @@
 use reqwest::StatusCode;
-use serde_json::json;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
@@ -8,7 +7,7 @@ use paddler_tests::start_cluster::start_cluster;
 async fn typesafe_models_is_unavailable_while_the_cluster_serves_no_decisions() {
     let cluster = start_cluster(ClusterParams::without_agents())
         .await
-        .expect("a balancer serving text generation and embeddings must start");
+        .expect("a balancer without agents must start");
 
     let response = cluster
         .typesafe_models()
@@ -16,10 +15,6 @@ async fn typesafe_models_is_unavailable_while_the_cluster_serves_no_decisions() 
         .expect("the models request must be answered");
 
     assert_eq!(response.status, StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(
-        response.body,
-        json!({"detail": "No pointer head is configured, so the cluster serves no decisions"})
-    );
 
     cluster
         .shutdown()

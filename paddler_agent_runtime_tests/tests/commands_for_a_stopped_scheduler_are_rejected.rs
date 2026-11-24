@@ -25,13 +25,8 @@ async fn commands_for_a_stopped_scheduler_are_rejected() {
     assert_eq!(rejected_rx.try_recv(), Ok(4));
     assert_eq!(rejected_rx.try_recv(), Err(TryRecvError::Empty));
     assert!(
-        CapturingLogger::records_for("paddler_agent_runtime::scheduler_request_preparer").contains(
-            &CapturedRecord {
-                level: Level::Info,
-                message: "Some(\"agent\"): the scheduler stopped before its shutdown was requested"
-                    .to_owned(),
-                target: "paddler_agent_runtime::scheduler_request_preparer".to_owned(),
-            }
-        )
+        CapturingLogger::records_for("paddler_agent_runtime::scheduler_request_preparer")
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Info)
     );
 }

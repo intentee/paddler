@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::ffi::CString;
-
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::chat_template::ChatTemplate;
@@ -15,7 +13,7 @@ const TEMPLATE_WITH_A_NUL_BYTE: &str = "{{ messages[0].content }}\0";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_text_generation_pipeline_refuses_a_chat_template_override_containing_a_nul_byte() {
-    assert_eq!(
+    assert!(matches!(
         TextGenerationPipelineParts {
             chat_template_source: ChatTemplateSource::Override(ChatTemplate {
                 content: TEMPLATE_WITH_A_NUL_BYTE.to_owned(),
@@ -31,12 +29,6 @@ async fn a_text_generation_pipeline_refuses_a_chat_template_override_containing_
         }
         .spawn_refusal()
         .await,
-        Some(
-            TextGenerationError::ChatTemplateContainsNul(
-                CString::new(TEMPLATE_WITH_A_NUL_BYTE)
-                    .expect_err("the template must hold a NUL byte")
-            )
-            .to_string()
-        )
-    );
+        Some(TextGenerationError::ChatTemplateContainsNul(_))
+    ));
 }

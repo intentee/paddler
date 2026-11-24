@@ -4,7 +4,5 @@ pub mod hugging_face_download_failed_params;
 pub mod hugging_face_download_failure;
 pub mod hugging_face_download_lock;
 pub mod model_path;
-pub mod pointer_head_incompatibility;
-pub mod pointer_head_incompatible_with_model_params;
 pub mod slot_cannot_start_params;
 pub mod slots_insufficient_for_decisions_params;

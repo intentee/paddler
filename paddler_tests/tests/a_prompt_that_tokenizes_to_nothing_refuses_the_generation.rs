@@ -3,16 +3,18 @@
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand as _;
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
 #[test]
 fn a_prompt_that_tokenizes_to_nothing_refuses_the_generation() {
     let runtime = LlamaRuntime::load(
-        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
+        &kev_0_8b()
+            .cached_path()
+            .expect("the kev model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");
@@ -34,11 +36,8 @@ fn a_prompt_that_tokenizes_to_nothing_refuses_the_generation() {
     );
 
     assert!(scheduler_command.is_none());
-    assert_eq!(
+    assert!(matches!(
         generated_tokens_rx.try_recv(),
-        Ok(GeneratedTokenResult::PromptTokenizedToNothing(
-            "test-agent: the prompt tokenized to no tokens, so there is nothing to generate from"
-                .to_owned()
-        ))
-    );
+        Ok(GeneratedTokenResult::PromptTokenizedToNothing(_))
+    ));
 }

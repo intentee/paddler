@@ -9,7 +9,7 @@ pub fn nomic_embed_text_v1_5() -> ModelCard {
             filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_owned(),
             repository_name: "nomic-embed-text-v1.5-GGUF".to_owned(),
             repository_owner: "nomic-ai".to_owned(),
-            revision: "main".to_owned(),
+            revision: "0188c9bf409793f810680a5a431e7b899c46104c".to_owned(),
         },
     }
 }

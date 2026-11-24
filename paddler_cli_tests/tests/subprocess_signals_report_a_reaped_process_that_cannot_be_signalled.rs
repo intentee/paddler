@@ -35,15 +35,14 @@ async fn subprocess_signals_report_a_reaped_process_that_cannot_be_signalled() {
         .pause()
         .expect_err("a reaped process must not be signallable");
 
-    assert_eq!(
-        pause_error.to_string(),
+    assert!(matches!(
+        pause_error,
         SubprocessClusterError::SignalUndeliverable {
-            pid: signals.pid,
+            pid,
             signal: Signal::SIGSTOP,
             source: Errno::ESRCH,
-        }
-        .to_string()
-    );
+        } if pid == signals.pid
+    ));
     assert_eq!(
         pause_error
             .source()

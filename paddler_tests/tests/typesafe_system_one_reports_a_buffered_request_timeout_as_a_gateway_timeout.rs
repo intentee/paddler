@@ -2,18 +2,19 @@ use reqwest::StatusCode;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::noul_system_one_request::noul_system_one_request;
-use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
+use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 use paddler_tests::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_a_buffered_request_timeout_as_a_gateway_timeout() {
-    let cluster = start_cluster(ClusterParams {
-        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
-        ..cluster_without_agents_serving_decisions()
-    })
-    .await
-    .expect("a decision balancer without agents must start");
+    let cluster_with_a_downloading_agent =
+        ClusterWithAnAgentDownloadingItsModel::start(ClusterParams {
+            buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
+            ..ClusterParams::default()
+        })
+        .await
+        .expect("a cluster whose agent downloads its model must start");
+    let cluster = &cluster_with_a_downloading_agent.cluster;
 
     assert_eq!(
         cluster
@@ -24,7 +25,7 @@ async fn typesafe_system_one_reports_a_buffered_request_timeout_as_a_gateway_tim
         StatusCode::GATEWAY_TIMEOUT
     );
 
-    cluster
+    cluster_with_a_downloading_agent
         .shutdown()
         .await
         .expect("the cluster must shut down cleanly");

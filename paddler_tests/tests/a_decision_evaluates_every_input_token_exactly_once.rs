@@ -1,8 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
@@ -17,14 +16,14 @@ use paddler_tests::two_option_question::two_option_question;
 fn a_decision_evaluates_every_input_token_exactly_once() {
     let KevDecisionModel {
         delimiter_tokens,
-        pointer_head,
+        option_scorer,
         runtime,
     } = KevDecisionModel::load(DECISION_SLOTS_MINIMUM.get())
         .expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(u32::from(DECISION_SLOTS_MINIMUM.get()))
         .expect("the decision context must be created");
-    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
+    let mut batch = LlamaBatch::new(llama_context.limits());
     let layout = DecisionTokenLayout::new(
         &delimiter_tokens,
         vec![LlamaToken::new(0); 8],
@@ -55,7 +54,7 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
                     batch: &mut batch,
                     llama_context: &mut llama_context,
                 },
-                &pointer_head,
+                &option_scorer,
                 None,
             )
             .expect("the decision must advance"),

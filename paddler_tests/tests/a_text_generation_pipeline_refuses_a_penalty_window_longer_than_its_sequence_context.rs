@@ -40,21 +40,16 @@ async fn a_text_generation_pipeline_refuses_a_penalty_window_longer_than_its_seq
         ..SamplingParameters::default()
     };
 
-    assert_eq!(
+    assert!(matches!(
         text_generation_pipeline
             .spawn(&CancellationToken::new())
             .await
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            TextGenerationError::SamplingParametersUnfitForTheSequenceContext(
-                InvalidInferenceParameters::PenaltyWindowExceedsSequenceContext {
-                    penalty_last_n: i32::MAX,
-                    sequence_context_size,
-                }
-            )
-            .to_string()
-        )
-    );
+            .err(),
+        Some(TextGenerationError::SamplingParametersUnfitForTheSequenceContext(
+            InvalidInferenceParameters::PenaltyWindowExceedsSequenceContext {
+                penalty_last_n: i32::MAX,
+                sequence_context_size: refused_sequence_context_size,
+            }
+        )) if refused_sequence_context_size == sequence_context_size
+    ));
 }

@@ -19,15 +19,9 @@ async fn subprocess_cluster_reports_a_balancer_that_exits_before_announcing() {
     .err()
     .expect("a balancer that rejects its arguments must fail the cluster start");
 
-    assert_eq!(
-        start_error
-            .downcast_ref::<SubprocessClusterError>()
-            .map(ToString::to_string),
-        Some(
-            SubprocessClusterError::BalancerExitedBeforeAnnouncing {
-                exit_status: ExitStatus::from_raw(CLAP_USAGE_ERROR_EXIT_CODE << 8),
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        start_error.downcast_ref::<SubprocessClusterError>(),
+        Some(SubprocessClusterError::BalancerExitedBeforeAnnouncing { exit_status })
+            if *exit_status == ExitStatus::from_raw(CLAP_USAGE_ERROR_EXIT_CODE << 8)
+    ));
 }

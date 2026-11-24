@@ -49,10 +49,10 @@ async fn spawned_balancer_reports_an_exit_it_cannot_observe() {
         .err()
         .expect("a balancer reaped elsewhere must not be observed exiting");
 
-    assert_eq!(
-        spawn_error.to_string(),
-        SubprocessClusterError::ProcessExitUnobservable(io::Error::from(Errno::ECHILD)).to_string()
-    );
+    assert!(matches!(
+        spawn_error.downcast_ref::<SubprocessClusterError>(),
+        Some(SubprocessClusterError::ProcessExitUnobservable(_))
+    ));
     assert_eq!(
         spawn_error
             .downcast_ref::<SubprocessClusterError>()

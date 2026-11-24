@@ -18,6 +18,8 @@ use crate::agent_controller_slot_guard::AgentControllerSlotGuard;
 use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_counter::BufferedRequestCounter;
+use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
+use crate::decisions_serving::DecisionsServing;
 use crate::dispatch_candidate::DispatchCandidate;
 use crate::dispatch_claim::DispatchClaim;
 use crate::dispatch_position::DispatchPosition;
@@ -40,6 +42,22 @@ impl AgentControllerPool {
     #[must_use]
     pub fn agent_count(&self) -> usize {
         self.agents.len()
+    }
+
+    #[must_use]
+    pub fn decisions_serving(&self) -> DecisionsServing {
+        if self.agents.iter().any(|agent| {
+            agent
+                .value()
+                .reported_status
+                .read()
+                .status
+                .may_serve(InferenceCapability::Decisions)
+        }) {
+            DecisionsServing::Served
+        } else {
+            DecisionsServing::NotServed(ClusterServesNoDecisions)
+        }
     }
 
     #[must_use]

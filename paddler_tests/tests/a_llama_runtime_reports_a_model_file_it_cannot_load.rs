@@ -2,23 +2,21 @@
 
 use std::path::Path;
 
-use paddler_error_chain::error_chain::ErrorChain;
+use llama_cpp_model::model_error::ModelError;
+
+use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 #[test]
 fn a_llama_runtime_reports_a_model_file_it_cannot_load() {
-    assert_eq!(
-        LlamaRuntime::load(
-            Path::new("/paddler/definitely/missing/model.gguf"),
-            agent_inference_runtime_context(1),
-        )
-        .err()
-        .as_ref()
-        .map(|load_error| ErrorChain { error: load_error }.to_string()),
-        Some(
-            "unable to load the model from /paddler/definitely/missing/model.gguf: model file not found: /paddler/definitely/missing/model.gguf"
-                .to_owned()
-        )
-    );
+    let missing_model_path = Path::new("/paddler/definitely/missing/model.gguf");
+
+    assert!(matches!(
+        LlamaRuntime::load(missing_model_path, agent_inference_runtime_context(1)),
+        Err(AgentRuntimeError::ModelLoadFailed {
+            model_path,
+            source: ModelError::ModelFileNotFound(not_found_model_path),
+        }) if model_path == missing_model_path && not_found_model_path == missing_model_path
+    ));
 }

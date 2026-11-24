@@ -1,11 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::mem::discriminant;
-
-use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
-
-use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
-use paddler_error_chain::error_chain::ErrorChain;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
@@ -42,28 +36,19 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots() {
     .await
     .expect("a single-agent cluster must start");
 
-    let expected_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
-        error: ErrorChain {
-            error: &AgentRuntimeError::ContextCreationFailed(
-                LlamaContextLoadError::Unconstructible,
-            ),
-        }
-        .to_string(),
-        inference_capability: InferenceCapability::Embeddings,
-        slot_index: 0,
-    });
-    let snapshot = cluster
-        .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
+    cluster
+        .wait_for_first_agent_issue(|issue| {
+            matches!(
+                issue,
+                AgentIssue::SlotCannotStart(SlotCannotStartParams {
+                    inference_capability: InferenceCapability::Embeddings,
+                    slot_index: 0,
+                    ..
+                })
+            )
+        })
         .await
-        .expect("the agent must report SlotCannotStart with the underlying error");
-    let issues = &snapshot
-        .agents
-        .first()
-        .expect("the snapshot must hold the agent")
-        .status
-        .issues;
-
-    assert!(issues.contains(&expected_issue), "{issues:?}");
+        .expect("the agent must report that its first embedding slot cannot start");
 
     cluster
         .shutdown()

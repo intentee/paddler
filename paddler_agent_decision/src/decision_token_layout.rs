@@ -2,7 +2,7 @@ use std::cmp::max_by_key;
 use std::collections::VecDeque;
 use std::iter::once;
 
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use crate::decision_delimiter_tokens::DecisionDelimiterTokens;
 use crate::decision_question_row::DecisionQuestionRow;
@@ -123,7 +123,7 @@ impl DecisionTokenLayout {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::DecisionTokenLayout;
     use crate::decision_delimiter_tokens::DecisionDelimiterTokens;

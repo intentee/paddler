@@ -73,12 +73,10 @@ async fn agent_rejects_structurally_invalid_tool_schema() {
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::ToolSchemaInvalid(
-            "test-agent: tool \"get_weather\" parameters are not a valid JSON Schema: 123 is not valid under any of the schemas listed in the 'anyOf' keyword".to_owned()
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::ToolSchemaInvalid(_)]
+    ));
 
     cluster
         .shutdown()

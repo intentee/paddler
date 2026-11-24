@@ -1,29 +1,14 @@
 use std::ffi::NulError;
-use std::num::TryFromIntError;
 use std::path::PathBuf;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
-use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
-use llama_cpp_bindings::error::grammar_error::GrammarError;
-use llama_cpp_bindings::error::ingest_error::IngestError;
-use llama_cpp_bindings::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
-use llama_cpp_bindings::error::logits_error::LogitsError;
-use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-use llama_cpp_bindings::error::sample_error::SampleError;
-use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
-use llama_cpp_bindings::error::sampling_error::SamplingError;
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
-use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
-use llama_cpp_bindings::mtmd::mtmd_bitmap_error::MtmdBitmapError;
-use llama_cpp_bindings::mtmd::mtmd_eval_error::MtmdEvalError;
-use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
-use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
-use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
+use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
+use llama_cpp_gbnf::gbnf_error::GbnfError;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use log::error;
 use tokio::sync::mpsc;
 
@@ -50,59 +35,53 @@ pub enum TextGenerationError {
     ConversationRequiresChatTemplate { model_path: ModelPath },
 
     #[error("llama.cpp cannot prepare the chat template")]
-    ChatTemplateDoesNotCompile(#[source] ChatTemplatesError),
+    ChatTemplateDoesNotCompile(#[source] ModelError),
 
     #[error("the chat template holds a NUL character")]
     ChatTemplateContainsNul(#[source] NulError),
 
     #[error("the chat template cannot render the conversation")]
-    ChatSessionCreationFailed(#[source] ChatSessionError),
+    ChatSessionCreationFailed(#[source] ChatError),
 
     #[error("unable to read the rendered prompt")]
-    ChatPromptUnreadable(#[source] ChatSessionError),
+    ChatPromptUnreadable(#[source] ChatError),
 
     #[error("failed to tokenize the rendered prompt")]
-    ChatPromptTokenizationFailed(#[source] ChatSessionError),
-
-    #[error("failed to tokenize the rendered prompt: the rendered prompt could not be tokenized")]
-    ChatPromptContainsNul(#[source] NulError),
-
-    #[error("failed to tokenize the rendered prompt: the rendered prompt could not be tokenized")]
-    ChatPromptLengthUnrepresentable(#[source] TryFromIntError),
-
-    #[error("failed to tokenize the rendered prompt: the rendered prompt could not be tokenized")]
-    ChatPromptTokenizerFailed(#[source] StringToTokenError),
+    ChatPromptTokenizationFailed(#[source] ChatError),
 
     #[error("failed to build the grammar that constrains the tool calls")]
-    ChatSessionGrammarUnavailable(#[source] ChatSessionError),
+    ChatSessionGrammarUnavailable(#[source] ChatError),
 
     #[error("unable to start classifying the answer")]
-    AnswerClassifierUnavailable(#[source] ParseChatMessageError),
+    AnswerClassifierUnavailable(#[source] LlamaCppError),
 
     #[error("failed to classify the answer")]
-    AnswerClassificationFailed(#[source] ParseChatMessageError),
+    AnswerClassificationFailed(#[source] ChatError),
 
     #[error("failed to detokenize a sampled token")]
-    TokenDetokenizationFailed(#[source] TokenToStringError),
+    TokenDetokenizationFailed(#[source] ModelError),
+
+    #[error("failed to classify a sampled token")]
+    TokenIngestionFailed(#[source] LlamaCppError),
 
     #[error("unable to load the multimodal projection from {multimodal_projection_path}")]
     MultimodalProjectionLoadFailed {
         multimodal_projection_path: PathBuf,
         #[source]
-        source: MtmdInitError,
+        source: MtmdError,
     },
 
     #[error("failed to apply the grammar sampler to the token candidates")]
-    GrammarConstraintFailed(#[source] SampleError),
+    GrammarConstraintFailed(#[source] SamplerError),
 
     #[error("failed to apply the sampler chain to the token candidates")]
-    SamplerChainApplicationFailed(#[source] SampleError),
+    SamplerChainApplicationFailed(#[source] SamplerError),
 
     #[error("the sampler chain failed to accept the selected token")]
-    SamplerChainRejectedToken(#[source] SamplerAcceptError),
+    SamplerChainRejectedToken(#[source] SamplerError),
 
     #[error("failed to read the token candidates for sampling")]
-    TokenDataUnreadable(#[source] LogitsError),
+    TokenDataUnreadable(#[source] ContextError),
 
     #[error("the sampling parameters do not fit the sequence context")]
     SamplingParametersUnfitForTheSequenceContext(#[source] InvalidInferenceParameters),
@@ -111,18 +90,13 @@ pub enum TextGenerationError {
     GrammarIncompatibleWithThinking,
 
     #[error("Failed to convert JSON schema to grammar")]
-    GrammarConversionFailed(#[source] JsonSchemaToGrammarError),
-
-    #[error(
-        "Failed to convert JSON schema to grammar: schema string contains an interior NUL byte"
-    )]
-    GrammarSchemaContainsNul(#[source] NulError),
+    GrammarConversionFailed(#[source] GbnfError),
 
     #[error("failed to decode images")]
     ImageDecodingFailed(#[source] DecodedImageError),
 
     #[error("failed to create image bitmap")]
-    ImageBitmapCreationFailed(#[source] MtmdBitmapError),
+    ImageBitmapCreationFailed(#[source] MtmdError),
 
     #[error("received images but model does not support multimodal input")]
     MultimodalNotSupported,
@@ -134,13 +108,7 @@ pub enum TextGenerationError {
     ToolSchemaInvalid(ToolCallValidationError),
 
     #[error("failed to tokenize prompt")]
-    PromptTokenizationFailed(#[source] StringToTokenError),
-
-    #[error("failed to tokenize prompt")]
-    PromptContainsNul(#[source] NulError),
-
-    #[error("failed to tokenize prompt")]
-    PromptLengthUnrepresentable(#[source] TryFromIntError),
+    PromptTokenizationFailed(#[source] ModelError),
 
     #[error("the prompt tokenized to no tokens, so there is nothing to generate from")]
     PromptTokenizedToNothing,
@@ -159,24 +127,16 @@ pub enum TextGenerationError {
     NoSequenceSlotAvailable,
 
     #[error("invalid grammar")]
-    GrammarInvalid(#[source] GrammarError),
+    GrammarInvalid(#[source] SamplerError),
 
-    #[error("invalid grammar: the grammar was rejected by the GBNF parser")]
-    GrammarRejectedByParser(#[source] GbnfValidationError),
     #[error("failed to initialize grammar sampler")]
-    GrammarSamplerInitializationFailed(#[source] GrammarError),
+    GrammarSamplerInitializationFailed(#[source] SamplerError),
 
     #[error("failed to create sampler chain")]
-    SamplerChainCreationFailed(#[source] SamplingError),
+    SamplerChainCreationFailed(#[source] SamplerError),
 
     #[error("failed to tokenize multimodal input")]
-    MultimodalTokenizationFailed(#[source] MtmdTokenizeError),
-
-    #[error("failed to tokenize multimodal input: Failed to create CString from input text")]
-    MultimodalTextContainsNul(#[source] NulError),
-
-    #[error("failed to tokenize multimodal input")]
-    MultimodalInputChunksUnavailable(#[source] MtmdInputChunksError),
+    MultimodalTokenizationFailed(#[source] MtmdError),
 
     #[error(
         "the chat template rendered {rendered_media_markers} media markers for {images} images"
@@ -192,209 +152,56 @@ pub enum TextGenerationError {
         details.micro_batch_tokens
     )]
     MediaExceedsMicroBatch { details: OversizedMediaDetails },
-    #[error("failed to check media chunks against the micro batch")]
-    MediaMicroBatchCheckFailed(#[source] MtmdEvalError),
-
-    #[error(
-        "failed to check media chunks against the micro batch: the chunk type could not be classified before evaluating it"
-    )]
-    MediaChunkTypeUnknown(#[source] MtmdInputChunkTypeError),
 
     #[error("failed to ingest multimodal prompt")]
-    MultimodalIngestionFailed(#[source] EvalMultimodalChunksError),
-
-    #[error("failed to ingest multimodal prompt")]
-    MultimodalChunkEvaluationFailed(#[source] MtmdEvalError),
-
-    #[error(
-        "failed to ingest multimodal prompt: the chunk type could not be classified before evaluating it"
-    )]
-    MultimodalIngestedChunkTypeUnknown(#[source] MtmdInputChunkTypeError),
+    MultimodalIngestionFailed(#[source] LlamaCppError),
 
     #[error("failed to add a token to the batch")]
-    BatchAssemblyFailed(#[source] BatchAddError),
+    BatchAssemblyFailed(#[source] ContextError),
 
     #[error("failed to clear the KV cache of the sequence")]
-    KvCacheClearFailed(#[source] MemorySeqRmError),
+    KvCacheClearFailed(#[source] ContextMemoryError),
 }
 
 impl TextGenerationError {
     #[must_use]
-    pub fn for_chat_prompt_tokenization_error(chat_session_error: ChatSessionError) -> Self {
-        match chat_session_error {
-            ChatSessionError::PromptTokenization(StringToTokenError::NulError(nul_error)) => {
-                Self::ChatPromptContainsNul(nul_error)
-            }
-            ChatSessionError::PromptTokenization(StringToTokenError::CIntConversionError(
-                conversion_error,
-            )) => Self::ChatPromptLengthUnrepresentable(conversion_error),
-            ChatSessionError::PromptTokenization(
-                tokenization_error @ (StringToTokenError::CppString(_)
-                | StringToTokenError::FfiContract(_)
-                | StringToTokenError::FfiStatus(_)
-                | StringToTokenError::LlamaCppOutOfMemory
-                | StringToTokenError::NotEnoughMemory
-                | StringToTokenError::Reported { .. }),
-            ) => Self::ChatPromptTokenizerFailed(tokenization_error),
-            ChatSessionError::CppString(_)
-            | ChatSessionError::FfiContract(_)
-            | ChatSessionError::FfiStatus(_)
-            | ChatSessionError::Grammar(_)
-            | ChatSessionError::GrammarPrefill(_)
-            | ChatSessionError::LlamaCppOutOfMemory
-            | ChatSessionError::NotEnoughMemory
-            | ChatSessionError::Reported { .. }
-            | ChatSessionError::SessionTextNotUtf8(_)
-            | ChatSessionError::TemplateCannotServeRequest { .. } => {
-                Self::ChatPromptTokenizationFailed(chat_session_error)
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn for_gbnf_grammar_error(grammar_error: GrammarError) -> Self {
+    pub const fn for_gbnf_grammar_error(grammar_error: SamplerError) -> Self {
         match grammar_error {
-            GrammarError::GrammarRejected(validation_error) => {
-                Self::GrammarRejectedByParser(validation_error)
-            }
-            GrammarError::GrammarContainsNul(_)
-            | GrammarError::RootContainsNul(_)
-            | GrammarError::RootNotFound => Self::GrammarInvalid(grammar_error),
-            GrammarError::CppString(_)
-            | GrammarError::FfiContract(_)
-            | GrammarError::FfiStatus(_)
-            | GrammarError::GrammarMalformed
-            | GrammarError::InvalidTriggerPattern { .. }
-            | GrammarError::LazyGrammarMalformed
-            | GrammarError::LlamaCppOutOfMemory
-            | GrammarError::LlguidanceFactoryUnavailable { .. }
-            | GrammarError::LlguidanceGrammarInvalid { .. }
-            | GrammarError::LlguidanceParserUnavailable { .. }
-            | GrammarError::NotEnoughMemory
-            | GrammarError::Reported { .. }
-            | GrammarError::SamplerInitialization(_)
-            | GrammarError::TokEnvUnavailable(_)
-            | GrammarError::TriggerPatternContainsNul(_) => {
-                Self::GrammarSamplerInitializationFailed(grammar_error)
+            SamplerError::GrammarContainsNul(_)
+            | SamplerError::GrammarRejected(_)
+            | SamplerError::RootContainsNul(_)
+            | SamplerError::RootNotFound => Self::GrammarInvalid(grammar_error),
+            sampler_initialization_error => {
+                Self::GrammarSamplerInitializationFailed(sampler_initialization_error)
             }
         }
     }
 
     #[must_use]
-    pub fn for_ingest_error(ingest_error: IngestError) -> Self {
+    pub fn for_ingest_error(ingest_error: LlamaCppError) -> Self {
         match ingest_error {
-            IngestError::Detokenize(detokenization_error) => {
+            LlamaCppError::Detokenize(detokenization_error) => {
                 Self::TokenDetokenizationFailed(detokenization_error)
             }
-            IngestError::Classify(classification_error) => {
+            LlamaCppError::Classify(classification_error) => {
                 Self::AnswerClassificationFailed(classification_error)
             }
+            other_ingest_error => Self::TokenIngestionFailed(other_ingest_error),
         }
     }
 
     #[must_use]
-    pub fn for_json_schema_conversion_error(conversion_error: JsonSchemaToGrammarError) -> Self {
-        match conversion_error {
-            JsonSchemaToGrammarError::SchemaContainsNulByte(nul_error) => {
-                Self::GrammarSchemaContainsNul(nul_error)
-            }
-            JsonSchemaToGrammarError::CppString(_)
-            | JsonSchemaToGrammarError::FfiContract(_)
-            | JsonSchemaToGrammarError::FfiStatus(_)
-            | JsonSchemaToGrammarError::GrammarNotUtf8(_)
-            | JsonSchemaToGrammarError::InvalidJson { .. }
-            | JsonSchemaToGrammarError::InvalidSchema { .. }
-            | JsonSchemaToGrammarError::LlamaCppOutOfMemory
-            | JsonSchemaToGrammarError::NotEnoughMemory
-            | JsonSchemaToGrammarError::Reported { .. } => {
-                Self::GrammarConversionFailed(conversion_error)
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn for_micro_batch_fit_error(fit_error: MtmdEvalError) -> Self {
-        match fit_error {
-            MtmdEvalError::NonCausalChunkExceedsMicroBatch(mismatch) => {
-                Self::MediaExceedsMicroBatch {
-                    details: OversizedMediaDetails {
-                        media_tokens: mismatch.chunk_tokens,
-                        micro_batch_tokens: mismatch.micro_batch_tokens,
-                    },
-                }
-            }
-            MtmdEvalError::UnknownChunkType(chunk_type_error) => {
-                Self::MediaChunkTypeUnknown(chunk_type_error)
-            }
-            other_fit_error => Self::MediaMicroBatchCheckFailed(other_fit_error),
-        }
-    }
-
-    #[must_use]
-    pub fn for_multimodal_ingestion_error(ingestion_error: EvalMultimodalChunksError) -> Self {
-        match ingestion_error {
-            EvalMultimodalChunksError::EvalFailed(MtmdEvalError::UnknownChunkType(
-                chunk_type_error,
-            )) => Self::MultimodalIngestedChunkTypeUnknown(chunk_type_error),
-            EvalMultimodalChunksError::EvalFailed(
-                evaluation_error @ (MtmdEvalError::BatchSizeExceedsContextLimit { .. }
-                | MtmdEvalError::CppString(_)
-                | MtmdEvalError::EvalFailed { .. }
-                | MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted { .. }
-                | MtmdEvalError::FfiContract(_)
-                | MtmdEvalError::FfiStatus(_)
-                | MtmdEvalError::LlamaCppOutOfMemory
-                | MtmdEvalError::NonCausalChunkExceedsMicroBatch(_)
-                | MtmdEvalError::NonPositiveBatchSize { .. }
-                | MtmdEvalError::NotEnoughMemory
-                | MtmdEvalError::Reported { .. }
-                | MtmdEvalError::SequenceIdOutOfRange(_)),
-            ) => Self::MultimodalChunkEvaluationFailed(evaluation_error),
-            EvalMultimodalChunksError::ChunkOutOfBounds(_) => {
-                Self::MultimodalIngestionFailed(ingestion_error)
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn for_multimodal_tokenization_error(tokenization_error: MtmdTokenizeError) -> Self {
-        match tokenization_error {
-            MtmdTokenizeError::CStringError(nul_error) => {
-                Self::MultimodalTextContainsNul(nul_error)
-            }
-            MtmdTokenizeError::InputChunksError(input_chunks_error) => {
-                Self::MultimodalInputChunksUnavailable(input_chunks_error)
-            }
-            MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount
-            | MtmdTokenizeError::CppString(_)
-            | MtmdTokenizeError::FfiContract(_)
-            | MtmdTokenizeError::FfiStatus(_)
-            | MtmdTokenizeError::LlamaCppOutOfMemory
-            | MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed
-            | MtmdTokenizeError::NotEnoughMemory
-            | MtmdTokenizeError::Reported { .. }
-            | MtmdTokenizeError::UnknownStatus { .. }
-            | MtmdTokenizeError::UnknownTokenizeFromPartsStatus { .. } => {
-                Self::MultimodalTokenizationFailed(tokenization_error)
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn for_prompt_tokenization_error(tokenization_error: StringToTokenError) -> Self {
-        match tokenization_error {
-            StringToTokenError::NulError(nul_error) => Self::PromptContainsNul(nul_error),
-            StringToTokenError::CIntConversionError(conversion_error) => {
-                Self::PromptLengthUnrepresentable(conversion_error)
-            }
-            StringToTokenError::CppString(_)
-            | StringToTokenError::FfiContract(_)
-            | StringToTokenError::FfiStatus(_)
-            | StringToTokenError::LlamaCppOutOfMemory
-            | StringToTokenError::NotEnoughMemory
-            | StringToTokenError::Reported { .. } => {
-                Self::PromptTokenizationFailed(tokenization_error)
-            }
+    pub fn for_multimodal_evaluation_error(evaluation_error: LlamaCppError) -> Self {
+        match evaluation_error {
+            LlamaCppError::MultimodalChunksEval(MtmdError::NonCausalChunkExceedsMicroBatch(
+                mismatch,
+            )) => Self::MediaExceedsMicroBatch {
+                details: OversizedMediaDetails {
+                    media_tokens: mismatch.chunk_tokens,
+                    micro_batch_tokens: mismatch.micro_batch_tokens,
+                },
+            },
+            other_evaluation_error => Self::MultimodalIngestionFailed(other_evaluation_error),
         }
     }
 
@@ -408,10 +215,7 @@ impl TextGenerationError {
             Self::GrammarIncompatibleWithThinking => {
                 GeneratedTokenResult::GrammarIncompatibleWithThinking(message)
             }
-            Self::GrammarConversionFailed(_)
-            | Self::GrammarInvalid(_)
-            | Self::GrammarRejectedByParser(_)
-            | Self::GrammarSchemaContainsNul(_) => {
+            Self::GrammarConversionFailed(_) | Self::GrammarInvalid(_) => {
                 GeneratedTokenResult::GrammarSyntaxError(message)
             }
             Self::ImageDecodingFailed(_) | Self::ImageBitmapCreationFailed(_) => {
@@ -448,16 +252,7 @@ impl TextGenerationError {
             Self::PromptExceedsContextSize { details } => {
                 GeneratedTokenResult::PromptExceedsContextSize(details)
             }
-            Self::MediaChunkTypeUnknown(_) | Self::MediaMicroBatchCheckFailed(_) => {
-                GeneratedTokenResult::MediaMicroBatchCheckFailed(message)
-            }
-            Self::ChatPromptContainsNul(_)
-            | Self::ChatPromptLengthUnrepresentable(_)
-            | Self::ChatPromptTokenizationFailed(_)
-            | Self::ChatPromptTokenizerFailed(_)
-            | Self::PromptContainsNul(_)
-            | Self::PromptLengthUnrepresentable(_)
-            | Self::PromptTokenizationFailed(_) => {
+            Self::ChatPromptTokenizationFailed(_) | Self::PromptTokenizationFailed(_) => {
                 GeneratedTokenResult::PromptTokenizationFailed(message)
             }
             Self::PromptTokenizedToNothing => {
@@ -471,16 +266,13 @@ impl TextGenerationError {
             Self::GrammarConstraintFailed(_)
             | Self::SamplerChainApplicationFailed(_)
             | Self::SamplerChainRejectedToken(_)
-            | Self::TokenDataUnreadable(_) => GeneratedTokenResult::SamplerError(message),
-            Self::MultimodalInputChunksUnavailable(_)
-            | Self::MultimodalTextContainsNul(_)
-            | Self::MultimodalTokenizationFailed(_)
+            | Self::TokenDataUnreadable(_)
+            | Self::TokenIngestionFailed(_) => GeneratedTokenResult::SamplerError(message),
+            Self::MultimodalTokenizationFailed(_)
             | Self::RenderedMediaMarkersMismatchImages { .. } => {
                 GeneratedTokenResult::MultimodalTokenizationFailed(message)
             }
-            Self::MultimodalChunkEvaluationFailed(_)
-            | Self::MultimodalIngestedChunkTypeUnknown(_)
-            | Self::MultimodalIngestionFailed(_) => {
+            Self::MultimodalIngestionFailed(_) => {
                 GeneratedTokenResult::MultimodalIngestionFailed(message)
             }
             Self::BatchAssemblyFailed(_) => GeneratedTokenResult::BatchAssemblyFailed(message),
@@ -511,33 +303,25 @@ impl TextGenerationError {
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
+    use std::io;
+    use std::mem::discriminant;
 
-    use llama_cpp_bindings::batch_add_error::BatchAddError;
-    use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-    use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
-    use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
-    use llama_cpp_bindings::error::grammar_error::GrammarError;
-    use llama_cpp_bindings::error::ingest_error::IngestError;
-    use llama_cpp_bindings::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
-    use llama_cpp_bindings::error::logits_error::LogitsError;
-    use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-    use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-    use llama_cpp_bindings::error::sampling_error::SamplingError;
-    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
-    use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
-    use llama_cpp_bindings::mtmd::mtmd_eval_error::MtmdEvalError;
-    use llama_cpp_bindings::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
-    use llama_cpp_bindings::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
-    use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
-    use llama_cpp_bindings::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
+    use llama_cpp_chat::chat_error::ChatError;
+    use llama_cpp_context::context_error::ContextError;
+    use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
+    use llama_cpp_gbnf::gbnf_error::GbnfError;
+    use llama_cpp_model::model_error::ModelError;
+    use llama_cpp_mtmd::mtmd_error::MtmdError;
+    use llama_cpp_mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+    use llama_cpp_sampler::sampler_error::SamplerError;
     use serde_json::Map;
     use serde_json::json;
     use tokio::sync::mpsc;
 
-    use paddler_error_chain::error_chain::ErrorChain;
+    use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
     use paddler_image_decoder::decoded_image_error::DecodedImageError;
+    use paddler_inference_parameters::invalid_inference_parameters::InvalidInferenceParameters;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::oversized_media_details::OversizedMediaDetails;
@@ -559,84 +343,109 @@ mod tests {
         generated_tokens_rx.try_recv().unwrap()
     }
 
-    fn agent_message(description: &str) -> String {
-        format!("agent: {description}")
-    }
-
     fn assert_each_reported_as(
         into_result: fn(String) -> GeneratedTokenResult,
         rejections: impl IntoIterator<Item = TextGenerationError>,
     ) {
         for rejection in rejections {
-            let expected_message = agent_message(&ErrorChain { error: &rejection }.to_string());
-
-            assert_eq!(reported(rejection), into_result(expected_message));
+            assert_eq!(
+                discriminant(&reported(rejection)),
+                discriminant(&into_result(String::new()))
+            );
         }
     }
 
     #[test]
-    fn reports_thinking_incompatibility_with_the_agent_name() {
-        assert_eq!(
-            reported(TextGenerationError::GrammarIncompatibleWithThinking),
-            GeneratedTokenResult::GrammarIncompatibleWithThinking(agent_message(
-                "Grammar constraints are incompatible with thinking mode"
-            ))
+    fn reports_thinking_incompatibility_as_thinking_incompatibility() {
+        assert_each_reported_as(
+            GeneratedTokenResult::GrammarIncompatibleWithThinking,
+            [TextGenerationError::GrammarIncompatibleWithThinking],
         );
     }
 
     #[test]
-    fn reports_grammar_conversion_failure_as_grammar_syntax_error() {
-        let conversion_error = JsonSchemaToGrammarError::NotEnoughMemory;
-        let expected_message = agent_message(&format!(
-            "Failed to convert JSON schema to grammar: {conversion_error}"
+    fn reports_client_grammar_failures_as_grammar_syntax_errors() {
+        assert_each_reported_as(
+            GeneratedTokenResult::GrammarSyntaxError,
+            [
+                TextGenerationError::GrammarConversionFailed(GbnfError::InvalidJson {
+                    message: "not json".to_owned(),
+                }),
+                TextGenerationError::for_gbnf_grammar_error(SamplerError::GrammarRejected(
+                    GbnfError::SyntaxError,
+                )),
+            ],
+        );
+    }
+
+    #[test]
+    fn a_grammar_the_client_malformed_is_invalid() {
+        for client_grammar_error in [
+            SamplerError::GrammarContainsNul(CString::new("a \0 grammar").unwrap_err()),
+            SamplerError::GrammarRejected(GbnfError::SyntaxError),
+            SamplerError::RootContainsNul(CString::new("a \0 root").unwrap_err()),
+            SamplerError::RootNotFound,
+        ] {
+            assert!(matches!(
+                TextGenerationError::for_gbnf_grammar_error(client_grammar_error),
+                TextGenerationError::GrammarInvalid(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn a_grammar_the_agent_cannot_start_sampling_fails_its_sampler_initialization() {
+        assert!(matches!(
+            TextGenerationError::for_gbnf_grammar_error(SamplerError::GrammarNotEnoughMemory),
+            TextGenerationError::GrammarSamplerInitializationFailed(
+                SamplerError::GrammarNotEnoughMemory
+            )
         ));
-
-        assert_eq!(
-            reported(TextGenerationError::for_json_schema_conversion_error(
-                conversion_error
-            )),
-            GeneratedTokenResult::GrammarSyntaxError(expected_message)
-        );
     }
 
     #[test]
-    fn reports_a_conversation_on_a_model_without_a_chat_template_as_a_chat_template_error() {
-        assert_eq!(
-            reported(TextGenerationError::ConversationRequiresChatTemplate {
-                model_path: ModelPath {
-                    model_path: "nomic.gguf".to_owned(),
+    fn reports_chat_template_failures_as_chat_template_errors() {
+        assert_each_reported_as(
+            GeneratedTokenResult::ChatTemplateError,
+            [
+                TextGenerationError::ChatTemplateDoesNotCompile(ModelError::ModelHasNoChatTemplate),
+                TextGenerationError::ChatTemplateContainsNul(CString::new("{{ \0 }}").unwrap_err()),
+                TextGenerationError::ChatSessionCreationFailed(
+                    ChatError::TemplateCannotServeRequest {
+                        message: "roles must alternate".to_owned(),
+                    },
+                ),
+                TextGenerationError::ChatPromptUnreadable(ChatError::SessionNotEnoughMemory),
+                TextGenerationError::ConversationRequiresChatTemplate {
+                    model_path: ModelPath {
+                        model_path: "nomic.gguf".to_owned(),
+                    },
                 },
-            }),
-            GeneratedTokenResult::ChatTemplateError(agent_message(
-                "the model nomic.gguf has no chat template, so it cannot continue a conversation"
-            ))
+            ],
         );
     }
 
     #[test]
-    fn reports_image_failures_as_image_decoding_failure() {
-        assert_eq!(
-            reported(TextGenerationError::ImageDecodingFailed(
-                DecodedImageError::MissingCommaSeparator,
-            )),
-            GeneratedTokenResult::ImageDecodingFailed(agent_message(
-                "failed to decode images: Invalid data URI: missing comma separator"
-            ))
+    fn reports_image_failures_as_image_decoding_failures() {
+        assert_each_reported_as(
+            GeneratedTokenResult::ImageDecodingFailed,
+            [
+                TextGenerationError::ImageDecodingFailed(DecodedImageError::MissingCommaSeparator),
+                TextGenerationError::ImageBitmapCreationFailed(MtmdError::BitmapNotEnoughMemory),
+            ],
         );
     }
 
     #[test]
-    fn reports_missing_multimodal_support() {
-        assert_eq!(
-            reported(TextGenerationError::MultimodalNotSupported),
-            GeneratedTokenResult::MultimodalNotSupported(agent_message(
-                "received images but model does not support multimodal input"
-            ))
+    fn reports_missing_multimodal_support_as_multimodal_not_supported() {
+        assert_each_reported_as(
+            GeneratedTokenResult::MultimodalNotSupported,
+            [TextGenerationError::MultimodalNotSupported],
         );
     }
 
     #[test]
-    fn reports_invalid_tool_schema() {
+    fn reports_an_invalid_tool_schema_as_an_invalid_tool_schema() {
         let mut properties = Map::new();
 
         properties.insert("location".to_owned(), json!({"type": 123}));
@@ -654,77 +463,40 @@ mod tests {
                 },
             }))])
             .err()
-            .expect("a property typed as a number is not a valid JSON Schema");
-        let expected_message = agent_message(
-            &ErrorChain {
-                error: &schema_error,
-            }
-            .to_string(),
-        );
+            .unwrap();
 
-        assert_eq!(
-            reported(TextGenerationError::ToolSchemaInvalid(schema_error)),
-            GeneratedTokenResult::ToolSchemaInvalid(expected_message)
+        assert_each_reported_as(
+            GeneratedTokenResult::ToolSchemaInvalid,
+            [TextGenerationError::ToolSchemaInvalid(schema_error)],
         );
     }
 
     #[test]
-    fn reports_grammar_sampler_initialization_failure() {
-        let grammar_error = GrammarError::FfiStatus(FfiStatusError {
-            operation: "llama_sampler_init_grammar",
-            code: 1,
-        });
-        let expected_message = agent_message(&format!(
-            "failed to initialize grammar sampler: {grammar_error}"
-        ));
-
-        assert_eq!(
-            reported(TextGenerationError::GrammarSamplerInitializationFailed(
-                grammar_error
-            )),
-            GeneratedTokenResult::GrammarInitializationFailed(expected_message)
-        );
-    }
-
-    #[test]
-    fn reports_a_grammar_the_client_malformed_as_grammar_syntax_error() {
-        let expected_message =
-            agent_message(&format!("invalid grammar: {}", GrammarError::RootNotFound));
-
-        assert_eq!(
-            reported(TextGenerationError::for_gbnf_grammar_error(
-                GrammarError::RootNotFound
-            )),
-            GeneratedTokenResult::GrammarSyntaxError(expected_message)
-        );
-    }
-
-    #[test]
-    fn reports_a_grammar_the_agent_failed_to_initialize_as_grammar_initialization_failure() {
-        let expected_message = agent_message(&format!(
-            "failed to initialize grammar sampler: {}",
-            GrammarError::NotEnoughMemory
-        ));
-
-        assert_eq!(
-            reported(TextGenerationError::for_gbnf_grammar_error(
-                GrammarError::NotEnoughMemory
-            )),
-            GeneratedTokenResult::GrammarInitializationFailed(expected_message)
+    fn reports_failures_to_start_a_grammar_as_grammar_initialization_failures() {
+        assert_each_reported_as(
+            GeneratedTokenResult::GrammarInitializationFailed,
+            [
+                TextGenerationError::GrammarSamplerInitializationFailed(
+                    SamplerError::GrammarNotEnoughMemory,
+                ),
+                TextGenerationError::ChatSessionGrammarUnavailable(ChatError::Grammar(
+                    SamplerError::GrammarNotEnoughMemory,
+                )),
+            ],
         );
     }
 
     #[test]
     fn reports_media_exceeding_the_micro_batch_with_its_token_counts() {
-        let rejection = TextGenerationError::for_micro_batch_fit_error(
-            MtmdEvalError::NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch {
-                chunk_tokens: 256,
-                micro_batch_tokens: 128,
-            }),
-        );
-
         assert_eq!(
-            reported(rejection),
+            reported(TextGenerationError::for_multimodal_evaluation_error(
+                LlamaCppError::MultimodalChunksEval(MtmdError::NonCausalChunkExceedsMicroBatch(
+                    NonCausalChunkMicroBatchMismatch {
+                        chunk_tokens: 256,
+                        micro_batch_tokens: 128,
+                    }
+                ))
+            )),
             GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
                 media_tokens: 256,
                 micro_batch_tokens: 128,
@@ -733,23 +505,17 @@ mod tests {
     }
 
     #[test]
-    fn reports_other_micro_batch_check_failures_as_micro_batch_check_failures() {
-        let fit_error = MtmdEvalError::FfiContract(FfiContractError {
-            operation: "mtmd_input_chunks_get",
-            detail: "returned a null chunk within the chunk count",
-        });
-        let expected_message = agent_message(&format!(
-            "failed to check media chunks against the micro batch: {fit_error}"
-        ));
-
-        assert_eq!(
-            reported(TextGenerationError::for_micro_batch_fit_error(fit_error)),
-            GeneratedTokenResult::MediaMicroBatchCheckFailed(expected_message)
+    fn reports_other_multimodal_evaluation_failures_as_ingestion_failures() {
+        assert_each_reported_as(
+            GeneratedTokenResult::MultimodalIngestionFailed,
+            [TextGenerationError::for_multimodal_evaluation_error(
+                LlamaCppError::MultimodalChunksEval(MtmdError::EvalNotEnoughMemory),
+            )],
         );
     }
 
     #[test]
-    fn reports_oversized_prompt_with_its_token_counts() {
+    fn reports_an_oversized_prompt_with_its_token_counts() {
         assert_eq!(
             reported(TextGenerationError::PromptExceedsContextSize {
                 details: OversizedPromptDetails {
@@ -765,66 +531,52 @@ mod tests {
     }
 
     #[test]
-    fn reports_multimodal_ingestion_failures_as_ingestion_failures() {
-        let rejection = TextGenerationError::MultimodalIngestionFailed(
-            EvalMultimodalChunksError::ChunkOutOfBounds(3),
-        );
-
-        assert_eq!(
-            reported(rejection),
-            GeneratedTokenResult::MultimodalIngestionFailed(agent_message(
-                "failed to ingest multimodal prompt: chunk index 3 out of bounds during post-eval walk"
-            ))
-        );
-    }
-
-    #[test]
     fn reports_internal_scheduler_failures_under_their_own_results() {
         assert_each_reported_as(
-            GeneratedTokenResult::BatchAssemblyFailed,
-            [TextGenerationError::BatchAssemblyFailed(
-                BatchAddError::NoSequenceIds,
-            )],
-        );
-        assert_each_reported_as(
-            GeneratedTokenResult::KvCacheClearFailed,
-            [TextGenerationError::KvCacheClearFailed(
-                MemorySeqRmError::PartialSequenceNotRemoved {
-                    seq_id: 1,
-                    p0: 0,
-                    p1: 4,
-                },
-            )],
+            GeneratedTokenResult::SchedulerUnavailable,
+            [TextGenerationError::SchedulerUnavailable],
         );
         assert_each_reported_as(
             GeneratedTokenResult::NoSequenceSlotAvailable,
             [TextGenerationError::NoSequenceSlotAvailable],
         );
-    }
-
-    #[test]
-    fn reports_a_missing_model_as_model_not_loaded() {
         assert_each_reported_as(
-            GeneratedTokenResult::ModelNotLoaded,
-            [TextGenerationError::ModelNotLoaded],
+            GeneratedTokenResult::BatchAssemblyFailed,
+            [TextGenerationError::BatchAssemblyFailed(
+                ContextError::NoSequenceIds,
+            )],
+        );
+        assert_each_reported_as(
+            GeneratedTokenResult::KvCacheClearFailed,
+            [TextGenerationError::KvCacheClearFailed(
+                ContextMemoryError::SeqCpMemoryHandleUnavailable,
+            )],
+        );
+        assert_each_reported_as(
+            GeneratedTokenResult::PromptTokenizedToNothing,
+            [TextGenerationError::PromptTokenizedToNothing],
         );
     }
 
     #[test]
-    fn reports_chat_template_failures_as_chat_template_errors() {
+    fn reports_failures_of_a_loaded_model_as_model_not_loaded() {
         assert_each_reported_as(
-            GeneratedTokenResult::ChatTemplateError,
+            GeneratedTokenResult::ModelNotLoaded,
             [
-                TextGenerationError::ChatTemplateDoesNotCompile(
-                    ChatTemplatesError::ModelHasNoChatTemplate,
-                ),
-                TextGenerationError::ChatTemplateContainsNul(CString::new("{{ \0 }}").unwrap_err()),
-                TextGenerationError::ChatSessionCreationFailed(
-                    ChatSessionError::TemplateCannotServeRequest {
-                        message: "roles must alternate".to_owned(),
+                TextGenerationError::ModelNotLoaded,
+                TextGenerationError::AgentRuntime(AgentRuntimeError::AvailableParallelismUnknown(
+                    io::Error::other("parallelism unknown"),
+                )),
+                TextGenerationError::MultimodalProjectionLoadFailed {
+                    multimodal_projection_path: "mmproj.gguf".into(),
+                    source: MtmdError::InitNotEnoughMemory,
+                },
+                TextGenerationError::SamplingParametersUnfitForTheSequenceContext(
+                    InvalidInferenceParameters::PenaltyWindowExceedsSequenceContext {
+                        penalty_last_n: 2048,
+                        sequence_context_size: 1024,
                     },
                 ),
-                TextGenerationError::ChatPromptUnreadable(ChatSessionError::NotEnoughMemory),
             ],
         );
     }
@@ -834,99 +586,11 @@ mod tests {
         assert_each_reported_as(
             GeneratedTokenResult::PromptTokenizationFailed,
             [
-                TextGenerationError::for_chat_prompt_tokenization_error(
-                    ChatSessionError::NotEnoughMemory,
-                ),
-                TextGenerationError::for_prompt_tokenization_error(
-                    StringToTokenError::NotEnoughMemory,
-                ),
+                TextGenerationError::ChatPromptTokenizationFailed(ChatError::PromptTokenization(
+                    ModelError::TokenizeNotEnoughMemory,
+                )),
+                TextGenerationError::PromptTokenizationFailed(ModelError::TokenizeNotEnoughMemory),
             ],
-        );
-    }
-
-    #[test]
-    fn a_rendered_prompt_too_long_for_llama_cpp_describes_the_conversion_failure_once() {
-        assert_eq!(
-            reported(TextGenerationError::for_chat_prompt_tokenization_error(
-                ChatSessionError::PromptTokenization(StringToTokenError::CIntConversionError(
-                    u8::try_from(256_u16).unwrap_err()
-                )),
-            )),
-            GeneratedTokenResult::PromptTokenizationFailed(agent_message(
-                "failed to tokenize the rendered prompt: the rendered prompt could not be tokenized: number too large to fit in target type"
-            ))
-        );
-    }
-
-    #[test]
-    fn a_rendered_prompt_the_tokenizer_cannot_allocate_for_describes_the_failure_once() {
-        assert_eq!(
-            reported(TextGenerationError::for_chat_prompt_tokenization_error(
-                ChatSessionError::PromptTokenization(StringToTokenError::NotEnoughMemory),
-            )),
-            GeneratedTokenResult::PromptTokenizationFailed(agent_message(
-                "failed to tokenize the rendered prompt: the rendered prompt could not be tokenized: not enough memory"
-            ))
-        );
-    }
-
-    #[test]
-    fn a_prompt_too_long_for_llama_cpp_describes_the_conversion_failure_once() {
-        assert_eq!(
-            reported(TextGenerationError::for_prompt_tokenization_error(
-                StringToTokenError::CIntConversionError(u8::try_from(256_u16).unwrap_err()),
-            )),
-            GeneratedTokenResult::PromptTokenizationFailed(agent_message(
-                "failed to tokenize prompt: number too large to fit in target type"
-            ))
-        );
-    }
-
-    #[test]
-    fn multimodal_input_chunks_llama_cpp_cannot_allocate_describe_the_failure_once() {
-        assert_eq!(
-            reported(TextGenerationError::for_multimodal_tokenization_error(
-                MtmdTokenizeError::InputChunksError(MtmdInputChunksError::NotEnoughMemory),
-            )),
-            GeneratedTokenResult::MultimodalTokenizationFailed(agent_message(
-                "failed to tokenize multimodal input: not enough memory"
-            ))
-        );
-    }
-
-    #[test]
-    fn an_ingested_chunk_of_an_unknown_type_describes_its_type_once() {
-        assert_eq!(
-            reported(TextGenerationError::for_multimodal_ingestion_error(
-                EvalMultimodalChunksError::EvalFailed(MtmdEvalError::UnknownChunkType(
-                    MtmdInputChunkTypeError(7)
-                )),
-            )),
-            GeneratedTokenResult::MultimodalIngestionFailed(agent_message(
-                "failed to ingest multimodal prompt: the chunk type could not be classified before evaluating it: Unknown MTMD input chunk type: 7"
-            ))
-        );
-    }
-
-    #[test]
-    fn a_media_chunk_of_an_unknown_type_describes_its_type_once() {
-        assert_eq!(
-            reported(TextGenerationError::for_micro_batch_fit_error(
-                MtmdEvalError::UnknownChunkType(MtmdInputChunkTypeError(7)),
-            )),
-            GeneratedTokenResult::MediaMicroBatchCheckFailed(agent_message(
-                "failed to check media chunks against the micro batch: the chunk type could not be classified before evaluating it: Unknown MTMD input chunk type: 7"
-            ))
-        );
-    }
-
-    #[test]
-    fn reports_an_unavailable_chat_session_grammar_as_a_grammar_initialization_failure() {
-        assert_each_reported_as(
-            GeneratedTokenResult::GrammarInitializationFailed,
-            [TextGenerationError::ChatSessionGrammarUnavailable(
-                ChatSessionError::Grammar(GrammarError::NotEnoughMemory),
-            )],
         );
     }
 
@@ -936,10 +600,10 @@ mod tests {
             GeneratedTokenResult::AnswerClassificationFailed,
             [
                 TextGenerationError::AnswerClassifierUnavailable(
-                    ParseChatMessageError::NotEnoughMemory,
+                    LlamaCppError::EmptyAnswerReading(ChatError::ParseNotEnoughMemory),
                 ),
-                TextGenerationError::for_ingest_error(IngestError::Classify(
-                    ParseChatMessageError::LlamaCppOutOfMemory,
+                TextGenerationError::for_ingest_error(LlamaCppError::Classify(
+                    ChatError::ParseLlamaCppOutOfMemory,
                 )),
             ],
         );
@@ -950,7 +614,7 @@ mod tests {
         assert_each_reported_as(
             GeneratedTokenResult::DetokenizationFailed,
             [TextGenerationError::for_ingest_error(
-                IngestError::Detokenize(TokenToStringError::InsufficientBufferSpace(-4)),
+                LlamaCppError::Detokenize(ModelError::PieceInsufficientBufferSpace(-4)),
             )],
         );
     }
@@ -960,8 +624,8 @@ mod tests {
         assert_each_reported_as(
             GeneratedTokenResult::MultimodalTokenizationFailed,
             [
-                TextGenerationError::for_multimodal_tokenization_error(
-                    MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount,
+                TextGenerationError::MultimodalTokenizationFailed(
+                    MtmdError::BitmapCountDoesNotMatchMarkerCount,
                 ),
                 TextGenerationError::RenderedMediaMarkersMismatchImages {
                     images: 2,
@@ -976,18 +640,38 @@ mod tests {
         assert_each_reported_as(
             GeneratedTokenResult::SamplerChainCreationFailed,
             [TextGenerationError::SamplerChainCreationFailed(
-                SamplingError::SamplerUnavailable { sampler: "grammar" },
+                SamplerError::InitNotEnoughMemory,
             )],
         );
     }
 
     #[test]
-    fn reports_unreadable_token_data_as_a_sampler_error() {
+    fn reports_sampling_loop_failures_as_sampler_errors() {
         assert_each_reported_as(
             GeneratedTokenResult::SamplerError,
-            [TextGenerationError::TokenDataUnreadable(
-                LogitsError::NullLogits,
-            )],
+            [
+                TextGenerationError::GrammarConstraintFailed(SamplerError::ApplyNotEnoughMemory),
+                TextGenerationError::SamplerChainApplicationFailed(
+                    SamplerError::ApplyNotEnoughMemory,
+                ),
+                TextGenerationError::SamplerChainRejectedToken(SamplerError::AcceptNotEnoughMemory),
+                TextGenerationError::TokenDataUnreadable(ContextError::LogitsNull),
+                TextGenerationError::for_ingest_error(LlamaCppError::Sampler(
+                    SamplerError::EveryCandidateExcluded,
+                )),
+            ],
         );
+    }
+
+    #[test]
+    fn a_classification_failure_other_than_detokenizing_or_parsing_fails_the_token_ingestion() {
+        assert!(matches!(
+            TextGenerationError::for_ingest_error(LlamaCppError::Sampler(
+                SamplerError::EveryCandidateExcluded
+            )),
+            TextGenerationError::TokenIngestionFailed(LlamaCppError::Sampler(
+                SamplerError::EveryCandidateExcluded
+            ))
+        ));
     }
 }

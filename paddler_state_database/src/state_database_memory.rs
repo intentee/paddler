@@ -31,7 +31,6 @@ impl StateDatabaseMemory {
 mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::decision_settings::DecisionSettings;
 
     use super::StateDatabaseMemory;
     use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
@@ -40,9 +39,6 @@ mod tests {
     fn reads_back_the_stored_desired_state() {
         let database = StateDatabaseMemory::new(StoredBalancerDesiredState::NothingStored);
         let desired_state = BalancerDesiredState {
-            decision: DecisionSettings {
-                pointer_head: AgentDesiredModel::Uri("test_pointer_head_path".to_owned()),
-            },
             model: AgentDesiredModel::Uri("test_model_path".to_owned()),
             ..BalancerDesiredState::default()
         };

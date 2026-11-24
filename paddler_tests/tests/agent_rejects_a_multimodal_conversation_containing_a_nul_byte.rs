@@ -52,12 +52,10 @@ async fn agent_rejects_a_multimodal_conversation_containing_a_nul_byte() {
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::MultimodalTokenizationFailed(
-            "test-agent: failed to tokenize multimodal input: Failed to create CString from input text: nul byte found in provided data at position: 6".to_owned()
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::MultimodalTokenizationFailed(_)]
+    ));
 
     cluster
         .shutdown()

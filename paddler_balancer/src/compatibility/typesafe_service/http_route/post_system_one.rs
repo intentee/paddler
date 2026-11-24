@@ -70,9 +70,8 @@ async fn respond(
     app_data: web::Data<CompatibilityAppData>,
     system_one_request: web::Json<SystemOneRequest>,
 ) -> HttpResponse {
-    if let DecisionsServing::NotServed(cluster_serves_no_decisions) = app_data
-        .balancer_applicable_state_holder
-        .decisions_serving()
+    if let DecisionsServing::NotServed(cluster_serves_no_decisions) =
+        app_data.agent_controller_pool.decisions_serving()
     {
         return TypeSafeDecisionFailure::from(cluster_serves_no_decisions).into_http_response();
     }

@@ -2,12 +2,11 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_bindings::token::logit_bias::LlamaLogitBias;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_logit_bias::LlamaLogitBias;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -54,7 +53,9 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
         .expect("the tool call marker must tokenize")
         .try_into()
         .expect("the tool call marker must be a single token");
-    let chat_templates = ChatTemplates::new(model).expect("the model must embed a chat template");
+    let chat_templates = model
+        .chat_templates()
+        .expect("the model must embed a chat template");
     let (gone_client_tx, gone_client_rx) = unbounded_channel();
 
     drop(gone_client_rx);
@@ -70,7 +71,7 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
             generated_tokens_tx: gone_client_tx,
             max_tokens: NonZeroU32::MIN,
             token_classification: TokenClassification::ChatSession(
-                weather_chat_session(model, &chat_templates)
+                weather_chat_session(model, chat_templates)
                     .expect("the model's template must serve the weather question"),
             ),
             token_sampling: TokenSampling {

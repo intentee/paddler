@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::backend_error::BackendError;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 use parking_lot::Mutex;
 
 use crate::llama_backend_state::LlamaBackendState;
@@ -13,8 +13,8 @@ pub struct SharedLlamaBackend {
 impl SharedLlamaBackend {
     /// # Errors
     ///
-    /// Returns the [`LlamaCppError`] llama.cpp reports when the backend is not yet initialized and cannot be initialized.
-    pub fn get_or_init(&self) -> Result<Arc<LlamaBackend>, LlamaCppError> {
+    /// Returns the [`BackendError`] llama.cpp reports when the backend is not yet initialized and cannot be initialized.
+    pub fn get_or_init(&self) -> Result<Arc<LlamaBackend>, BackendError> {
         let mut llama_backend_state = self.llama_backend_state.lock();
         let llama_backend = match &*llama_backend_state {
             LlamaBackendState::Initialized(llama_backend) => llama_backend.clone(),

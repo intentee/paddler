@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 use paddler_agent_runtime::resident_llama_model::ResidentLlamaModel;
 
@@ -20,12 +20,12 @@ pub struct PromptTokenizer {
 impl PromptTokenizer {
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::PromptContainsNul`], [`TextGenerationError::PromptLengthUnrepresentable`] or [`TextGenerationError::PromptTokenizationFailed`] when the model cannot tokenize the prompt, [`TextGenerationError::PromptTokenizedToNothing`] when it yields no tokens, and [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context.
+    /// Returns [`TextGenerationError::PromptTokenizationFailed`] when the model cannot tokenize the prompt, [`TextGenerationError::PromptTokenizedToNothing`] when it yields no tokens, and [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context.
     pub fn tokenize(&self, prompt: &str) -> Result<Vec<LlamaToken>, TextGenerationError> {
         let mut prompt_tokens = self
             .model
             .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
-            .map_err(TextGenerationError::for_prompt_tokenization_error)?;
+            .map_err(TextGenerationError::PromptTokenizationFailed)?;
 
         if self
             .model_bos_token
@@ -39,7 +39,7 @@ impl PromptTokenizer {
 
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::ChatPromptContainsNul`], [`TextGenerationError::ChatPromptLengthUnrepresentable`], [`TextGenerationError::ChatPromptTokenizerFailed`] or [`TextGenerationError::ChatPromptTokenizationFailed`] when the chat session cannot tokenize its prompt, [`TextGenerationError::PromptTokenizedToNothing`] when it yields no tokens, and [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context.
+    /// Returns [`TextGenerationError::ChatPromptTokenizationFailed`] when the chat session cannot tokenize its prompt, [`TextGenerationError::PromptTokenizedToNothing`] when it yields no tokens, and [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context.
     pub fn tokenize_chat_session(
         &self,
         chat_session: &ChatSession,
@@ -47,7 +47,7 @@ impl PromptTokenizer {
         self.servable(
             chat_session
                 .tokenize_prompt(&self.model)
-                .map_err(TextGenerationError::for_chat_prompt_tokenization_error)?,
+                .map_err(TextGenerationError::ChatPromptTokenizationFailed)?,
         )
     }
 

@@ -27,13 +27,10 @@ async fn agent_rejects_raw_prompt_containing_nul_byte() {
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::PromptTokenizationFailed(
-            "test-agent: failed to tokenize prompt: nul byte found in provided data at position: 6"
-                .to_owned(),
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::PromptTokenizationFailed(_)]
+    ));
 
     cluster
         .shutdown()

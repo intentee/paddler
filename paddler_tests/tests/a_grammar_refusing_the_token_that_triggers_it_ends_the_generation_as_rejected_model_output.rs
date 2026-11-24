@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
@@ -23,7 +23,7 @@ fn a_grammar_refusing_the_token_that_triggers_it_ends_the_generation_as_rejected
         .decode_the_prompt(&mut llama_context)
         .expect("the prompt must decode");
 
-    assert_eq!(
+    assert!(matches!(
         ReadyToSampleRequest {
             llama_context: &llama_context,
             prompt: GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT,
@@ -43,9 +43,7 @@ fn a_grammar_refusing_the_token_that_triggers_it_ends_the_generation_as_rejected
         })
         .expect("the request must be ready to sample"),
         ContinuousBatchTerminalOutcome::EmitToClient(
-            GeneratedTokenResult::GrammarRejectedModelOutput(
-                GrammarRefusingTheGreedySelection::refusal().to_string()
-            )
+            GeneratedTokenResult::GrammarRejectedModelOutput(_)
         )
-    );
+    ));
 }

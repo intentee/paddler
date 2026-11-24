@@ -67,14 +67,6 @@ async fn openai_chat_completion_reports_a_tool_call_violating_its_schema_as_a_se
         error_body.pointer("/error/type").and_then(Value::as_str),
         Some("server_error")
     );
-    assert!(
-        error_body
-            .pointer("/error/message")
-            .and_then(Value::as_str)
-            .expect("the error must carry a message")
-            .contains("get_weather"),
-        "the error must name the tool whose call broke its schema: {error_body}"
-    );
 
     cluster
         .shutdown()

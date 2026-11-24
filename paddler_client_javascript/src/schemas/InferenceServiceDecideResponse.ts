@@ -16,7 +16,6 @@ const OversizedDecisionDetailsSchema = z.object({
 });
 
 const decisionFailureCodes = {
-  AgentRuntimeFailed: 500,
   BatchAssemblyFailed: 500,
   DecisionsNotServed: 503,
   DecodeFailed: 500,
@@ -31,7 +30,6 @@ const decisionFailureCodes = {
 type DecisionFailure = keyof typeof decisionFailureCodes;
 
 const DecisionFailureSchema = z.union([
-  z.object({ AgentRuntimeFailed: z.string() }).strict(),
   z.object({ BatchAssemblyFailed: z.string() }).strict(),
   z.object({ DecisionsNotServed: z.string() }).strict(),
   z.object({ DecodeFailed: z.string() }).strict(),

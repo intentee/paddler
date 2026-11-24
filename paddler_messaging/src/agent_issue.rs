@@ -6,7 +6,6 @@ use crate::agent_issue_params::chat_template_does_not_compile_params::ChatTempla
 use crate::agent_issue_params::hugging_face_download_failed_params::HuggingFaceDownloadFailedParams;
 use crate::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
 use crate::agent_issue_params::model_path::ModelPath;
-use crate::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
 use crate::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use crate::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
 
@@ -19,6 +18,8 @@ pub enum AgentIssue {
     CacheDirectoryIsNotWritable(ModelPath),
     CacheStorageIsFull(ModelPath),
     ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams),
+    DecisionModelIsMalformed(ModelPath),
+    DecisionTypeIsUnsupported(ModelPath),
     DownloadInterrupted(ModelPath),
     DownloadServerDeniedAccess(ModelPath),
     DownloadServerErrored(ModelPath),
@@ -37,8 +38,6 @@ pub enum AgentIssue {
     ModelFileDoesNotExist(ModelPath),
     ModelUriIsUnparseable(ModelPath),
     MultimodalProjectionCannotBeLoaded(ModelPath),
-    PointerHeadCannotBeLoaded(ModelPath),
-    PointerHeadIncompatibleWithModel(PointerHeadIncompatibleWithModelParams),
     SlotCannotStart(SlotCannotStartParams),
     SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams),
     UnableToFindChatTemplate(ModelPath),

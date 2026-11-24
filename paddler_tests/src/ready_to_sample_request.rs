@@ -2,9 +2,9 @@ use std::slice;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use log::LevelFilter;
 use log::set_max_level;
 
@@ -17,6 +17,7 @@ use paddler_agent_text_generation::continuous_batch_request_state::ContinuousBat
 use paddler_agent_text_generation::continuous_batch_scheduler::advance_generating_phase::AdvanceGeneratingPhase;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 
 use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
@@ -135,6 +136,7 @@ impl ReadyToSampleRequest<'_> {
                     agent_name: None,
                     desired_slots_total: 1,
                     model: &runtime.loaded_llama_model.model,
+                    multimodal_ingestion: MultimodalIngestion::Unsupported,
                     sequence_context_size,
                 },
             }

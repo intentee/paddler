@@ -20,6 +20,7 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_spawn_resuming_panic = { workspace = true }
 

@@ -19,7 +19,7 @@ async fn a_startup_cancelled_by_the_agent_shutting_down_changes_nothing() {
         .slot_aggregated_status
         .make_snapshot();
 
-    arbiter_under_test.conclude_next_progress().await;
+    arbiter_under_test.conclude_next_startup().await;
 
     assert_eq!(
         arbiter_under_test

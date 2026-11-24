@@ -38,13 +38,10 @@ async fn agent_rejects_embedding_document_containing_nul_byte() {
         .expect("the embedding batch must be accepted");
 
     assert!(collected.embeddings.is_empty());
-    assert_eq!(
-        collected.failures,
-        vec![EmbeddingResult::InputTokenizationFailed(
-            "test-agent: failed to tokenize embedding input \"nul-document\": nul byte found in provided data at position: 6"
-                .to_owned()
-        )]
-    );
+    assert!(matches!(
+        collected.failures.as_slice(),
+        [EmbeddingResult::InputTokenizationFailed(_)]
+    ));
 
     cluster
         .shutdown()

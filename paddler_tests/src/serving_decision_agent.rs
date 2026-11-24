@@ -12,9 +12,7 @@ use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
 use paddler_messaging::validates::Validates as _;
-use paddler_test_cluster_harness::constants::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
-use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 
@@ -25,7 +23,7 @@ pub struct ServingDecisionAgent {
 impl ServingDecisionAgent {
     /// # Errors
     ///
-    /// Returns an error when the model downloader cannot start, when the pointer head fixture lies at a path that cannot be served, and when the decision desired state is not reconciled.
+    /// Returns an error when the model downloader cannot start, and when the kev desired state is not reconciled.
     pub async fn start() -> Result<Self> {
         ready(
             ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get())
@@ -38,17 +36,12 @@ impl ServingDecisionAgent {
     async fn serving_the_decision_model(
         mut serving_pipeline_arbiter: ServingPipelineArbiter,
     ) -> Result<Self> {
-        ready(
-            pointer_head_fixture(QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE)
-                .context("the pointer head fixture path must be absolute"),
-        )
-        .and_then(|pointer_head| {
-            serving_pipeline_arbiter.serve(qwen3_5_0_8b().into_decision_desired_state(pointer_head))
-        })
-        .await
-        .map(|()| Self {
-            serving_pipeline_arbiter,
-        })
+        serving_pipeline_arbiter
+            .serve(kev_0_8b().into_desired_state())
+            .await
+            .map(|()| Self {
+                serving_pipeline_arbiter,
+            })
     }
 
     /// # Errors

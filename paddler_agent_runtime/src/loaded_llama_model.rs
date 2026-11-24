@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::params::LlamaContextParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory as _;
+use llama_cpp_model::decision_type::DecisionType;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_params::llama_context_params::LlamaContextParams;
 
 use paddler_agent_status::agent_issue_fix::AgentIssueFix;
 use paddler_error_chain::error_chain::ErrorChain;
@@ -46,6 +47,7 @@ fn read_model_metadata(model: &LlamaModel) -> Result<ModelMetadata, AgentRuntime
 
 #[derive(Clone)]
 pub struct LoadedLlamaModel {
+    pub decision_type: DecisionType,
     pub inference_parallelism: InferenceParallelism,
     pub llama_model_settings: LlamaModelSettings,
     pub model: Arc<ResidentLlamaModel>,
@@ -55,7 +57,7 @@ pub struct LoadedLlamaModel {
 impl LoadedLlamaModel {
     /// # Errors
     ///
-    /// Returns [`AgentRuntimeError::AvailableParallelismUnknown`] or [`AgentRuntimeError::ThreadCountOutOfRange`] when the inference thread count cannot be determined, [`AgentRuntimeError::ModelWeightsAlreadyResident`] when another model occupies the VRAM, [`AgentRuntimeError::BackendInitializationFailed`] when the llama.cpp backend cannot start, [`AgentRuntimeError::ModelFilePrefetchFailed`] when the model file cannot be read, [`AgentRuntimeError::ModelLoadFailed`] when llama.cpp cannot load the model file, and [`AgentRuntimeError::ModelMetadataUnreadable`] when its metadata cannot be read.
+    /// Returns [`AgentRuntimeError::AvailableParallelismUnknown`] or [`AgentRuntimeError::ThreadCountOutOfRange`] when the inference thread count cannot be determined, [`AgentRuntimeError::ModelWeightsAlreadyResident`] when another model occupies the VRAM, [`AgentRuntimeError::BackendInitializationFailed`] when the llama.cpp backend cannot start, [`AgentRuntimeError::ModelFilePrefetchFailed`] when the model file cannot be read, [`AgentRuntimeError::ModelLoadFailed`] when llama.cpp cannot load the model file, [`AgentRuntimeError::ModelMetadataUnreadable`] when its metadata cannot be read, and [`AgentRuntimeError::ModelDecisionTypeUnreadable`] when llama.cpp cannot tell whether it is a decision model.
     pub fn load(
         inference_runtime_context: &InferenceRuntimeContext,
         llama_model_settings: LlamaModelSettings,
@@ -119,12 +121,16 @@ impl LoadedLlamaModel {
             })
         })?;
         let model_metadata = read_model_metadata(&model)?;
+        let decision_type = model
+            .decision_type()
+            .map_err(AgentRuntimeError::ModelDecisionTypeUnreadable)?;
 
         Ok(Self {
+            decision_type,
             inference_parallelism,
             llama_model_settings,
             model: Arc::new(ResidentLlamaModel {
-                llama_model: model,
+                llama_model: Arc::new(model),
                 llama_backend,
                 vram_occupancy,
             }),
@@ -208,7 +214,7 @@ impl LoadedLlamaModel {
     where
         TServe: FnOnce(ResidentLlamaContext<'model>, LlamaBatch),
     {
-        let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
+        let mut batch = LlamaBatch::new(llama_context.limits());
 
         self.warm_up_llama_context(&mut llama_context, &mut batch)?;
 
@@ -245,7 +251,7 @@ impl LoadedLlamaModel {
         warmup_batch: &mut LlamaBatch,
         warmup_tokens: &[LlamaToken],
     ) -> Result<(), AgentRuntimeError> {
-        let warmed_up_sequences = warmup_batch.limits().n_seq_max.cast_signed();
+        let warmed_up_sequences = warmup_batch.limits().max_sequences.cast_signed();
 
         for (position, warmup_token) in (0..).zip(warmup_tokens) {
             warmup_batch.clear();
@@ -253,7 +259,7 @@ impl LoadedLlamaModel {
             for sequence_id in 0..warmed_up_sequences {
                 warmup_batch
                     .add(
-                        &SampledToken::Content(*warmup_token),
+                        SampledToken::Content(*warmup_token),
                         position,
                         &[sequence_id],
                         true,

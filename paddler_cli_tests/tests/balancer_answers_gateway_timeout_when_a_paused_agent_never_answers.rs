@@ -36,17 +36,11 @@ async fn balancer_answers_gateway_timeout_when_a_paused_agent_never_answers() {
         .get_model_metadata(CancellationToken::new(), &pausable_agent.id)
         .await;
 
-    assert_eq!(
-        metadata_result.err().as_ref().map(ToString::to_string),
-        Some(
-            ClientError::UnexpectedResponseStatus {
-                message: String::new(),
-                status: StatusCode::GATEWAY_TIMEOUT,
-                url: model_metadata_url.to_string(),
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        metadata_result,
+        Err(ClientError::UnexpectedResponseStatus { status, url, .. })
+            if status == StatusCode::GATEWAY_TIMEOUT && url == model_metadata_url.as_str()
+    ));
 
     pausable_agent
         .signals

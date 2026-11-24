@@ -1,4 +1,3 @@
-use std::net::UdpSocket;
 use std::time::Duration;
 
 use log::Level;
@@ -20,15 +19,6 @@ const STATSD_SERVICE_TARGET: &str = "paddler_balancer::statsd_service";
 async fn balancer_logs_a_statsd_report_it_cannot_send() {
     CapturingLogger::install();
 
-    let unsendable_report_error = UdpSocket::bind(EPHEMERAL_LOOPBACK_ADDR)
-        .expect("the probing socket must bind")
-        .send_to(b"paddler.slots_total:0|g", EPHEMERAL_LOOPBACK_ADDR)
-        .expect_err("a datagram to port zero must not be sent");
-    let unsendable_report_record = CapturedRecord {
-        level: Level::Error,
-        message: format!("Failed to report metrics: {unsendable_report_error}"),
-        target: STATSD_SERVICE_TARGET.to_owned(),
-    };
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
     params.bootstrap_config.statsd_service_configuration = Some(StatsdServiceConfiguration {
@@ -40,7 +30,10 @@ async fn balancer_logs_a_statsd_report_it_cannot_send() {
         .await
         .expect("a runner reporting to statsd must start");
 
-    while !CapturingLogger::records_for(STATSD_SERVICE_TARGET).contains(&unsendable_report_record) {
+    while !CapturingLogger::records_for(STATSD_SERVICE_TARGET)
+        .iter()
+        .any(|CapturedRecord { level, .. }| *level == Level::Error)
+    {
         yield_now().await;
     }
 

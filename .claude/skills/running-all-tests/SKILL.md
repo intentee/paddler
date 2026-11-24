@@ -34,7 +34,6 @@ Copy this checklist and tick each item as the suite completes:
 - [ ] Python lint
 - [ ] OpenAI Python client LLM
 - [ ] TypeSafe Python client LLM
-- [ ] kev converter Python LLM
 - [ ] Rust unit
 - [ ] Rust integration
 - [ ] OpenCode integration
@@ -44,15 +43,14 @@ Copy this checklist and tick each item as the suite completes:
 |---|----------------------------|--------------------------------------------------------------------------------------------------|
 | 1 | JS client                  | `TEST_DEVICE=$DEVICE make test.client.js`                                                        |
 | 2 | JS client LLM              | `TEST_DEVICE=$DEVICE make test.client.js.llm`                                                    |
-| 3 | Python lint                | `make lint.openai.python lint.typesafe.python lint.kev_converter.python`                         |
+| 3 | Python lint                | `make lint.openai.python lint.typesafe.python`                                                   |
 | 4 | OpenAI Python client LLM   | `TEST_DEVICE=$DEVICE make test.openai.python.llm`                                                |
 | 5 | TypeSafe Python client LLM | `TEST_DEVICE=$DEVICE make test.typesafe.python.llm`                                              |
-| 6 | kev converter Python LLM   | `make test.kev_converter.python.llm`                                                             |
-| 7 | Rust unit                  | `TEST_DEVICE=$DEVICE make test.unit`                                                             |
-| 8 | Rust integration           | `TEST_DEVICE=$DEVICE make test.integration`                                                      |
-| 9 | OpenCode integration       | `PADDLER_OPENCODE_BINARY=$(command -v opencode) TEST_DEVICE=$DEVICE make test.integration.opencode` |
+| 6 | Rust unit                  | `TEST_DEVICE=$DEVICE make test.unit`                                                             |
+| 7 | Rust integration           | `TEST_DEVICE=$DEVICE make test.integration`                                                      |
+| 8 | OpenCode integration       | `PADDLER_OPENCODE_BINARY=$(command -v opencode) TEST_DEVICE=$DEVICE make test.integration.opencode` |
 
-Run them in this order. Cheap suites (1, 3, 7) surface bugs quickly; the GPU-bound suites (2, 4, 5, 6, 8, 9) load models.
+Run them in this order. Cheap suites (1, 3, 6) surface bugs quickly; the GPU-bound suites (2, 4, 5, 7, 8) load models.
 
 ## Step 3: rules during the run
 

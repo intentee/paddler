@@ -43,8 +43,8 @@ impl LlamaCppArbiterService {
                 Ok(()) = agent_applicable_state_rx.changed() => {
                     pipeline_arbiter.apply(agent_applicable_state_rx.borrow_and_update().clone());
                 }
-                finished_pipeline_startup = pipeline_arbiter.next_finished_startup() => {
-                    pipeline_arbiter.conclude(finished_pipeline_startup);
+                finished_serving_startup = pipeline_arbiter.next_finished_startup() => {
+                    pipeline_arbiter.conclude(finished_serving_startup);
                 }
                 pipeline_request = pipeline_requests.next() => pipeline_arbiter.forward(pipeline_request),
             }

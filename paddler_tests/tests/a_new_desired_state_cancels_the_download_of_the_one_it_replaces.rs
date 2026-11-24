@@ -1,16 +1,11 @@
-use std::time::Duration;
-
 use tokio_util::sync::CancellationToken;
 
-use paddler_download_manager::constants::READ_TIMEOUT;
 use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_tests::constants::BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
-
-const BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT: Duration =
-    Duration::from_secs(READ_TIMEOUT.as_secs() / 2);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_new_desired_state_cancels_the_download_of_the_one_it_replaces() {

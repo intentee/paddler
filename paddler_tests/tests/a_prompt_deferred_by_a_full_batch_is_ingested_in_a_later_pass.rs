@@ -2,10 +2,9 @@
 
 use std::mem::discriminant;
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
@@ -13,10 +12,11 @@ use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
+use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
+use paddler_test_cluster_harness::model_card::kev_0_8b::kev_0_8b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_tests::generation_done_discriminant::generation_done_discriminant;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::last_generated_token_result::last_generated_token_result;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
@@ -40,7 +40,9 @@ fn raw_prompt_generation(
 #[test]
 fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
     let runtime = LlamaRuntime::load(
-        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
+        &kev_0_8b()
+            .cached_path()
+            .expect("the kev model must be in the Hugging Face cache"),
         agent_inference_runtime_context(SLOTS),
     )
     .expect("the kev model must load");
@@ -112,12 +114,13 @@ fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
 
     ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
         agent_shutdown: CancellationToken::new(),
-        batch: LlamaBatch::new(ContextLimits::of(&llama_context)),
+        batch: LlamaBatch::new(llama_context.limits()),
         llama_context,
         scheduler_context: ContinuousBatchSchedulerContext {
             agent_name: None,
             desired_slots_total: SLOTS,
             model: &runtime.loaded_llama_model.model,
+            multimodal_ingestion: MultimodalIngestion::Unsupported,
             sequence_context_size,
         },
         scheduler_message_rx,

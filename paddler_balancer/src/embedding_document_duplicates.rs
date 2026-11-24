@@ -100,6 +100,7 @@ impl EmbeddingDocumentDuplicates {
             | EmbeddingResult::DecodeFailed(_)
             | EmbeddingResult::Done
             | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+            | EmbeddingResult::EmbeddingsNotServed(_)
             | EmbeddingResult::EmbeddingsUnavailable(_)
             | EmbeddingResult::InputTokenizationFailed(_)
             | EmbeddingResult::ModelNotLoaded(_)

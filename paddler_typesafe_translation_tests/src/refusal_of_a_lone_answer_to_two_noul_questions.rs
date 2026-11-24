@@ -5,16 +5,18 @@ use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 use paddler_typesafe_translation::translated_system_one_request::TranslatedSystemOneRequest;
+use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
 const SUMMARY: DecisionSummary = DecisionSummary {
     input_tokens: 1,
     processing_milliseconds: 1,
 };
 
+#[must_use]
 pub fn refusal_of_a_lone_answer_to_two_noul_questions(
     id: &str,
     probabilities: Vec<f32>,
-) -> Option<String> {
+) -> Option<TypeSafeTranslationError> {
     SystemOneRequest {
         model: "test".to_owned(),
         questions: [
@@ -40,6 +42,4 @@ pub fn refusal_of_a_lone_answer_to_two_noul_questions(
         },
     )
     .err()
-    .as_ref()
-    .map(ToString::to_string)
 }

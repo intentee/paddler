@@ -21,22 +21,16 @@ async fn http_client_reports_a_server_sent_event_of_another_shape_as_undecodable
         .expect("the agents event stream must open");
     let empty_pool_snapshot = to_string(&AgentControllerPoolSnapshot { agents: Vec::new() })
         .expect("an empty agents snapshot must serialize");
+    let snapshot_decoding_error = from_str::<String>(&empty_pool_snapshot)
+        .expect_err("an agents snapshot must not decode as a string");
 
-    assert_eq!(
-        events
-            .next()
-            .await
-            .and_then(Result::err)
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            Error::Json(
-                from_str::<String>(&empty_pool_snapshot)
-                    .expect_err("an agents snapshot must not decode as a string")
-            )
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        events.next().await,
+        Some(Err(Error::Json(event_decoding_error)))
+            if event_decoding_error.classify() == snapshot_decoding_error.classify()
+                && event_decoding_error.line() == snapshot_decoding_error.line()
+                && event_decoding_error.column() == snapshot_decoding_error.column()
+    ));
 
     drop(events);
 

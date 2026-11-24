@@ -4,6 +4,7 @@ pub mod gemma_3_4b_it;
 pub mod gemma_3_4b_it_mmproj;
 pub mod gemma_4_e2b_it;
 pub mod gemma_4_e2b_it_mmproj;
+pub mod kev_0_8b;
 pub mod lfm2_colbert_350m;
 pub mod ministral_3_3b_reasoning;
 pub mod ministral_3_8b_reasoning;
@@ -14,7 +15,6 @@ pub mod qwen2_5_vl_3b_mmproj;
 pub mod qwen3_0_6b;
 pub mod qwen3_5_0_8b;
 pub mod qwen3_5_0_8b_mmproj;
-pub mod qwen3_8_27b;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;
 pub mod ultravox_v0_5_llama_3_2_1b;
@@ -32,7 +32,6 @@ use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
-use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
@@ -61,17 +60,6 @@ impl ModelCard {
     #[must_use]
     pub fn into_agent_desired_model(self) -> AgentDesiredModel {
         ModelSource::HuggingFace(self.reference).into_agent_desired_model()
-    }
-
-    #[must_use]
-    pub fn into_decision_desired_state(
-        self,
-        pointer_head: AgentDesiredModel,
-    ) -> BalancerDesiredState {
-        BalancerDesiredState {
-            decision: DecisionSettings { pointer_head },
-            ..self.into_desired_state()
-        }
     }
 
     #[must_use]

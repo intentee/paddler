@@ -9,7 +9,6 @@ use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_tests::weather_question_conversation::weather_question_conversation;
-use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
 
 const TOOL_CALL_WITH_A_NUMBER_FOR_ITS_LOCATION: &str =
     "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": 42}}\n</tool_call>";
@@ -33,20 +32,16 @@ async fn agent_reports_a_forced_tool_call_violating_its_schema_as_a_validation_f
         .expect("the inference request must be accepted")
         .into_token_results();
 
-    assert_eq!(
+    assert!(matches!(
         token_results
             .iter()
             .filter(|token_result| token_result.is_tool_call_parsed()
                 || token_result.is_tool_call_failure())
-            .collect::<Vec<_>>(),
-        vec![&GeneratedTokenResult::ToolCallValidationFailed(vec![
-            ToolCallValidationError::SchemaMismatch {
-                tool_name: "get_weather".to_owned(),
-                violations: vec![r#"42 is not of type "string""#.to_owned()],
-            }
-            .to_string()
-        ])]
-    );
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [GeneratedTokenResult::ToolCallValidationFailed(validation_failures)]
+            if validation_failures.len() == 1
+    ));
 
     cluster
         .shutdown()

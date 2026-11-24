@@ -81,7 +81,6 @@ impl From<GeneratedTokenFinalResult> for GenerationOutcome {
             | GeneratedTokenFinalResult::GrammarInitializationFailed(description)
             | GeneratedTokenFinalResult::GrammarRejectedModelOutput(description)
             | GeneratedTokenFinalResult::KvCacheClearFailed(description)
-            | GeneratedTokenFinalResult::MediaMicroBatchCheckFailed(description)
             | GeneratedTokenFinalResult::MultimodalIngestionFailed(description)
             | GeneratedTokenFinalResult::SamplerChainCreationFailed(description)
             | GeneratedTokenFinalResult::SamplerError(description)
@@ -252,10 +251,6 @@ mod tests {
             ),
             (
                 GeneratedTokenFinalResult::KvCacheClearFailed("agent failure".to_owned()),
-                "agent failure",
-            ),
-            (
-                GeneratedTokenFinalResult::MediaMicroBatchCheckFailed("agent failure".to_owned()),
                 "agent failure",
             ),
             (

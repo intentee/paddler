@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 use std::num::NonZeroU16;
 
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;

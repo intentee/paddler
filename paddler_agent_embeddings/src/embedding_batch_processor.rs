@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory as _;
 
 use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -46,8 +47,8 @@ impl<TNormalization: NormalizesEmbedding> EmbeddingBatchProcessor<'_, '_, TNorma
         let limits = self.batch.limits();
         let batched_inputs = next_embedding_batch(
             &mut active_requests,
-            limits.n_batch as usize,
-            limits.n_seq_max,
+            limits.batch as usize,
+            limits.max_sequences,
         );
 
         if batched_inputs.is_empty() {

@@ -1,5 +1,5 @@
-use llama_cpp_bindings::context::params::LlamaContextParams;
-use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
+use llama_cpp_bindings_sys::bindings::LLAMA_FLASH_ATTN_TYPE_AUTO;
+use llama_cpp_params::llama_context_params::LlamaContextParams;
 
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 
@@ -41,7 +41,7 @@ impl LlamaContextSettings<'_> {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::context::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
+    use llama_cpp_params::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
 
     use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
     use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;

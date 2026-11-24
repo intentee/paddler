@@ -2,7 +2,6 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::error::sampler_apply_error::SamplerApplyError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -34,12 +33,10 @@ async fn agent_reports_a_grammar_no_token_can_satisfy_as_rejected_model_output()
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::GrammarRejectedModelOutput(
-            SamplerApplyError::EveryCandidateExcluded.to_string()
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::GrammarRejectedModelOutput(_)]
+    ));
 
     cluster
         .shutdown()

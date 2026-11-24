@@ -88,7 +88,7 @@ impl EmbeddingPipeline {
                                     agent_name: inference_runtime_context.agent_name.clone(),
                                     preparation: EmbeddingBatchPreparer {
                                         loaded_llama_model: loaded_llama_model.clone(),
-                                        n_batch: batch.limits().n_batch as usize,
+                                        n_batch: batch.limits().batch as usize,
                                         sequence_context_limit: SequenceContextLimit::of(
                                             &llama_context,
                                         ),

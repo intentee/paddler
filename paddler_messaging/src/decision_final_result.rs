@@ -3,7 +3,6 @@ use crate::oversized_decision_details::OversizedDecisionDetails;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DecisionFinalResult {
-    AgentRuntimeFailed(String),
     BatchAssemblyFailed(String),
     DecisionsNotServed(String),
     DecodeFailed(String),

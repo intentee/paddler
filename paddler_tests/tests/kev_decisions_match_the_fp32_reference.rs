@@ -27,13 +27,9 @@ async fn kev_decisions_match_the_fp32_reference() {
         "../../fixtures/kev_0_8b_parity_reference.json"
     ))
     .expect("the parity reference must parse");
-    let cluster = start_cluster(
-        TestClusterPreset::Kev0_8b
-            .cluster_params()
-            .expect("the test cluster preset must name absolute paths"),
-    )
-    .await
-    .expect("the Kev cluster must start");
+    let cluster = start_cluster(TestClusterPreset::Kev0_8b.cluster_params())
+        .await
+        .expect("the Kev cluster must start");
 
     for KevParityRecord {
         probabilities,

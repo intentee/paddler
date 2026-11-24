@@ -14,14 +14,10 @@ async fn run_opencode_reports_spawn_failure_for_a_missing_binary() {
         .await
         .expect_err("a missing binary must fail to spawn");
 
-    assert_eq!(
-        run_error.to_string(),
-        OpenCodeTestError::SpawnFailed {
-            path: missing_binary.to_path_buf(),
-            source: io::Error::from(io::ErrorKind::NotFound),
-        }
-        .to_string()
-    );
+    assert!(matches!(
+        &run_error,
+        OpenCodeTestError::SpawnFailed { path, .. } if path == missing_binary
+    ));
     assert_eq!(
         run_error
             .source()

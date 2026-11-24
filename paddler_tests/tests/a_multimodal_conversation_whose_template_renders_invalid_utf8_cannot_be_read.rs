@@ -2,10 +2,10 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::model::llama_chat_template::LlamaChatTemplate;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 
+use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
 use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -16,7 +16,6 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
-use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
 use paddler_tests::conversation_generation::ConversationGeneration;
@@ -34,10 +33,6 @@ fn a_multimodal_conversation_whose_template_renders_invalid_utf8_cannot_be_read(
         agent_inference_runtime_context(1),
     )
     .expect("the vision model must load");
-    let llama_context = runtime
-        .create_text_generation_llama_context(1)
-        .expect("the context must be created");
-    let sequence_context_size = llama_context.n_ctx_seq();
     let model = &runtime.loaded_llama_model.model;
     let ConversationGeneration { agent_request, .. } = ConversationGeneration::new(
         ContinueFromConversationHistoryParams {
@@ -67,45 +62,26 @@ fn a_multimodal_conversation_whose_template_renders_invalid_utf8_cannot_be_read(
             .clone(),
     );
 
-    assert_eq!(
+    assert!(matches!(
         ChatTemplatesRequestPreparer {
-            chat_templates: ChatTemplates::with_override(
-                model,
-                &LlamaChatTemplate::new(&first_byte_of_the_first_message_chat_template().content)
-                    .expect("the template holds no NUL byte"),
-            )
-            .expect("llama.cpp must prepare the template"),
-            image_input: ImageInput::Supported(
-                runtime
-                    .multimodal_prompt_support(
-                        &llama_context,
-                        &smolvlm2_256m_mmproj()
-                            .cached_path()
-                            .expect("the multimodal projection must be in the Hugging Face cache"),
+            chat_templates: ConversationChatTemplates::Override(
+                model
+                    .chat_templates_with_override(
+                        &LlamaChatTemplate::new(
+                            &first_byte_of_the_first_message_chat_template().content
+                        )
+                        .expect("the template holds no NUL byte"),
                     )
-                    .expect("the multimodal projection must load"),
+                    .expect("llama.cpp must prepare the template"),
             ),
+            image_input: ImageInput::Supported,
             llama_runtime: &runtime,
-            sequence_context_size,
+            sequence_context_size: runtime.model_runtime_parameters.context_size.get(),
         }
         .into_generation_request_preparer()
-        .prepare_conversation_history(agent_request)
-        .err()
-        .as_ref()
-        .map(ToString::to_string),
-        Some(
-            TextGenerationError::ChatPromptUnreadable(ChatSessionError::SessionTextNotUtf8(
-                String::from_utf8(
-                    QUESTION_STARTING_WITH_A_TWO_BYTE_CHARACTER
-                        .as_bytes()
-                        .first_chunk::<1>()
-                        .expect("the question must start with a byte")
-                        .to_vec()
-                )
-                .expect_err("the first byte of a two byte character is not UTF-8")
-                .utf8_error()
-            ))
-            .to_string()
-        )
-    );
+        .prepare_conversation_history(agent_request),
+        Err(TextGenerationError::ChatPromptUnreadable(
+            ChatError::SessionTextNotUtf8(_)
+        ))
+    ));
 }

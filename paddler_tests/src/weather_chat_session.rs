@@ -1,12 +1,12 @@
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_model::chat_templates::ChatTemplates;
+use llama_cpp_model::llama_model::LlamaModel;
 use serde_json::Value;
 
 use paddler_agent_text_generation::chat_template_tool::ChatTemplateTool;
@@ -17,11 +17,11 @@ use crate::get_weather_tool::get_weather_tool;
 
 /// # Errors
 ///
-/// Returns the [`ChatSessionError`] of a chat template that cannot render the weather question with its tool.
+/// Returns the [`ChatError`] of a chat template that cannot render the weather question with its tool.
 pub fn weather_chat_session(
     model: &LlamaModel,
     chat_templates: &ChatTemplates,
-) -> Result<ChatSession, ChatSessionError> {
+) -> Result<ChatSession, ChatError> {
     ChatSession::new(
         model,
         chat_templates,

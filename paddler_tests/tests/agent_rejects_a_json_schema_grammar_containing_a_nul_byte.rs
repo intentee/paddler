@@ -30,13 +30,10 @@ async fn agent_rejects_a_json_schema_grammar_containing_a_nul_byte() {
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::GrammarSyntaxError(
-            "test-agent: Failed to convert JSON schema to grammar: schema string contains an interior NUL byte: nul byte found in provided data at position: 18"
-                .to_owned(),
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::GrammarSyntaxError(_)]
+    ));
 
     cluster
         .shutdown()

@@ -55,12 +55,10 @@ async fn a_multimodal_agent_whose_chat_template_drops_the_image_rejects_the_prom
         .await
         .expect("the inference request must be accepted");
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::MultimodalTokenizationFailed(
-            "test-agent: the chat template rendered 0 media markers for 1 images".to_owned()
-        )]
-    );
+    assert!(matches!(
+        collected.into_token_results().as_slice(),
+        [GeneratedTokenResult::MultimodalTokenizationFailed(_)]
+    ));
 
     cluster
         .shutdown()

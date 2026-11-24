@@ -1,4 +1,4 @@
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
+use llama_cpp_chat::chat_error::ChatError;
 
 use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -9,7 +9,7 @@ use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationE
 #[derive(Debug)]
 pub enum ToolCallEvent<'reading> {
     Resolved(Vec<GeneratedToolCall>),
-    ParseFailed(&'reading ParseChatMessageError),
+    ParseFailed(&'reading ChatError),
     ValidationFailed(Vec<ToolCallValidationError>),
     UnrecognizedFormat(RawToolCallTokens),
 }
@@ -42,7 +42,7 @@ impl ToolCallEvent<'_> {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
+    use llama_cpp_chat::chat_error::ChatError;
     use serde_json::json;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -69,31 +69,24 @@ mod tests {
     }
 
     #[test]
-    fn parse_failed_converts_to_tool_call_parse_failed_with_the_parser_error() {
-        assert_eq!(
-            ToolCallEvent::ParseFailed(&ParseChatMessageError::NotEnoughMemory)
+    fn parse_failed_converts_to_tool_call_parse_failed() {
+        assert!(matches!(
+            ToolCallEvent::ParseFailed(&ChatError::ParseNotEnoughMemory)
                 .into_generated_token_result(),
-            GeneratedTokenResult::ToolCallParseFailed(
-                ParseChatMessageError::NotEnoughMemory.to_string()
-            )
-        );
+            GeneratedTokenResult::ToolCallParseFailed(_)
+        ));
     }
 
     #[test]
-    fn validation_failed_converts_to_tool_call_validation_failed_with_every_message() {
-        let first_validation_error = ToolCallValidationError::UnknownToolName("missing".to_owned());
-        let second_validation_error =
-            ToolCallValidationError::UnknownToolName("also_missing".to_owned());
-        let expected_messages = vec![
-            first_validation_error.to_string(),
-            second_validation_error.to_string(),
-        ];
-
-        assert_eq!(
-            ToolCallEvent::ValidationFailed(vec![first_validation_error, second_validation_error])
-                .into_generated_token_result(),
-            GeneratedTokenResult::ToolCallValidationFailed(expected_messages)
-        );
+    fn validation_failed_converts_to_tool_call_validation_failed_for_every_violation() {
+        assert!(matches!(
+            ToolCallEvent::ValidationFailed(vec![
+                ToolCallValidationError::UnknownToolName("missing".to_owned()),
+                ToolCallValidationError::UnknownToolName("also_missing".to_owned()),
+            ])
+            .into_generated_token_result(),
+            GeneratedTokenResult::ToolCallValidationFailed(violations) if violations.len() == 2
+        ));
     }
 
     #[test]

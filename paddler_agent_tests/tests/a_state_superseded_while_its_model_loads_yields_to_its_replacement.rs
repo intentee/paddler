@@ -11,13 +11,11 @@ async fn a_state_superseded_while_its_model_loads_yields_to_its_replacement() {
     arbiter_under_test
         .pipeline_arbiter
         .apply(state_whose_model_cannot_load());
-    arbiter_under_test.conclude_next_progress().await;
     arbiter_under_test
         .pipeline_arbiter
         .apply(state_overriding_the_chat_template());
-    arbiter_under_test.conclude_next_progress().await;
-    arbiter_under_test.conclude_next_progress().await;
-    arbiter_under_test.conclude_next_progress().await;
+    arbiter_under_test.conclude_next_startup().await;
+    arbiter_under_test.conclude_next_startup().await;
 
     assert_eq!(
         arbiter_under_test

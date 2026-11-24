@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use log::info;
 use tokio_util::sync::CancellationToken;
 
@@ -88,7 +88,7 @@ impl DecisionScheduler<'_> {
             if let Err(clear_error) = admission
                 .state_sequence
                 .sequence_id()
-                .clear_kv_cache_in(&mut self.llama_context)
+                .clear_kv_cache_in(&self.llama_context)
             {
                 DecisionError::KvCacheRemovalFailed(clear_error).report(
                     self.scheduler_context.agent_name.as_deref(),
@@ -121,7 +121,7 @@ impl DecisionScheduler<'_> {
 
         match request.advance(
             &mut decoder,
-            &self.scheduler_context.pointer_head,
+            &self.scheduler_context.option_scorer,
             agent_name,
         ) {
             Ok(DecisionAdvance::Continuing) => self.active_requests.push_back(request),

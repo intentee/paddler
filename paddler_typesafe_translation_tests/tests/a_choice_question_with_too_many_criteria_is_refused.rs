@@ -13,19 +13,13 @@ fn a_choice_question_with_too_many_criteria_is_refused() {
         .map(|option| (format!("option-{option}"), Value::Null))
         .collect();
 
-    assert_eq!(
+    assert!(matches!(
         system_one_request_with_question(&json!({"type": "choice", "criteria": too_many_choices}))
             .expect("the request must parse")
-            .translate()
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(
-            TypeSafeTranslationError::ChoiceCriteriaOutOfRange {
-                criteria_count: TOO_MANY_CRITERIA,
-                question_id: "question".to_owned(),
-            }
-            .to_string()
-        )
-    );
+            .translate(),
+        Err(TypeSafeTranslationError::ChoiceCriteriaOutOfRange {
+            criteria_count,
+            question_id,
+        }) if criteria_count == TOO_MANY_CRITERIA && question_id == "question"
+    ));
 }

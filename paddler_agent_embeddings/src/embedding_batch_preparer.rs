@@ -1,5 +1,5 @@
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
@@ -44,11 +44,9 @@ impl EmbeddingBatchPreparer {
                 .loaded_llama_model
                 .model
                 .str_to_token(&input.content, AddBos::Always, ParseSpecialTokens::Always)
-                .map_err(|tokenization_error| {
-                    EmbeddingError::for_input_tokenization_error(
-                        input.id.clone(),
-                        tokenization_error,
-                    )
+                .map_err(|source| EmbeddingError::InputTokenizationFailed {
+                    source_document_id: input.id.clone(),
+                    source,
                 })?;
 
             let document_tokens = tokens.len();

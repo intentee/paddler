@@ -1,6 +1,3 @@
-use std::error::Error as _;
-use std::io;
-
 use libc::EPERM;
 use libc::SOCK_CLOEXEC;
 use libc::SOCK_DGRAM;
@@ -10,7 +7,6 @@ use seccompiler::SeccompCmpArgLen;
 use seccompiler::SeccompCmpOp;
 use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
-use trzcina::ServiceShutdownError;
 use trzcina::ServiceShutdownOutcome;
 use trzcina::ServiceShutdownOutcomeWithServiceName;
 
@@ -20,6 +16,7 @@ use paddler_balancer::statsd_service::configuration::Configuration as StatsdServ
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
+use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_cli_tests::refused_syscall::RefusedSyscall;
 use paddler_cli_tests::refused_syscalls::RefusedSyscalls;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -68,22 +65,22 @@ async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_u
     .await
     .expect("the balancer must bind its listeners");
 
-    assert_eq!(
+    assert!(matches!(
         balancer_runner
             .wait_for_completion()
             .await
-            .expect_err("a balancer whose statsd service fails must stop with an error")
-            .source()
-            .map(ToString::to_string),
-        Some(
-            ServiceShutdownError::new(vec![ServiceShutdownOutcomeWithServiceName {
-                name: "balancer::statsd_service",
-                outcome: ServiceShutdownOutcome::Errored(
-                    BalancerError::StatsdSocketUnbindable(io::Error::from_raw_os_error(EPERM))
-                        .into()
-                ),
-            }])
-            .to_string()
-        )
-    );
+            .expect_err("a balancer whose statsd service fails must stop with an error"),
+        BootstrapError::ServiceRunFailed { source }
+            if matches!(
+                source.failed_outcomes(),
+                [ServiceShutdownOutcomeWithServiceName {
+                    name: "balancer::statsd_service",
+                    outcome: ServiceShutdownOutcome::Errored(service_error),
+                }] if matches!(
+                    service_error.downcast_ref::<BalancerError>(),
+                    Some(BalancerError::StatsdSocketUnbindable(socket_error))
+                        if socket_error.raw_os_error() == Some(EPERM)
+                )
+            )
+    ));
 }

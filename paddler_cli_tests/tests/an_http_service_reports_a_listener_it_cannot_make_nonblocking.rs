@@ -51,12 +51,12 @@ async fn an_http_service_reports_a_listener_it_cannot_make_nonblocking() {
     .await
     .expect_err("a listener that cannot become nonblocking must not be served");
 
-    assert_eq!(
-        service_error.to_string(),
-        format!("Unable to listen for {SERVICE_NAME} on {local_addr}")
-    );
     assert!(matches!(
         service_error,
-        BalancerError::HttpServiceCannotListen { source, .. } if source.raw_os_error() == Some(EPERM)
+        BalancerError::HttpServiceCannotListen {
+            local_addr: unlistened_local_addr,
+            service_name: SERVICE_NAME,
+            source,
+        } if unlistened_local_addr == local_addr && source.raw_os_error() == Some(EPERM)
     ));
 }

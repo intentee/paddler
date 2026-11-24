@@ -13,10 +13,10 @@ pub mod sequence_ordered_insertion_index;
 use std::mem::take;
 use std::slice;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use log::debug;
 use log::error;
 use log::info;
@@ -42,7 +42,6 @@ use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
-use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::text_generation_error::TextGenerationError;
@@ -160,7 +159,7 @@ impl<'model> ContinuousBatchScheduler<'model> {
     }
 
     fn admit_generation_request(
-        &mut self,
+        &self,
         PreparedGenerationRequest {
             generate_tokens_stop_rx,
             generated_tokens_tx,
@@ -180,7 +179,7 @@ impl<'model> ContinuousBatchScheduler<'model> {
 
         sequence_id_guard
             .sequence_id()
-            .clear_kv_cache_in(&mut self.llama_context)
+            .clear_kv_cache_in(&self.llama_context)
             .map_err(TextGenerationError::KvCacheClearFailed)?;
 
         let mut state = ContinuousBatchRequestState {
@@ -196,8 +195,8 @@ impl<'model> ContinuousBatchScheduler<'model> {
             PreparedPrompt::TextTokens(prompt_tokens) => {
                 state.unread_prompt_tokens = prompt_tokens.into_iter();
             }
-            PreparedPrompt::Multimodal(ingestion) => {
-                state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(ingestion);
+            PreparedPrompt::Multimodal(multimodal_prompt) => {
+                state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(multimodal_prompt);
             }
         }
 
@@ -246,13 +245,13 @@ impl<'model> ContinuousBatchScheduler<'model> {
         }
     }
 
-    fn cleanup_completed_request(&mut self, removed_request: ContinuousBatchActiveRequest<'model>) {
+    fn cleanup_completed_request(&self, removed_request: ContinuousBatchActiveRequest<'model>) {
         let sequence_id = removed_request.sequence_id_guard.sequence_id();
         let usage = *removed_request.token_classifier.usage();
         let terminal_delivery = removed_request.into_terminal_delivery();
 
         sequence_id.release_kv_cache_in(
-            &mut self.llama_context,
+            &self.llama_context,
             self.scheduler_context.agent_name.as_deref(),
         );
 
@@ -265,9 +264,9 @@ impl<'model> ContinuousBatchScheduler<'model> {
         terminal_delivery.deliver(self.scheduler_context.agent_name.as_deref());
     }
 
-    fn execute_one_iteration(&mut self) -> Result<(), BatchAddError> {
+    fn execute_one_iteration(&mut self) -> Result<(), ContextError> {
         self.advance_generating_requests();
-        self.ingest_next_multimodal_chunks();
+        self.ingest_multimodal_prompts();
 
         let mut pass = BatchPass::new(&mut self.batch);
 
@@ -325,24 +324,23 @@ impl<'model> ContinuousBatchScheduler<'model> {
             })
     }
 
-    fn ingest_next_multimodal_chunks(&mut self) {
+    fn ingest_multimodal_prompts(&mut self) {
         for active_request in &mut self.active_requests {
-            let ContinuousBatchRequestPhase::IngestingMultimodal(ingestion) =
-                &mut active_request.state.phase
+            let ContinuousBatchRequestPhase::IngestingMultimodal(multimodal_prompt) =
+                &active_request.state.phase
             else {
                 continue;
             };
-
-            match ingestion.ingest_next_chunk(
+            let evaluation = self.scheduler_context.multimodal_ingestion.evaluate(
+                multimodal_prompt,
                 &mut active_request.token_classifier,
                 &mut self.llama_context,
                 active_request.sequence_id_guard.sequence_id(),
                 active_request.state.current_token_position,
-            ) {
-                Ok(MultimodalIngestionProgress::ChunksRemain { next_position }) => {
-                    active_request.state.current_token_position = next_position;
-                }
-                Ok(MultimodalIngestionProgress::PromptIngested { next_position }) => {
+            );
+
+            match evaluation {
+                Ok(next_position) => {
                     active_request
                         .state
                         .begin_generating_after_multimodal_prompt(
@@ -358,9 +356,9 @@ impl<'model> ContinuousBatchScheduler<'model> {
                     }
                     .run(slice::from_mut(active_request));
                 }
-                Err(ingestion_error) => {
+                Err(evaluation_error) => {
                     active_request.complete_with_outcome(
-                        ingestion_error.into_generated_token_result(
+                        evaluation_error.into_generated_token_result(
                             self.scheduler_context.agent_name.as_deref(),
                         ),
                     );

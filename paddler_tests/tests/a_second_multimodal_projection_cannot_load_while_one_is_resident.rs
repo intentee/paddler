@@ -26,7 +26,7 @@ async fn a_second_multimodal_projection_cannot_load_while_one_is_resident() {
         .try_occupy()
         .expect("the test must occupy the multimodal projection residency");
 
-    assert_eq!(
+    assert!(matches!(
         TextGenerationPipelineParts {
             chat_template_source: ChatTemplateSource::EmbeddedInModel,
             llama_runtime,
@@ -38,11 +38,8 @@ async fn a_second_multimodal_projection_cannot_load_while_one_is_resident() {
         }
         .spawn_refusal()
         .await,
-        Some(
-            TextGenerationError::AgentRuntime(
-                AgentRuntimeError::MultimodalProjectionAlreadyResident
-            )
-            .to_string()
-        )
-    );
+        Some(TextGenerationError::AgentRuntime(
+            AgentRuntimeError::MultimodalProjectionAlreadyResident
+        ))
+    ));
 }

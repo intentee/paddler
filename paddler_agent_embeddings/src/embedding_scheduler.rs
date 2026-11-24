@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use log::info;
 use tokio_util::sync::CancellationToken;
 

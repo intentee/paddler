@@ -2,10 +2,9 @@
 
 use tokio_util::sync::CancellationToken;
 
-use std::mem::discriminant;
-
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_model_source::model_source::ModelSource;
@@ -13,16 +12,19 @@ use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
-use paddler_tests::uncompilable_chat_template_issue::uncompilable_chat_template_issue;
+use paddler_tests::uncompilable_chat_template_issue::UncompilableChatTemplateIssue;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it() {
     let model_card = qwen3_0_6b();
-    let expected_issue = uncompilable_chat_template_issue(
-        &model_card
-            .cached_path()
-            .expect("the model must be in the Hugging Face cache"),
-    );
+    let uncompilable_chat_template_issue = UncompilableChatTemplateIssue {
+        model_path: ModelPath::from(
+            model_card
+                .cached_path()
+                .expect("the model must be in the Hugging Face cache")
+                .as_path(),
+        ),
+    };
     let mut cluster =
         start_single_agent_cluster_with_desired_state(desired_state_with_chat_template_override(
             BalancerDesiredState {
@@ -35,18 +37,10 @@ async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it(
         .await
         .expect("a single-agent cluster must start");
 
-    let snapshot = cluster
-        .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
+    cluster
+        .wait_for_first_agent_issue(|issue| uncompilable_chat_template_issue.is_reported_by(issue))
         .await
         .expect("the agent must report ChatTemplateDoesNotCompile for invalid Jinja syntax");
-    let issues = &snapshot
-        .agents
-        .first()
-        .expect("the snapshot must hold the agent")
-        .status
-        .issues;
-
-    assert!(issues.contains(&expected_issue), "{issues:?}");
 
     cluster
         .client_management
@@ -83,7 +77,7 @@ async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it(
                         && !status
                             .issues
                             .iter()
-                            .any(|issue| discriminant(issue) == discriminant(&expected_issue))
+                            .any(|issue| uncompilable_chat_template_issue.is_reported_by(issue))
                 })
         })
         .await

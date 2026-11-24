@@ -1,34 +1,31 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::token::LlamaToken;
-
-use paddler_agent_pointer_head::pointer_head_input_normalization::PointerHeadInputNormalization;
+use icu_normalizer::ComposingNormalizerBorrowed;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 use crate::decision_error::DecisionError;
 use crate::escape_special_token_lookalikes::escape_special_token_lookalikes;
 
 pub struct DecisionTextTokenizer {
-    pub input_normalization: PointerHeadInputNormalization,
     pub model: Arc<dyn Deref<Target = LlamaModel> + Send + Sync>,
 }
 
 impl DecisionTextTokenizer {
     /// # Errors
     ///
-    /// Returns [`DecisionError::InputContainsNul`], [`DecisionError::InputLengthUnrepresentable`] or [`DecisionError::InputTokenizationFailed`] when the model cannot tokenize the normalized text.
+    /// Returns [`DecisionError::InputTokenizationFailed`] when the model cannot tokenize the normalized text.
     pub fn tokenize(&self, text: &str) -> Result<Vec<LlamaToken>, DecisionError> {
         self.model
             .str_to_token(
-                &self
-                    .input_normalization
+                &ComposingNormalizerBorrowed::new_nfc()
                     .normalize(&escape_special_token_lookalikes(text)),
                 AddBos::Never,
                 ParseSpecialTokens::Never,
             )
-            .map_err(DecisionError::for_input_tokenization_error)
+            .map_err(DecisionError::InputTokenizationFailed)
     }
 }

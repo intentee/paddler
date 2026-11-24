@@ -77,10 +77,10 @@ impl ServingPipelineArbiter {
         desired_state_reconciliation
     }
 
-    pub async fn conclude_next_progress(&mut self) {
-        let serving_startup_progress = self.pipeline_arbiter.next_finished_startup().await;
+    pub async fn conclude_next_startup(&mut self) {
+        let finished_serving_startup = self.pipeline_arbiter.next_finished_startup().await;
 
-        self.pipeline_arbiter.conclude(serving_startup_progress);
+        self.pipeline_arbiter.conclude(finished_serving_startup);
     }
 
     /// # Errors
@@ -97,7 +97,7 @@ impl ServingPipelineArbiter {
                 "the desired state must be reconciled, but it was {desired_state_reconciliation:?}"
             )),
         )
-        .and_then(|()| self.conclude_the_startup().map(Ok))
+        .and_then(|()| self.conclude_next_startup().map(Ok))
         .await
     }
 
@@ -113,10 +113,5 @@ impl ServingPipelineArbiter {
                 .clone(),
             reserved_slots,
         )
-    }
-
-    async fn conclude_the_startup(&mut self) {
-        self.conclude_next_progress().await;
-        self.conclude_next_progress().await;
     }
 }

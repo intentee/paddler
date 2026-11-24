@@ -1,10 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::chat_output::ChatOutput;
-use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
-use llama_cpp_bindings::chat_templates::ChatTemplates;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_token_usage::token_usage::TokenUsage;
 use serde_json::Value;
 
 use paddler_agent_text_generation::tool_call_event::ToolCallEvent;
@@ -32,7 +31,9 @@ fn a_tool_call_the_chat_parser_cannot_match_is_reported_as_unrecognized() {
     let model = &runtime.loaded_llama_model.model;
     let reading = weather_chat_session(
         model,
-        &ChatTemplates::new(model).expect("the model must embed a chat template"),
+        model
+            .chat_templates()
+            .expect("the model must embed a chat template"),
     )
     .expect("the model's template must serve the weather question")
     .read(
@@ -48,7 +49,7 @@ fn a_tool_call_the_chat_parser_cannot_match_is_reported_as_unrecognized() {
                 &reading,
                 SampledTokenSection::ToolCall,
                 &TokenUsage {
-                    tool_call_tokens: 1,
+                    tool_call: 1,
                     ..TokenUsage::default()
                 },
             )

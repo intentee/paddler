@@ -44,15 +44,14 @@ async fn subprocess_shutdown_reports_a_termination_it_cannot_signal() {
         .await
         .expect_err("an agent that cannot be signalled must not shut down");
 
-    assert_eq!(
-        shutdown_error.to_string(),
-        SubprocessClusterError::SignalUndeliverable {
-            pid: agent_pid,
+    assert!(matches!(
+        shutdown_error.downcast_ref::<SubprocessClusterError>(),
+        Some(SubprocessClusterError::SignalUndeliverable {
+            pid,
             signal: Signal::SIGTERM,
             source: Errno::EPERM,
-        }
-        .to_string()
-    );
+        }) if *pid == agent_pid
+    ));
     assert_eq!(
         shutdown_error
             .source()

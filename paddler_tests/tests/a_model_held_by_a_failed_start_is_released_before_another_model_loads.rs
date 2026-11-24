@@ -4,12 +4,10 @@ use std::mem::discriminant;
 
 use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
+use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
@@ -23,13 +21,7 @@ async fn a_model_held_by_a_failed_start_is_released_before_another_model_loads()
         discriminant(
             &serving_pipeline_arbiter
                 .apply(desired_state_with_chat_template_override(
-                    BalancerDesiredState {
-                        decision: DecisionSettings::default(),
-                        ..KevCheckpoint::Kev0_8b
-                            .decision_desired_state()
-                            .into_balancer_desired_state()
-                            .expect("the kev desired state must name absolute paths")
-                    },
+                    qwen3_5_0_8b().into_desired_state(),
                     uncompilable_chat_template(),
                 ))
                 .await
@@ -37,17 +29,15 @@ async fn a_model_held_by_a_failed_start_is_released_before_another_model_loads()
         desired_state_reconciled_discriminant()
     );
 
-    serving_pipeline_arbiter.conclude_next_progress().await;
-    serving_pipeline_arbiter.conclude_next_progress().await;
+    serving_pipeline_arbiter.conclude_next_startup().await;
 
     assert_eq!(
         discriminant(&serving_pipeline_arbiter.apply(qwen3_desired_state()).await),
         desired_state_reconciled_discriminant()
     );
 
-    serving_pipeline_arbiter.conclude_next_progress().await;
-    serving_pipeline_arbiter.conclude_next_progress().await;
-    serving_pipeline_arbiter.conclude_next_progress().await;
+    serving_pipeline_arbiter.conclude_next_startup().await;
+    serving_pipeline_arbiter.conclude_next_startup().await;
 
     assert_eq!(
         serving_pipeline_arbiter

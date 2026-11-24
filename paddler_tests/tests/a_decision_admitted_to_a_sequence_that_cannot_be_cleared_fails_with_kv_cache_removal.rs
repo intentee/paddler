@@ -2,16 +2,12 @@
 
 use std::collections::VecDeque;
 
-use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
-use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
-use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_tests::decision_scheduler_run::DecisionSchedulerRun;
 use paddler_tests::kev_decision_model::KevDecisionModel;
@@ -60,20 +56,10 @@ fn a_decision_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_
         })
         .expect("the decision context must be created");
 
-    assert_eq!(
+    assert!(matches!(
         decision_on_a_sequence_beyond_the_context
             .decision_result_rx
             .try_recv(),
-        Ok(DecisionResult::KvCacheRemovalFailed(
-            ErrorChain {
-                error: &DecisionError::KvCacheRemovalFailed(
-                    MemorySeqRmError::SequenceIdOutOfRange(SequenceIdOutOfRange {
-                        seq_id: 1,
-                        n_seq_max: u32::from(SEQUENCES_THE_CONTEXT_HOLDS),
-                    })
-                ),
-            }
-            .to_string()
-        ))
-    );
+        Ok(DecisionResult::KvCacheRemovalFailed(_))
+    ));
 }
