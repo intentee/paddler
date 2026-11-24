@@ -12,10 +12,11 @@ version.workspace = true
 doctest = false
 
 [dependencies]
+indexmap = { workspace = true }
+paddler_messaging = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 thiserror = { workspace = true }
-paddler_messaging = { workspace = true }
 
 [lints]
 workspace = true

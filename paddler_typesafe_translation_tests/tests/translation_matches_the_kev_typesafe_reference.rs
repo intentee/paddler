@@ -3,7 +3,6 @@ use std::fs::read_to_string;
 use serde::Deserialize;
 use serde_json::Value;
 use serde_json::from_str;
-use serde_json::from_value;
 use serde_json::to_value;
 
 use paddler_file_fixture::fixture_path::fixture_path;
@@ -46,7 +45,7 @@ fn translation_matches_the_kev_typesafe_reference() {
         request,
     } in references
     {
-        let translated = from_value::<SystemOneRequest>(request)
+        let translated = from_str::<SystemOneRequest>(&request.to_string())
             .expect("the reference request must parse")
             .translate()
             .expect("the reference request must translate");

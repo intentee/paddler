@@ -28,12 +28,12 @@ use crate::conversation_prompt_support::ConversationPromptSupport;
 use crate::conversation_support::ConversationSupport;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
 use crate::grammar_sampling::GrammarSampling;
+use crate::media_marker::MediaMarker;
 use crate::multimodal_prompt::MultimodalPrompt;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::prompt_modality::PromptModality;
 use crate::prompt_tokenizer::PromptTokenizer;
-use crate::request_media_marker::request_media_marker;
 use crate::require_grammar_compatible_with_thinking::require_grammar_compatible_with_thinking;
 use crate::resolve_grammar::resolve_grammar;
 use crate::sampler_chain_factory::SamplerChainFactory;
@@ -112,10 +112,10 @@ impl GenerationRequestPreparer {
             ToolCallHandling::Streamed
         };
         let chat_tools: Vec<ChatTool> = tools_with_schema_documents
-            .iter()
-            .map(|tool| ChatTemplateTool(tool).to_chat_tool())
+            .into_iter()
+            .map(|tool| ChatTemplateTool(tool).into_chat_tool())
             .collect();
-        let media_marker = request_media_marker(&conversation_history, &chat_tools);
+        let media_marker = MediaMarker::unpredictable();
         let ChatTemplateConversation {
             image_urls,
             messages,

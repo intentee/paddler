@@ -67,8 +67,7 @@ fn read_shared_temperature(model_metadata: &ModelMetadata) -> Result<f32, Decisi
 
 pub struct KevOptionScorer {
     head_dim: u16,
-    logit_scale: f32,
-    temperature: f32,
+    tempered_logit_scale: f32,
 }
 
 impl KevOptionScorer {
@@ -82,8 +81,8 @@ impl KevOptionScorer {
 
         Ok(Self {
             head_dim,
-            logit_scale: f32::from(head_dim).sqrt().recip(),
-            temperature: read_shared_temperature(model_metadata)?,
+            tempered_logit_scale: f32::from(head_dim).sqrt().recip()
+                / read_shared_temperature(model_metadata)?,
         })
     }
 
@@ -105,7 +104,7 @@ impl KevOptionScorer {
                         .map(|(query_value, key_value)| query_value * key_value)
                         .sum();
 
-                    alignment * self.logit_scale / self.temperature
+                    alignment * self.tempered_logit_scale
                 })
                 .collect::<Vec<f32>>(),
         )

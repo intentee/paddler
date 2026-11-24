@@ -569,6 +569,7 @@ http = "1.5"
 httparse = "1.10"
 icu_normalizer = "2.4"
 image = "0.25"
+indexmap = { version = "2.14", features = ["serde"] }
 indoc = "2.0"
 jsonschema = { version = "0.60", default-features = false }
 libc = "0.2"

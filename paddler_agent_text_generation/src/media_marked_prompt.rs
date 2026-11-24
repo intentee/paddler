@@ -27,20 +27,8 @@ impl MediaMarkedPrompt<'_> {
         bitmaps: &'bitmap [MtmdBitmap],
     ) -> Result<Vec<MtmdInputPart<'bitmap>>, TextGenerationError> {
         let marker = self.media_marker.marker.as_str();
-        let rendered_media_markers: usize = self
-            .prompt_parts
-            .iter()
-            .map(|prompt_part| prompt_part.text().matches(marker).count())
-            .sum();
-
-        if rendered_media_markers != bitmaps.len() {
-            return Err(TextGenerationError::RenderedMediaMarkersMismatchImages {
-                images: bitmaps.len(),
-                rendered_media_markers,
-            });
-        }
-
         let mut remaining_bitmaps = bitmaps.iter().map(MtmdInputPart::Bitmap);
+        let mut rendered_media_markers: usize = 0;
         let mut parts = Vec::new();
 
         for prompt_part in self.prompt_parts {
@@ -48,11 +36,19 @@ impl MediaMarkedPrompt<'_> {
 
             for (segment_index, text_segment) in prompt_part.text().split(marker).enumerate() {
                 if segment_index > 0 {
+                    rendered_media_markers = rendered_media_markers.saturating_add(1);
                     parts.extend(remaining_bitmaps.next());
                 }
 
                 parts.push(text_part(text_segment, parse_special));
             }
+        }
+
+        if rendered_media_markers != bitmaps.len() {
+            return Err(TextGenerationError::RenderedMediaMarkersMismatchImages {
+                images: bitmaps.len(),
+                rendered_media_markers,
+            });
         }
 
         Ok(parts)

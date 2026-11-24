@@ -2516,6 +2516,8 @@ checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -3780,6 +3782,7 @@ dependencies = [
 name = "paddler_agent_runtime_tests"
 version = "5.0.0"
 dependencies = [
+ "anyhow",
  "futures-util",
  "llama-cpp-backend",
  "llama-cpp-context",
@@ -3787,6 +3790,7 @@ dependencies = [
  "llama-cpp-model",
  "log",
  "paddler_agent_decision",
+ "paddler_agent_embeddings",
  "paddler_agent_pipeline_harness",
  "paddler_agent_runtime",
  "paddler_balancer_desired_state_fixture",
@@ -3876,7 +3880,6 @@ dependencies = [
  "paddler_image_decoder",
  "paddler_inference_parameters",
  "paddler_messaging",
- "paddler_sha256_hex",
  "paddler_tool_call_validator",
  "rand 0.10.3",
  "serde_json",
@@ -4551,6 +4554,7 @@ dependencies = [
 name = "paddler_typesafe_translation"
 version = "5.0.0"
 dependencies = [
+ "indexmap",
  "paddler_messaging",
  "serde",
  "serde_json",

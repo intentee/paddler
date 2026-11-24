@@ -35,16 +35,6 @@ impl ConversationMessage {
     }
 
     #[must_use]
-    pub fn contains_image_url(&self) -> bool {
-        match self {
-            Self::AssistantReasoning { .. } => false,
-            Self::AssistantToolCalls { content, .. }
-            | Self::Message { content, .. }
-            | Self::ToolResult { content, .. } => content.contains_image_url(),
-        }
-    }
-
-    #[must_use]
     pub fn is_assistant_reply(&self) -> bool {
         match self {
             Self::AssistantToolCalls { .. } => true,

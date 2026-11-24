@@ -1,5 +1,5 @@
-use serde_json::Value;
-use serde_json::json;
+use serde_json::Error as JsonError;
+use serde_json::from_str;
 
 use paddler_messaging::decision_answer::DecisionAnswer;
 use paddler_messaging::decision_summary::DecisionSummary;
@@ -7,39 +7,36 @@ use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 use paddler_typesafe_translation::translated_system_one_request::TranslatedSystemOneRequest;
 use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
+const TWO_NOUL_QUESTIONS_REQUEST: &str = r#"{"model": "test", "questions": {"first": {"type": "noul"}, "second": {"type": "noul"}}, "state": "state"}"#;
+
 const SUMMARY: DecisionSummary = DecisionSummary {
     input_tokens: 1,
     processing_milliseconds: 1,
 };
 
-#[must_use]
+/// # Errors
+///
+/// Returns the [`JsonError`] of a request with two noul questions that does not parse.
 pub fn refusal_of_a_lone_answer_to_two_noul_questions(
     id: &str,
     probabilities: Vec<f32>,
-) -> Option<TypeSafeTranslationError> {
-    SystemOneRequest {
-        model: "test".to_owned(),
-        questions: [
-            ("first".to_owned(), json!({"type": "noul"})),
-            ("second".to_owned(), json!({"type": "noul"})),
-        ]
-        .into_iter()
-        .collect(),
-        state: Value::from("state"),
-    }
-    .translate()
-    .and_then(
-        |TranslatedSystemOneRequest {
-             response_layout, ..
-         }| {
-            response_layout.respond(
-                &[DecisionAnswer {
-                    id: id.to_owned(),
-                    probabilities,
-                }],
-                &SUMMARY,
+) -> Result<Option<TypeSafeTranslationError>, JsonError> {
+    from_str::<SystemOneRequest>(TWO_NOUL_QUESTIONS_REQUEST).map(|system_one_request| {
+        system_one_request
+            .translate()
+            .and_then(
+                |TranslatedSystemOneRequest {
+                     response_layout, ..
+                 }| {
+                    response_layout.respond(
+                        &[DecisionAnswer {
+                            id: id.to_owned(),
+                            probabilities,
+                        }],
+                        &SUMMARY,
+                    )
+                },
             )
-        },
-    )
-    .err()
+            .err()
+    })
 }

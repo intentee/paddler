@@ -1,9 +1,10 @@
 use std::num::NonZeroU8;
 
+use indexmap::IndexMap;
 use serde::Deserialize;
-use serde_json::Map;
 use serde_json::Value;
-use serde_json::from_value;
+use serde_json::from_str;
+use serde_json::value::RawValue;
 
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::DecideParams;
@@ -106,11 +107,11 @@ fn translate_question(
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SystemOneRequest {
     pub model: String,
-    pub questions: Map<String, Value>,
+    pub questions: IndexMap<String, Box<RawValue>>,
     pub state: Value,
 }
 
@@ -123,7 +124,7 @@ impl SystemOneRequest {
         let mut questions = Vec::with_capacity(self.questions.len());
 
         for (question_id, question) in self.questions {
-            let question = from_value::<SystemOneQuestion>(question).map_err(|source| {
+            let question = from_str::<SystemOneQuestion>(question.get()).map_err(|source| {
                 TypeSafeTranslationError::QuestionMalformed {
                     question_id: question_id.clone(),
                     source,

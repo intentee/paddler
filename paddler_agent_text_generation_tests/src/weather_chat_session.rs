@@ -30,7 +30,7 @@ pub fn weather_chat_session(
             content: ChatMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
             reasoning_content: None,
         }],
-        &[ChatTemplateTool(&Tool::<Value>::from(get_weather_tool())).to_chat_tool()],
+        &[ChatTemplateTool(Tool::<Value>::from(get_weather_tool())).into_chat_tool()],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,

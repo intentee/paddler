@@ -94,6 +94,14 @@ impl<'batch> BatchPass<'batch> {
         &mut self,
         requests: &[ContinuousBatchActiveRequest<'_>],
     ) -> Result<(), ContextError> {
+        let batch_size = self.batch.limits().batch as usize;
+        let mut ingesting_token_count = self
+            .contributions
+            .ingesting
+            .iter()
+            .map(|IngestingContribution { chunk_size, .. }| *chunk_size)
+            .sum::<usize>();
+
         for (request_index, request) in requests.iter().enumerate() {
             if !matches!(
                 request.state.phase,
@@ -104,15 +112,9 @@ impl<'batch> BatchPass<'batch> {
 
             let remaining = request.state.remaining_prompt_tokens();
             let remaining_count = remaining.len();
-            let ingesting_token_count = self
-                .contributions
-                .ingesting
-                .iter()
-                .map(|IngestingContribution { chunk_size, .. }| *chunk_size)
-                .sum::<usize>();
             let chunk_size = compute_ingesting_chunk_size(
                 remaining_count,
-                self.batch.limits().batch as usize,
+                batch_size,
                 self.contributions.generating.len(),
                 ingesting_token_count,
             );
@@ -148,6 +150,7 @@ impl<'batch> BatchPass<'batch> {
                 last_batch_position,
                 next_token_position: token_positions.start,
             });
+            ingesting_token_count = ingesting_token_count.saturating_add(chunk_size);
         }
 
         Ok(())

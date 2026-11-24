@@ -6,11 +6,11 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 
-pub struct ChatTemplateTool<'tool>(pub &'tool Tool<Value>);
+pub struct ChatTemplateTool(pub Tool<Value>);
 
-impl ChatTemplateTool<'_> {
+impl ChatTemplateTool {
     #[must_use]
-    pub fn to_chat_tool(&self) -> ChatTool {
+    pub fn into_chat_tool(self) -> ChatTool {
         let Tool::Function(FunctionCall {
             function:
                 Function {
@@ -21,10 +21,10 @@ impl ChatTemplateTool<'_> {
         }) = self.0;
 
         ChatTool {
-            name: name.clone(),
-            description: description.clone(),
+            name,
+            description,
             parameters: match parameters {
-                Parameters::Schema(schema) => Some(schema.clone()),
+                Parameters::Schema(schema) => Some(schema),
                 Parameters::Empty => None,
             },
         }
@@ -59,7 +59,7 @@ mod tests {
         let schema = json!({"type": "object", "properties": {"location": {"type": "string"}}});
 
         assert_eq!(
-            ChatTemplateTool(&weather_tool(Parameters::Schema(schema.clone()))).to_chat_tool(),
+            ChatTemplateTool(weather_tool(Parameters::Schema(schema.clone()))).into_chat_tool(),
             ChatTool {
                 name: "get_weather".to_owned(),
                 description: "Reports the weather".to_owned(),
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn a_tool_without_parameters_reaches_the_template_without_them() {
         assert_eq!(
-            ChatTemplateTool(&weather_tool(Parameters::Empty)).to_chat_tool(),
+            ChatTemplateTool(weather_tool(Parameters::Empty)).into_chat_tool(),
             ChatTool {
                 name: "get_weather".to_owned(),
                 description: "Reports the weather".to_owned(),

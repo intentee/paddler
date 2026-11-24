@@ -37,7 +37,6 @@ pub mod prepared_generation_request;
 pub mod prepared_prompt;
 pub mod prompt_modality;
 pub mod prompt_tokenizer;
-pub mod request_media_marker;
 pub mod require_grammar_compatible_with_thinking;
 pub mod require_prompt_fits_sequence_context;
 pub mod resident_multimodal_context;

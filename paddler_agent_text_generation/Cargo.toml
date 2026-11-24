@@ -24,19 +24,18 @@ llama-cpp-mtmd = { workspace = true }
 llama-cpp-sampler = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
 log = { workspace = true }
-rand = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-tokio-util = { workspace = true }
 paddler_agent_runtime = { workspace = true }
 paddler_agent_status = { workspace = true }
 paddler_error_chain = { workspace = true }
 paddler_image_decoder = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
-paddler_sha256_hex = { workspace = true }
 paddler_tool_call_validator = { workspace = true }
+rand = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
 
 [features]
 default = []

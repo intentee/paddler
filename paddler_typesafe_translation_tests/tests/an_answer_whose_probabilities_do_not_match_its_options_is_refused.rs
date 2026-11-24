@@ -4,7 +4,8 @@ use paddler_typesafe_translation_tests::refusal_of_a_lone_answer_to_two_noul_que
 #[test]
 fn an_answer_whose_probabilities_do_not_match_its_options_is_refused() {
     assert!(matches!(
-        refusal_of_a_lone_answer_to_two_noul_questions("first", vec![1.0]),
+        refusal_of_a_lone_answer_to_two_noul_questions("first", vec![1.0])
+            .expect("the request with two noul questions must parse"),
         Some(TypeSafeTranslationError::AnswerProbabilitiesMismatch {
             expected: 2,
             question_id,
