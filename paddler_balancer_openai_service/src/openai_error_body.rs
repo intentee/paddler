@@ -3,7 +3,7 @@ use actix_web::http::StatusCode;
 use serde::Serialize;
 use serde::Serializer;
 
-use crate::compatibility::openai_service::openai_error_type::OpenAIErrorType;
+use crate::openai_error_type::OpenAIErrorType;
 
 #[derive(Serialize)]
 struct SerializedError<'body> {

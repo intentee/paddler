@@ -4,16 +4,16 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_balancer::compatibility::compatibility_app_data::CompatibilityAppData;
 use paddler_openai_translation::responses_delivery::ResponsesDelivery;
 use paddler_openai_translation::responses_request::ResponsesRequest;
 use paddler_openai_translation::translated_responses_request::TranslatedResponsesRequest;
 
-use crate::compatibility::compatibility_app_data::CompatibilityAppData;
-use crate::compatibility::openai_service::generation_relay::GenerationRelay;
-use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
-use crate::compatibility::openai_service::openai_json_config::openai_json_config;
-use crate::compatibility::openai_service::responses_sse_response::responses_sse_response;
 use crate::constants::OPENAI_API_PATH_RESPONSES;
+use crate::generation_relay::GenerationRelay;
+use crate::openai_failure::OpenAIFailure;
+use crate::openai_json_config::openai_json_config;
+use crate::responses_sse_response::responses_sse_response;
 
 async fn respond(
     app_data: web::Data<CompatibilityAppData>,

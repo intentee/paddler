@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use tokio::spawn;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;

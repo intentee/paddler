@@ -2,8 +2,8 @@ use actix_web::error::InternalError;
 use actix_web::http::StatusCode;
 use actix_web::web::JsonConfig;
 
-use crate::compatibility::openai_service::openai_error_body::OpenAIErrorBody;
-use crate::compatibility::openai_service::openai_error_type::OpenAIErrorType;
+use crate::openai_error_body::OpenAIErrorBody;
+use crate::openai_error_type::OpenAIErrorType;
 
 #[must_use]
 pub fn openai_json_config() -> JsonConfig {

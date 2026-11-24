@@ -8,8 +8,6 @@ use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateH
 use paddler_balancer::balancer_desired_state_store::BalancerDesiredStateStore;
 use paddler_balancer::buffered_request_manager::BufferedRequestManager;
 use paddler_balancer::compatibility::compatibility_service::CompatibilityService;
-use paddler_balancer::compatibility::openai_service::openai_compatibility_layer::OpenAICompatibilityLayer;
-use paddler_balancer::compatibility::typesafe_service::typesafe_compatibility_layer::TypeSafeCompatibilityLayer;
 use paddler_balancer::http_listener::HttpListener;
 use paddler_balancer::inference_service::InferenceService;
 use paddler_balancer::management_service::ManagementService;
@@ -22,8 +20,10 @@ use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
+use paddler_balancer_openai_service::openai_compatibility_layer::OpenAICompatibilityLayer;
 use paddler_balancer_state_database::state_database::StateDatabase;
 use paddler_balancer_state_database::state_database_type::StateDatabaseType;
+use paddler_balancer_typesafe_service::typesafe_compatibility_layer::TypeSafeCompatibilityLayer;
 
 use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
 use crate::balancer_http_listeners::BalancerHttpListeners;

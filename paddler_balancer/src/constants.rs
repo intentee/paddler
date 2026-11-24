@@ -9,12 +9,3 @@ pub const DASHBOARD_ASSETS_HTML: &str = include_str!(concat!(
     dashboard_assets_html_file_name!()
 ));
 pub const MAX_WEBSOCKET_MESSAGE_SIZE: usize = 50 * 1024 * 1024;
-pub const OPENAI_API_PATH_CHAT_COMPLETIONS: &str = "/v1/chat/completions";
-pub const OPENAI_API_PATH_RESPONSES: &str = "/v1/responses";
-pub const OPENAI_HEADER_REQUEST_ID: &str = "x-request-id";
-pub const TYPESAFE_API_PATH_MODELS: &str = "/v1/models";
-pub const TYPESAFE_API_PATH_SYSTEM_ONE: &str = "/v1/systemone";
-pub const TYPESAFE_HEADER_REQUEST_ID: &str = "x-typesafe-request-id";
-pub const TYPESAFE_HEADER_RETRY_COUNT: &str = "x-typesafe-retry-count";
-pub const TYPESAFE_HEADER_RUNTIME: &str = "x-typesafe-runtime";
-pub const TYPESAFE_HEADER_SDK: &str = "x-typesafe-sdk";

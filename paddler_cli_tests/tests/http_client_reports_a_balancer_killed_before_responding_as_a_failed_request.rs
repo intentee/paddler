@@ -2,7 +2,7 @@ use serde_json::json;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
 use paddler_client::error::Error as ClientError;

@@ -2,7 +2,7 @@ use actix_web::error::InternalError;
 use actix_web::http::StatusCode;
 use actix_web::web::JsonConfig;
 
-use crate::compatibility::typesafe_service::typesafe_error_body::TypeSafeErrorBody;
+use crate::typesafe_error_body::TypeSafeErrorBody;
 
 #[must_use]
 pub fn typesafe_json_config() -> JsonConfig {

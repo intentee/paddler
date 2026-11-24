@@ -3,23 +3,23 @@ use actix_web::http::StatusCode;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_balancer::agent_relay::AgentRelay;
+use paddler_balancer::agent_relay_conclusion::AgentRelayConclusion;
+use paddler_balancer::agent_relay_step::AgentRelayStep;
+use paddler_balancer::agent_streaming_request::AgentStreamingRequest;
+use paddler_balancer::compatibility::compatibility_app_data::CompatibilityAppData;
+use paddler_balancer::decisions_serving::DecisionsServing;
 use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 use paddler_typesafe_translation::system_one_response_layout::SystemOneResponseLayout;
 use paddler_typesafe_translation::translated_system_one_request::TranslatedSystemOneRequest;
 
-use crate::agent_relay::AgentRelay;
-use crate::agent_relay_conclusion::AgentRelayConclusion;
-use crate::agent_relay_step::AgentRelayStep;
-use crate::agent_streaming_request::AgentStreamingRequest;
-use crate::compatibility::compatibility_app_data::CompatibilityAppData;
-use crate::compatibility::typesafe_service::decision_outcome::DecisionOutcome;
-use crate::compatibility::typesafe_service::typesafe_decision_failure::TypeSafeDecisionFailure;
-use crate::compatibility::typesafe_service::typesafe_error_body::TypeSafeErrorBody;
-use crate::compatibility::typesafe_service::typesafe_json_config::typesafe_json_config;
 use crate::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
-use crate::decisions_serving::DecisionsServing;
+use crate::decision_outcome::DecisionOutcome;
+use crate::typesafe_decision_failure::TypeSafeDecisionFailure;
+use crate::typesafe_error_body::TypeSafeErrorBody;
+use crate::typesafe_json_config::typesafe_json_config;
 
 async fn system_one_http_response<TParams>(
     response_layout: &SystemOneResponseLayout,

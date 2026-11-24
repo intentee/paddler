@@ -8,15 +8,15 @@ use futures::stream::once;
 use nanoid::nanoid;
 use serde_json::Error as SerdeJsonError;
 
+use paddler_balancer::agent_relay_event::AgentRelayEvent;
 use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
 use paddler_openai_translation::chat_completion_stream::ChatCompletionStream;
 use paddler_openai_translation::chat_completion_stream_emission::ChatCompletionStreamEmission;
 use paddler_openai_translation::generation_outcome::GenerationOutcome;
 use paddler_openai_translation::generation_progress::GenerationProgress;
 
-use crate::agent_relay_event::AgentRelayEvent;
-use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
-use crate::compatibility::openai_service::openai_sse_http_response::openai_sse_http_response;
+use crate::openai_failure::OpenAIFailure;
+use crate::openai_sse_http_response::openai_sse_http_response;
 
 fn openai_failure_data(openai_failure: OpenAIFailure) -> Vec<Result<sse::Data, SerdeJsonError>> {
     vec![sse::Data::new_json(openai_failure.into_error_body())]

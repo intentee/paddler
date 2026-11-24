@@ -1,0 +1,23 @@
+[package]
+name = "paddler_balancer_typesafe_service"
+authors.workspace = true
+description = "Serves the TypeSafe-compatible API of the Paddler balancer"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+actix-web = { workspace = true }
+paddler_balancer = { workspace = true }
+paddler_error_chain = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_typesafe_translation = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

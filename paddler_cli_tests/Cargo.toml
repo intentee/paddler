@@ -49,6 +49,8 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 actix-web = { workspace = true }
+paddler_balancer_openai_service = { workspace = true }
+paddler_balancer_typesafe_service = { workspace = true }
 paddler_client = { workspace = true }
 paddler_openai_schema_validator = { workspace = true }
 paddler_tests = { workspace = true }

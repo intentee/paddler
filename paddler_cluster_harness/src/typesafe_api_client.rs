@@ -5,9 +5,9 @@ use reqwest::RequestBuilder;
 use serde_json::Value;
 use url::Url;
 
-use paddler_balancer::constants::TYPESAFE_API_PATH_MODELS;
-use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
-use paddler_balancer::constants::TYPESAFE_HEADER_REQUEST_ID;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_MODELS;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_HEADER_REQUEST_ID;
 
 use crate::typesafe_api_response::TypeSafeApiResponse;
 

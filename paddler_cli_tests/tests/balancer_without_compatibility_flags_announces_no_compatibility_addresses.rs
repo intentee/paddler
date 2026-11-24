@@ -1,7 +1,7 @@
 use std::mem::discriminant;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
-use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
 use paddler_cli_tests::running_balancer_subprocess::running_balancer_subprocess;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 

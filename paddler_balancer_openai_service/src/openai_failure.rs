@@ -1,14 +1,14 @@
 use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
 
+use paddler_balancer::compatibility::upstream_failure::UpstreamFailure;
+use paddler_balancer::relay_failure::RelayFailure;
 use paddler_openai_translation::generation_failure::GenerationFailure;
 use paddler_openai_translation::generation_failure_cause::GenerationFailureCause;
 use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 
-use crate::compatibility::openai_service::openai_error_body::OpenAIErrorBody;
-use crate::compatibility::openai_service::openai_error_type::OpenAIErrorType;
-use crate::compatibility::upstream_failure::UpstreamFailure;
-use crate::relay_failure::RelayFailure;
+use crate::openai_error_body::OpenAIErrorBody;
+use crate::openai_error_type::OpenAIErrorType;
 
 pub enum OpenAIFailure {
     Generation(GenerationFailure),
@@ -91,6 +91,7 @@ mod tests {
     use serde_json::from_str;
     use serde_json::json;
 
+    use paddler_balancer::relay_failure::RelayFailure;
     use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
     use paddler_openai_translation::chat_completion_message_role::ChatCompletionMessageRole;
     use paddler_openai_translation::generation_failure::GenerationFailure;
@@ -98,7 +99,6 @@ mod tests {
     use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 
     use super::OpenAIFailure;
-    use crate::relay_failure::RelayFailure;
 
     fn error_body(message: &str, error_type: &str) -> Value {
         json!({

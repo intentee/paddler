@@ -35,11 +35,9 @@ paddler_error_chain = { workspace = true }
 paddler_frame_writer = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
-paddler_openai_translation = { workspace = true }
 paddler_outbox = { workspace = true }
 paddler_request_registry = { workspace = true }
 paddler_spawn_resuming_panic = { workspace = true }
-paddler_typesafe_translation = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rust-embed = { workspace = true, optional = true }
@@ -69,7 +67,6 @@ thiserror = { workspace = true }
 paddler_balancer_desired_state_fixture = { workspace = true }
 paddler_blocking_thread_fixture = { workspace = true }
 paddler_capturing_logger = { workspace = true }
-paddler_openai_schema_validator = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

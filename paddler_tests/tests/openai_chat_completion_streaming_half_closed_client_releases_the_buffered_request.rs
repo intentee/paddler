@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_tests::release_half_closed_openai_request::release_half_closed_openai_request;
 
 #[tokio::test(flavor = "multi_thread")]

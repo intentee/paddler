@@ -1,0 +1,31 @@
+[package]
+name = "paddler_balancer_openai_service"
+authors.workspace = true
+description = "Serves the OpenAI-compatible API of the Paddler balancer"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+actix-web = { workspace = true }
+actix-web-lab = { workspace = true }
+futures = { workspace = true }
+nanoid = { workspace = true }
+paddler_balancer = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_openai_translation = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+paddler_openai_schema_validator = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

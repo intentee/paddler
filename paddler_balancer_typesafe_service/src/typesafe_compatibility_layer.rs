@@ -1,12 +1,13 @@
 use actix_web::web::ServiceConfig;
 
-use crate::compatibility::serves_compatibility_layer::ServesCompatibilityLayer;
-use crate::compatibility::typesafe_service::http_route::get_models::get_models;
-use crate::compatibility::typesafe_service::http_route::post_system_one::post_system_one;
+use paddler_balancer::compatibility::serves_compatibility_layer::ServesCompatibilityLayer;
+
 use crate::constants::TYPESAFE_HEADER_REQUEST_ID;
 use crate::constants::TYPESAFE_HEADER_RETRY_COUNT;
 use crate::constants::TYPESAFE_HEADER_RUNTIME;
 use crate::constants::TYPESAFE_HEADER_SDK;
+use crate::http_route::get_models::get_models;
+use crate::http_route::post_system_one::post_system_one;
 
 pub struct TypeSafeCompatibilityLayer;
 

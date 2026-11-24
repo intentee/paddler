@@ -3,6 +3,11 @@ use futures::stream::Stream;
 use futures::stream::unfold;
 use nanoid::nanoid;
 
+use paddler_balancer::agent_relay::AgentRelay;
+use paddler_balancer::agent_relay_conclusion::AgentRelayConclusion;
+use paddler_balancer::agent_relay_event::AgentRelayEvent;
+use paddler_balancer::agent_relay_step::AgentRelayStep;
+use paddler_balancer::agent_streaming_request::AgentStreamingRequest;
 use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_openai_translation::completes_generation::CompletesGeneration;
@@ -10,13 +15,8 @@ use paddler_openai_translation::generated_output::GeneratedOutput;
 use paddler_openai_translation::generation_outcome::GenerationOutcome;
 use paddler_openai_translation::generation_progress::GenerationProgress;
 
-use crate::agent_relay::AgentRelay;
-use crate::agent_relay_conclusion::AgentRelayConclusion;
-use crate::agent_relay_event::AgentRelayEvent;
-use crate::agent_relay_step::AgentRelayStep;
-use crate::agent_streaming_request::AgentStreamingRequest;
-use crate::compatibility::openai_service::generation_progress_phase::GenerationProgressPhase;
-use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
+use crate::generation_progress_phase::GenerationProgressPhase;
+use crate::openai_failure::OpenAIFailure;
 
 pub struct GenerationRelay<TParams>
 where

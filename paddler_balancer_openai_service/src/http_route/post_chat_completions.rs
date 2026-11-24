@@ -4,16 +4,16 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_balancer::compatibility::compatibility_app_data::CompatibilityAppData;
 use paddler_openai_translation::chat_completion_delivery::ChatCompletionDelivery;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::translated_chat_completion_request::TranslatedChatCompletionRequest;
 
-use crate::compatibility::compatibility_app_data::CompatibilityAppData;
-use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
-use crate::compatibility::openai_service::generation_relay::GenerationRelay;
-use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
-use crate::compatibility::openai_service::openai_json_config::openai_json_config;
+use crate::chat_completions_sse_response::chat_completions_sse_response;
 use crate::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use crate::generation_relay::GenerationRelay;
+use crate::openai_failure::OpenAIFailure;
+use crate::openai_json_config::openai_json_config;
 
 async fn respond(
     app_data: web::Data<CompatibilityAppData>,
@@ -76,18 +76,18 @@ mod tests {
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_balancer::agent_controller_pool::AgentControllerPool;
+    use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
+    use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use paddler_balancer::buffered_request_manager::BufferedRequestManager;
+    use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+    use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 
     use super::CompatibilityAppData;
     use super::post_chat_completions;
-    use crate::agent_controller_pool::AgentControllerPool;
-    use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use crate::buffered_request_manager::BufferedRequestManager;
     use crate::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
-    use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-    use crate::resolved_socket_addr::ResolvedSocketAddr;
 
     fn app_data_without_agents(max_buffered_requests: u64) -> CompatibilityAppData {
         let agent_controller_pool = Arc::new(AgentControllerPool::default());

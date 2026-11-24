@@ -11,7 +11,9 @@ members = [
     "paddler_balancer",
     "paddler_balancer_dashboard_assets",
     "paddler_balancer_desired_state_fixture",
+    "paddler_balancer_openai_service",
     "paddler_balancer_state_database",
+    "paddler_balancer_typesafe_service",
     "paddler_blocking_thread_fixture",
     "paddler_bootstrap",
     "paddler_bootstrap_tests",
@@ -499,7 +501,9 @@ paddler_agent_text_generation = { version = "5.0", path = "paddler_agent_text_ge
 paddler_balancer = { version = "5.0", path = "paddler_balancer" }
 paddler_balancer_dashboard_assets = { version = "5.0", path = "paddler_balancer_dashboard_assets" }
 paddler_balancer_desired_state_fixture = { version = "5.0", path = "paddler_balancer_desired_state_fixture" }
+paddler_balancer_openai_service = { version = "5.0", path = "paddler_balancer_openai_service" }
 paddler_balancer_state_database = { version = "5.0", path = "paddler_balancer_state_database" }
+paddler_balancer_typesafe_service = { version = "5.0", path = "paddler_balancer_typesafe_service" }
 paddler_blocking_thread_fixture = { version = "5.0", path = "paddler_blocking_thread_fixture" }
 paddler_bootstrap = { version = "5.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "5.0", path = "paddler_cache_dir" }

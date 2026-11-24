@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_balancer::constants::TYPESAFE_HEADER_REQUEST_ID;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_HEADER_REQUEST_ID;
 use paddler_tests::constants::TYPESAFE_TONE_AND_PAYMENT_REQUEST_ID;
 use paddler_tests::typesafe_tone_and_payment_decision::typesafe_tone_and_payment_decision;
 

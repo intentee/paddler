@@ -3,12 +3,12 @@ use reqwest::Method;
 use reqwest::StatusCode;
 use reqwest::header::HeaderValue;
 
-use paddler_balancer::constants::TYPESAFE_API_PATH_MODELS;
-use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
-use paddler_balancer::constants::TYPESAFE_HEADER_REQUEST_ID;
-use paddler_balancer::constants::TYPESAFE_HEADER_RETRY_COUNT;
-use paddler_balancer::constants::TYPESAFE_HEADER_RUNTIME;
-use paddler_balancer::constants::TYPESAFE_HEADER_SDK;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_MODELS;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_HEADER_REQUEST_ID;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_HEADER_RETRY_COUNT;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_HEADER_RUNTIME;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_HEADER_SDK;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 

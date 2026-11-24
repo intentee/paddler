@@ -1,9 +1,10 @@
 use actix_web::web::ServiceConfig;
 
-use crate::compatibility::openai_service::http_route::post_chat_completions::post_chat_completions;
-use crate::compatibility::openai_service::http_route::post_responses::post_responses;
-use crate::compatibility::serves_compatibility_layer::ServesCompatibilityLayer;
+use paddler_balancer::compatibility::serves_compatibility_layer::ServesCompatibilityLayer;
+
 use crate::constants::OPENAI_HEADER_REQUEST_ID;
+use crate::http_route::post_chat_completions::post_chat_completions;
+use crate::http_route::post_responses::post_responses;
 
 pub struct OpenAICompatibilityLayer;
 

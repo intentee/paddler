@@ -7,14 +7,14 @@ use futures::stream::iter;
 use serde_json::Error as SerdeJsonError;
 use serde_json::to_string;
 
+use paddler_balancer::agent_relay_event::AgentRelayEvent;
 use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
 use paddler_openai_translation::generation_outcome::GenerationOutcome;
 use paddler_openai_translation::generation_progress::GenerationProgress;
 use paddler_openai_translation::responses_stream::ResponsesStream;
 use paddler_openai_translation::sequenced_responses_stream_event::SequencedResponsesStreamEvent;
 
-use crate::agent_relay_event::AgentRelayEvent;
-use crate::compatibility::openai_service::openai_sse_http_response::openai_sse_http_response;
+use crate::openai_sse_http_response::openai_sse_http_response;
 
 fn responses_stream_events(
     responses_stream: &mut ResponsesStream,

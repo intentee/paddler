@@ -3814,12 +3814,9 @@ dependencies = [
  "paddler_frame_writer",
  "paddler_inference_parameters",
  "paddler_messaging",
- "paddler_openai_schema_validator",
- "paddler_openai_translation",
  "paddler_outbox",
  "paddler_request_registry",
  "paddler_spawn_resuming_panic",
- "paddler_typesafe_translation",
  "parking_lot 0.13.0",
  "rand 0.10.3",
  "rust-embed",
@@ -3851,6 +3848,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_balancer_openai_service"
+version = "5.0.0"
+dependencies = [
+ "actix-web",
+ "actix-web-lab",
+ "futures",
+ "nanoid",
+ "paddler_balancer",
+ "paddler_messaging",
+ "paddler_openai_schema_validator",
+ "paddler_openai_translation",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "paddler_balancer_state_database"
 version = "5.0.0"
 dependencies = [
@@ -3866,6 +3881,18 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "paddler_balancer_typesafe_service"
+version = "5.0.0"
+dependencies = [
+ "actix-web",
+ "paddler_balancer",
+ "paddler_error_chain",
+ "paddler_messaging",
+ "paddler_typesafe_translation",
+ "serde",
 ]
 
 [[package]]
@@ -3885,7 +3912,9 @@ dependencies = [
  "paddler_agent",
  "paddler_agent_runtime",
  "paddler_balancer",
+ "paddler_balancer_openai_service",
  "paddler_balancer_state_database",
+ "paddler_balancer_typesafe_service",
  "paddler_capturing_logger",
  "paddler_cluster_harness",
  "paddler_error_chain",
@@ -3982,6 +4011,8 @@ dependencies = [
  "nix",
  "paddler_agent_text_generation",
  "paddler_balancer",
+ "paddler_balancer_openai_service",
+ "paddler_balancer_typesafe_service",
  "paddler_bootstrap",
  "paddler_cli",
  "paddler_client",
@@ -4040,6 +4071,7 @@ dependencies = [
  "hf-hub",
  "paddler_agent_status",
  "paddler_balancer",
+ "paddler_balancer_typesafe_service",
  "paddler_client",
  "paddler_inference_parameters",
  "paddler_messaging",
@@ -4296,7 +4328,9 @@ dependencies = [
  "paddler_agent_status",
  "paddler_agent_text_generation",
  "paddler_balancer",
+ "paddler_balancer_openai_service",
  "paddler_balancer_state_database",
+ "paddler_balancer_typesafe_service",
  "paddler_blocking_thread_fixture",
  "paddler_bootstrap",
  "paddler_cache_dir",

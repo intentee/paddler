@@ -1,11 +1,11 @@
 use actix_web::http::StatusCode;
 
+use paddler_balancer::compatibility::upstream_failure::UpstreamFailure;
 use paddler_messaging::decision_final_result::DecisionFinalResult;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 
-use crate::compatibility::typesafe_service::typesafe_decision_failure::TypeSafeDecisionFailure;
-use crate::compatibility::upstream_failure::UpstreamFailure;
+use crate::typesafe_decision_failure::TypeSafeDecisionFailure;
 
 const fn failure(status_code: StatusCode, detail: String) -> DecisionOutcome {
     DecisionOutcome::Failed(TypeSafeDecisionFailure {
@@ -65,7 +65,7 @@ mod tests {
     use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 
     use super::DecisionOutcome;
-    use crate::compatibility::typesafe_service::typesafe_decision_failure::TypeSafeDecisionFailure;
+    use crate::typesafe_decision_failure::TypeSafeDecisionFailure;
 
     fn failed(status_code: StatusCode, detail: &str) -> DecisionOutcome {
         DecisionOutcome::Failed(TypeSafeDecisionFailure {

@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;

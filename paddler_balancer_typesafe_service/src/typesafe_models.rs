@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use serde::Serialize;
 
-use crate::compatibility::typesafe_service::typesafe_model::TypeSafeModel;
+use crate::typesafe_model::TypeSafeModel;
 
 #[derive(Serialize)]
 pub struct TypeSafeModels {

@@ -1,13 +1,13 @@
 use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
 
+use paddler_balancer::cluster_serves_no_decisions::ClusterServesNoDecisions;
+use paddler_balancer::compatibility::upstream_failure::UpstreamFailure;
+use paddler_balancer::relay_failure::RelayFailure;
 use paddler_error_chain::error_chain::ErrorChain;
 use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
-use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
-use crate::compatibility::typesafe_service::typesafe_error_body::TypeSafeErrorBody;
-use crate::compatibility::upstream_failure::UpstreamFailure;
-use crate::relay_failure::RelayFailure;
+use crate::typesafe_error_body::TypeSafeErrorBody;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TypeSafeDecisionFailure {

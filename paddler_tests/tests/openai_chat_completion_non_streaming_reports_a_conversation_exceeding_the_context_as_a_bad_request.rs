@@ -1,11 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use reqwest::StatusCode;
 use serde_json::Value;
 use serde_json::json;
-use std::num::NonZeroU32;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_tests::oversized_text::oversized_text;

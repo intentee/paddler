@@ -3,8 +3,8 @@ use reqwest::Method;
 use reqwest::StatusCode;
 use reqwest::header::HeaderValue;
 
-use paddler_balancer::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
-use paddler_balancer::constants::OPENAI_HEADER_REQUEST_ID;
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_balancer_openai_service::constants::OPENAI_HEADER_REQUEST_ID;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::constants::API_PATH_HEALTH;
 use paddler_tests::start_cluster::start_cluster;

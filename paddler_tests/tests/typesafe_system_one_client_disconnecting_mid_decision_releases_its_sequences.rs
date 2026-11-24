@@ -5,7 +5,7 @@ use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_cluster_harness::system_one_request::system_one_request;

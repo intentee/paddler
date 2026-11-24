@@ -1,7 +1,7 @@
 use reqwest::Client;
 use reqwest::StatusCode;
 
-use paddler_balancer::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
+use paddler_balancer_typesafe_service::constants::TYPESAFE_API_PATH_SYSTEM_ONE;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 

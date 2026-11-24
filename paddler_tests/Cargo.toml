@@ -80,6 +80,8 @@ tokio-util = { workspace = true }
 async-openai = { workspace = true }
 http = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
+paddler_balancer_openai_service = { workspace = true }
+paddler_balancer_typesafe_service = { workspace = true }
 paddler_blocking_thread_fixture = { workspace = true }
 paddler_capturing_logger = { workspace = true }
 paddler_openai_schema_validator = { workspace = true }
