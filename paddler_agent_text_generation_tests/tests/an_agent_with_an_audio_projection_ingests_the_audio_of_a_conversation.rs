@@ -8,7 +8,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_file_fixture::constants::QUICK_BROWN_FOX_WAV;
+use paddler_file_fixture::audio_fixture::AudioFixture;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_with_an_audio_projection_ingests_the_audio_of_a_conversation() {
@@ -25,7 +25,7 @@ async fn an_agent_with_an_audio_projection_ingests_the_audio_of_a_conversation()
         .continue_from_conversation_history(
             CancellationToken::new(),
             &audio_transcription_conversation(
-                QUICK_BROWN_FOX_WAV
+                AudioFixture::QuickBrownFoxWav
                     .input_audio()
                     .expect("the test audio must load"),
             ),

@@ -35,7 +35,7 @@ async fn a_decision_llama_cpp_rejects_is_refused_with_its_reason() {
         .await
         .expect("the decision must be answered with a refusal");
 
-    assert!(collected.answers.is_empty());
+    assert_eq!(collected.answers, Vec::new());
     assert!(matches!(
         collected.terminal_result,
         DecisionResult::RequestRejected(_)

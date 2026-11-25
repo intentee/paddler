@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Result;
 
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 use crate::connect_subprocess_balancer::connect_subprocess_balancer;
 use crate::subprocess_cluster::SubprocessCluster;
@@ -20,7 +20,7 @@ pub async fn restart_balancer(
         [
             "balancer".to_owned(),
             "--inference-addr".to_owned(),
-            EPHEMERAL_LOOPBACK_ADDR.to_string(),
+            ephemeral_loopback_addr().to_string(),
             "--management-addr".to_owned(),
             management_addr.to_string(),
         ],

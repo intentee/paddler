@@ -19,7 +19,7 @@ use paddler_agent_text_generation_tests::first_message_content_request_preparer:
 use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
 use paddler_agent_text_generation_tests::last_generated_token_result::last_generated_token_result;
 use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
@@ -60,7 +60,9 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
         &llama_context,
         request_preparer.model_capabilities.clone(),
     );
-    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
+    let image_data_uri = ImageFixture::LlamasJpeg
+        .data_uri()
+        .expect("the test image must load");
     let image_question = || {
         ConversationGeneration::new(
             ContinueFromConversationHistoryParams {

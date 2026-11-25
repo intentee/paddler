@@ -7,9 +7,10 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
-use paddler_request_params_fixture::constants::QUESTIONS_OUTLASTING_A_DISCONNECT;
 use paddler_request_params_fixture::many_question_decision::many_question_decision;
 use paddler_request_params_fixture::sample_decision::sample_decision;
+
+const QUESTIONS_OUTLASTING_A_DISCONNECT: usize = 96;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_client_disconnecting_mid_decision_releases_its_sequences() {

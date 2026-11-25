@@ -1,5 +1,4 @@
 pub mod clef_flash;
-pub mod constants;
 pub mod d1_2b;
 pub mod deepseek_r1_distill_llama_8b;
 pub mod every_model_card;
@@ -23,6 +22,7 @@ pub mod qwen2_5_vl_3b_mmproj;
 pub mod qwen3_0_6b;
 pub mod qwen3_5_0_8b;
 pub mod qwen3_5_0_8b_mmproj;
+pub mod served_context_size;
 pub mod served_model_runtime_parameters;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;

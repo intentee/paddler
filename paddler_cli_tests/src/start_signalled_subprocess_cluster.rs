@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 use crate::connect_subprocess_balancer::connect_subprocess_balancer;
 use crate::subprocess_cluster::SubprocessCluster;
@@ -23,7 +23,7 @@ pub async fn start_signalled_subprocess_cluster(
         wait_for_slots_ready,
     }: ClusterParams,
 ) -> Result<SubprocessCluster> {
-    let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
+    let ephemeral_loopback_addr = ephemeral_loopback_addr().to_string();
     let mut balancer_arguments = vec![
         "balancer".to_owned(),
         "--compat-openai-addr".to_owned(),

@@ -4,14 +4,14 @@ use tokio_tungstenite::tungstenite::Message;
 
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
+use paddler_cluster_harness::short_buffered_request_timeout::short_buffered_request_timeout;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_keeps_serving_after_malformed_json() {
     let cluster = Cluster::start_in_process(ClusterParams {
-        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
+        buffered_request_timeout: short_buffered_request_timeout(),
         max_buffered_requests: 1,
         ..ClusterParams::without_agents()
     })

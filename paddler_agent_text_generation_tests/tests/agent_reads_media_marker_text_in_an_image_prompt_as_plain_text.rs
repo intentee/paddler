@@ -7,7 +7,7 @@ use paddler_agent_text_generation_tests::max_tokens_for_forced_text::max_tokens_
 use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 
@@ -27,7 +27,9 @@ async fn agent_reads_media_marker_text_in_an_image_prompt_as_plain_text() {
             &ContinueFromConversationHistoryParams {
                 grammar: Some(gbnf_literal(ANSWER)),
                 ..SingleImageQuestion {
-                    image_data_uri: LLAMAS_JPEG.data_uri().expect("the test image must load"),
+                    image_data_uri: ImageFixture::LlamasJpeg
+                        .data_uri()
+                        .expect("the test image must load"),
                     max_tokens: max_tokens_for_forced_text(ANSWER),
                     question: QUESTION_QUOTING_THE_LLAMA_CPP_DEFAULT_MEDIA_MARKER,
                 }

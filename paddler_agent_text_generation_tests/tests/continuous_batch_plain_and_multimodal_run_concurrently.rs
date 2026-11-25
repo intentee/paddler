@@ -9,7 +9,7 @@ use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
 use paddler_agent_text_generation_tests::image_description_conversation::image_description_conversation;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -24,7 +24,9 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() {
         .await
         .expect("the cluster must start");
 
-    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
+    let image_data_uri = ImageFixture::LlamasJpeg
+        .data_uri()
+        .expect("the test image must load");
 
     let multimodal_conversation = image_description_conversation(image_data_uri);
 

@@ -162,8 +162,8 @@ mod tests {
     use paddler_messaging::chat_template_source::ChatTemplateSource;
     use paddler_messaging::multimodal_settings::MultimodalSettings;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
-    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+    use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
     use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_model_source::model_source::ModelSource;
 
@@ -174,7 +174,7 @@ mod tests {
     use crate::model_serving_settings::ModelServingSettings;
 
     fn process_env_desired_model_resolver() -> DesiredModelResolver {
-        DesiredModelResolver::from_process_env(HUGGINGFACE_DEFAULT_ENDPOINT.to_owned()).unwrap()
+        DesiredModelResolver::from_process_env(HuggingFaceEndpoint::HubDefault).unwrap()
     }
 
     fn nonexistent_path_in_temp_dir(label: &str) -> MissingLocalModel {

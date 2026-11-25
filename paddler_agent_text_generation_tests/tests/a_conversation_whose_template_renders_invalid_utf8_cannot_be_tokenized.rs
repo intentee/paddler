@@ -18,8 +18,8 @@ use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 const MESSAGE_STARTING_WITH_A_TWO_BYTE_CHARACTER: &str = "é";
 
@@ -63,7 +63,7 @@ fn a_conversation_whose_template_renders_invalid_utf8_cannot_be_tokenized() {
                 ),
                 ..default_model_capabilities_settings()
             },
-            sequence_context_size: SERVED_CONTEXT_SIZE.get(),
+            sequence_context_size: served_context_size().get(),
         }
         .into_generation_request_preparer()
         .expect("llama.cpp must prepare the template")

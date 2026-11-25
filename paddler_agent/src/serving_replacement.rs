@@ -76,7 +76,7 @@ impl ServingReplacement {
             {
                 ControlFlow::Continue(loaded_llama_model) => {
                     LoadedModelServingPlan::StartingEveryCapability {
-                        loaded_llama_model: loaded_llama_model,
+                        loaded_llama_model,
                         model_serving_settings: desired_settings,
                     }
                 }

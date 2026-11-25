@@ -21,7 +21,7 @@ const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 2;
 
 #[test]
 fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     let decision_model_runtime =
         DecisionModelRuntime::load(&kev_0_8b(), 1).expect("the kev decision model must load");
@@ -76,7 +76,8 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
     );
 
     assert!(
-        CapturingLogger::records_for("paddler_agent_runtime::sequence_id")
+        capturing_logger
+            .records_for("paddler_agent_runtime::sequence_id")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Error)
     );

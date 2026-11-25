@@ -65,11 +65,11 @@ paddler_balancer_dashboard_assets = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-indexmap = { workspace = true }
 paddler_balancer_desired_state_fixture = { workspace = true }
 paddler_blocking_thread_fixture = { workspace = true }
 paddler_capturing_logger = { workspace = true }
 paddler_model_capabilities_fixture = { workspace = true }
+paddler_request_params_fixture = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

@@ -16,8 +16,8 @@ use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
 use paddler_agent_text_generation_tests::model_capabilities_request_preparer::ModelCapabilitiesRequestPreparer;
 use paddler_agent_text_generation_tests::weather_question_conversation::weather_question_conversation;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 #[test]
 fn a_conversation_whose_tool_call_grammar_llama_cpp_cannot_read_is_refused() {
@@ -45,7 +45,7 @@ fn a_conversation_whose_tool_call_grammar_llama_cpp_cannot_read_is_refused() {
     let request_preparer = ModelCapabilitiesRequestPreparer {
         llama_runtime: &runtime,
         model_capabilities_settings: default_model_capabilities_settings(),
-        sequence_context_size: SERVED_CONTEXT_SIZE.get(),
+        sequence_context_size: served_context_size().get(),
     }
     .into_generation_request_preparer()
     .expect("the capabilities of the model must be established");

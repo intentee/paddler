@@ -127,7 +127,7 @@ mod tests {
 
     #[tokio::test]
     async fn dropping_a_service_thread_joins_it_after_its_run_failed() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let run_finished = Arc::new(AtomicBool::new(false));
         let run_finished_flag = run_finished.clone();
@@ -145,7 +145,8 @@ mod tests {
 
         assert!(run_finished.load(Ordering::Acquire));
         assert!(
-            CapturingLogger::records_for("paddler_bootstrap::service_thread")
+            capturing_logger
+                .records_for("paddler_bootstrap::service_thread")
                 .iter()
                 .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );

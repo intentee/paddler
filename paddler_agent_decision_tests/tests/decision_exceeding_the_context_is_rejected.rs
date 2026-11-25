@@ -2,8 +2,8 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_cluster_harness::constants::SMALL_DECISION_CONTEXT_SIZE;
 use paddler_cluster_harness::small_context_decision_cluster_params::small_context_decision_cluster_params;
+use paddler_cluster_harness::small_decision_context_size::small_decision_context_size;
 use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
@@ -31,7 +31,7 @@ async fn decision_exceeding_the_context_is_rejected() {
     assert_eq!(
         collected.terminal_result,
         DecisionResult::RequestExceedsContext(OversizedDecisionDetails {
-            context_size: SMALL_DECISION_CONTEXT_SIZE.get(),
+            context_size: small_decision_context_size().get(),
             required_tokens: TOKENS_REQUIRED_BY_THE_REPEATED_STATE_DECISION,
         })
     );

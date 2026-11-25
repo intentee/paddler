@@ -7,7 +7,7 @@ use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS
 use paddler_balancer_openai_service::constants::OPENAI_HEADER_REQUEST_ID;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_messaging::constants::API_PATH_HEALTH;
+use paddler_messaging::api_path::ApiPath;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
@@ -44,7 +44,7 @@ async fn openai_service_lets_browsers_send_and_read_openai_headers() {
         .get(
             cluster
                 .balancer
-                .compat_openai_url(API_PATH_HEALTH)
+                .compat_openai_url(ApiPath::health())
                 .expect("the cluster serves OpenAI"),
         )
         .header("Origin", ALLOWED_ORIGIN)

@@ -4,12 +4,12 @@ use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModel
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 
-use crate::constants::SERVED_CONTEXT_SIZE;
+use crate::served_context_size::served_context_size;
 
 #[must_use]
 pub fn served_model_runtime_parameters() -> DesiredModelRuntimeParameters {
     DesiredModelRuntimeParameters {
-        context_size: ModelDefaultOr::Explicit(SERVED_CONTEXT_SIZE),
+        context_size: ModelDefaultOr::Explicit(served_context_size()),
         k_cache_dtype: ModelDefaultOr::Explicit(KvCacheDtype::Q80),
         n_batch: ModelDefaultOr::Explicit(BatchSize::default()),
         n_gpu_layers: ModelDefaultOr::Explicit(ALL_GPU_LAYERS),

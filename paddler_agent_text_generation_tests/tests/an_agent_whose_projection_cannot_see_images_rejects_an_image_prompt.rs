@@ -9,7 +9,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -40,7 +40,9 @@ async fn an_agent_whose_projection_cannot_see_images_rejects_an_image_prompt() {
                         content: ConversationMessageContent::Parts(vec![
                             ConversationMessageContentPart::ImageUrl {
                                 image_url: ImageUrl {
-                                    url: LLAMAS_JPEG.data_uri().expect("the test image must load"),
+                                    url: ImageFixture::LlamasJpeg
+                                        .data_uri()
+                                        .expect("the test image must load"),
                                 },
                             },
                             ConversationMessageContentPart::Text {

@@ -5,19 +5,19 @@ use tokio::net::UdpSocket;
 
 use paddler_cli_tests::signalled_subprocess::SignalledSubprocess;
 use paddler_cli_tests::spawn_balancer_subprocess::spawn_balancer_subprocess;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 use paddler_cluster_harness::dashboard_attributes::dashboard_attributes;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
-    let statsd_socket = UdpSocket::bind(EPHEMERAL_LOOPBACK_ADDR)
+    let statsd_socket = UdpSocket::bind(ephemeral_loopback_addr())
         .await
         .expect("the statsd socket must bind");
     let statsd_addr = statsd_socket
         .local_addr()
         .expect("the statsd socket must report its address")
         .to_string();
-    let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
+    let ephemeral_loopback_addr = ephemeral_loopback_addr().to_string();
     let running_balancer = spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         [

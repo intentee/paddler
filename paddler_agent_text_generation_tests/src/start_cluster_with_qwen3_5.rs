@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 use crate::start_cluster_with_qwen3_5_and_context_size::start_cluster_with_qwen3_5_and_context_size;
 
@@ -13,5 +13,5 @@ pub async fn start_cluster_with_qwen3_5(
     agents: Vec<AgentConfig>,
     with_mmproj: bool,
 ) -> Result<Cluster> {
-    start_cluster_with_qwen3_5_and_context_size(agents, with_mmproj, SERVED_CONTEXT_SIZE).await
+    start_cluster_with_qwen3_5_and_context_size(agents, with_mmproj, served_context_size()).await
 }

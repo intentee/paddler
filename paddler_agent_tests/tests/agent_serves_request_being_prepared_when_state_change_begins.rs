@@ -11,7 +11,7 @@ use paddler_balancer_desired_state_fixture::smolvlm2_desired_state::smolvlm2_des
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_cluster_harness::unending_generation::unending_generation;
-use paddler_file_fixture::constants::SOLID_COLOR_4000X4000_PNG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
@@ -42,7 +42,7 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() {
                 content: ConversationMessageContent::Parts(vec![
                         ConversationMessageContentPart::ImageUrl {
                             image_url: ImageUrl {
-                                url: SOLID_COLOR_4000X4000_PNG
+                                url: ImageFixture::SolidColor4000x4000Png
                                     .data_uri()
                                     .expect("the test fixture must load"),
                             },

@@ -12,7 +12,7 @@ use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_cluster_harness::unending_grammar::unending_grammar;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -55,7 +55,7 @@ async fn balancer_stops_a_generation_whose_client_half_closes_before_max_tokens(
 
     let mut client = HalfClosedClient::post_json_then_half_close(
         cluster.balancer.addresses.inference,
-        API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
+        ApiPath::continue_from_conversation_history(),
         &to_value(&params).expect("the request parameters must serialize"),
     )
     .await

@@ -7,8 +7,8 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
 use paddler_bootstrap::agent_runtime_config::AgentRuntimeConfig;
 use paddler_cluster_harness::unexpiring_shutdown_options::unexpiring_shutdown_options;
-use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
 use paddler_model_source::model_source_error::ModelSourceError;
 
 /// # Errors
@@ -18,7 +18,7 @@ pub fn agent_runner_connected_to(
     management_addr: SocketAddr,
     slots: u16,
 ) -> Result<AgentRunner, ModelSourceError> {
-    DesiredModelResolver::from_process_env(HUGGINGFACE_DEFAULT_ENDPOINT.to_owned()).map(
+    DesiredModelResolver::from_process_env(HuggingFaceEndpoint::HubDefault).map(
         |desired_model_resolver| {
             AgentRunner::start(AgentRunnerParams {
                 bootstrap_config: AgentBootstrapConfig {

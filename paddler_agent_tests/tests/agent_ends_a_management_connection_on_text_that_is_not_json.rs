@@ -7,14 +7,15 @@ use paddler_capturing_logger::capturing_logger::CapturingLogger;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_ends_a_management_connection_on_text_that_is_not_json() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     agent_hang_up_on_a_frame(Message::text("not json"))
         .await
         .expect("the agent must hang up on the frame and reconnect");
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::balancer_message_context")
+        capturing_logger
+            .records_for("paddler_agent::balancer_message_context")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Error)
     );

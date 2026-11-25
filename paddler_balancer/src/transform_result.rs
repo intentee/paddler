@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn a_message_that_cannot_be_serialized_is_discarded() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let mut message_with_a_non_string_key = BTreeMap::new();
 
@@ -62,7 +62,8 @@ mod tests {
             TransformResult::Discard
         );
         assert!(
-            CapturingLogger::records_for("paddler_balancer::transform_result")
+            capturing_logger
+                .records_for("paddler_balancer::transform_result")
                 .iter()
                 .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );

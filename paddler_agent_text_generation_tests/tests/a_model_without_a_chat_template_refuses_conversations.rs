@@ -9,7 +9,7 @@ use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand 
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
 use paddler_agent_text_generation_tests::default_model_capabilities_settings::default_model_capabilities_settings;
 use paddler_agent_text_generation_tests::model_capabilities_request_preparer::ModelCapabilitiesRequestPreparer;
-use paddler_agent_text_generation_tests::qwen3_without_a_chat_template::Qwen3WithoutAChatTemplate;
+use paddler_agent_text_generation_tests::qwen3_with_a_patched_chat_template::Qwen3WithAPatchedChatTemplate;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_feature::ConversationFeature;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -18,11 +18,11 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::unsupported_conversation_feature::UnsupportedConversationFeature;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 #[test]
 fn a_model_without_a_chat_template_refuses_conversations() {
-    let qwen3_without_a_chat_template = Qwen3WithoutAChatTemplate::write()
+    let qwen3_without_a_chat_template = Qwen3WithAPatchedChatTemplate::without_a_chat_template()
         .expect("the model without a chat template must be written");
     let runtime = LlamaRuntime::load(
         &qwen3_without_a_chat_template.model_path(),
@@ -32,7 +32,7 @@ fn a_model_without_a_chat_template_refuses_conversations() {
     let request_preparer = ModelCapabilitiesRequestPreparer {
         llama_runtime: &runtime,
         model_capabilities_settings: default_model_capabilities_settings(),
-        sequence_context_size: SERVED_CONTEXT_SIZE.get(),
+        sequence_context_size: served_context_size().get(),
     }
     .into_generation_request_preparer()
     .expect("the capabilities of the model without a chat template must be established");

@@ -8,12 +8,12 @@ use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 use paddler_bootstrap_tests::rendered_dashboard_attributes::rendered_dashboard_attributes;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 fn entered_as(input_addr: &str) -> ResolvedSocketAddr {
     ResolvedSocketAddr {
         input_addr: input_addr.to_owned(),
-        socket_addr: EPHEMERAL_LOOPBACK_ADDR,
+        socket_addr: ephemeral_loopback_addr(),
     }
 }
 

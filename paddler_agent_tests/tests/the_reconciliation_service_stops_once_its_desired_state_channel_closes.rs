@@ -14,14 +14,14 @@ use paddler_cache_dir::cache_dir::CacheDir;
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_download_manager::download_manager::DownloadManager;
-use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
+use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
 use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
 #[tokio::test]
 async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     let (delivered_desired_state_tx, delivered_desired_state_rx) =
         watch::channel(DeliveredDesiredState::default());
@@ -40,7 +40,7 @@ async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes(
                 download_manager: DownloadManager::new().expect("the model downloader must start"),
                 huggingface_client: HuggingFaceHub {
                     cache_location: HuggingFaceCacheLocation::HubDefault,
-                    endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                    endpoint: HuggingFaceEndpoint::HubDefault,
                 }
                 .client()
                 .expect("the Hugging Face client must start"),
@@ -54,7 +54,8 @@ async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes(
     .expect("the reconciliation service must stop cleanly once nothing can send it desired states");
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::reconciliation_service")
+        capturing_logger
+            .records_for("paddler_agent::reconciliation_service")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Error)
     );

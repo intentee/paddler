@@ -32,7 +32,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::requested_capability::RequestedCapability;
-use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
+use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_hub::HuggingFaceHub;
@@ -179,7 +179,7 @@ impl Cluster {
             download_manager: DownloadManager::new()?,
             huggingface_client: HuggingFaceHub {
                 cache_location: HuggingFaceCacheLocation::HubDefault,
-                endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                endpoint: HuggingFaceEndpoint::HubDefault,
             }
             .client()?,
         };

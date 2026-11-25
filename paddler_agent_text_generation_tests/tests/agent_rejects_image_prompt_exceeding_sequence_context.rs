@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation_tests::start_cluster_with_smolvlm2_and_context_size::start_cluster_with_smolvlm2_and_context_size;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -28,7 +28,9 @@ async fn agent_rejects_image_prompt_exceeding_sequence_context() {
     .expect("the cluster must start");
 
     let image_url = ImageUrl {
-        url: LLAMAS_JPEG.data_uri().expect("the test image must load"),
+        url: ImageFixture::LlamasJpeg
+            .data_uri()
+            .expect("the test image must load"),
     };
     let collected = cluster
         .continue_from_conversation_history(

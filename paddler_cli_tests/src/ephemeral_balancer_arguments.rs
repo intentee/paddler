@@ -1,8 +1,8 @@
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 #[must_use]
 pub fn ephemeral_balancer_arguments() -> [String; 5] {
-    let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
+    let ephemeral_loopback_addr = ephemeral_loopback_addr().to_string();
 
     [
         "balancer".to_owned(),

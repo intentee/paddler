@@ -11,8 +11,9 @@ use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_cluster_harness::system_one_request::system_one_request;
 use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
-use paddler_request_params_fixture::constants::QUESTIONS_OUTLASTING_A_DISCONNECT;
 use paddler_request_params_fixture::sample_decision::sample_decision;
+
+const QUESTIONS_OUTLASTING_A_DISCONNECT: usize = 96;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_client_disconnecting_mid_decision_releases_its_sequences() {

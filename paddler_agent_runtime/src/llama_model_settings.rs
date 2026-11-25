@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 
-use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
+use paddler_inference_parameters::offloads_every_layer::offloads_every_layer;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
 use crate::model_placement::ModelPlacement;
@@ -12,7 +12,7 @@ use crate::model_placement::ModelPlacement;
 const LLAMA_CPP_ALL_GPU_LAYERS_KEPT_BY_FITTING: i32 = -2;
 
 const fn llama_cpp_gpu_layers(n_gpu_layers: i32) -> i32 {
-    if n_gpu_layers == ALL_GPU_LAYERS {
+    if offloads_every_layer(n_gpu_layers) {
         LLAMA_CPP_ALL_GPU_LAYERS_KEPT_BY_FITTING
     } else {
         n_gpu_layers

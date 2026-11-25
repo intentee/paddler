@@ -8,8 +8,8 @@ use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModel
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn changing_the_context_size_restarts_serving_on_the_loaded_model() {
@@ -41,7 +41,7 @@ async fn changing_the_context_size_restarts_serving_on_the_loaded_model() {
         .serve(BalancerDesiredState {
             model_runtime_parameters: DesiredModelRuntimeParameters {
                 context_size: ModelDefaultOr::Explicit(
-                    NonZeroU32::new(SERVED_CONTEXT_SIZE.get() / 2)
+                    NonZeroU32::new(served_context_size().get() / 2)
                         .expect("half of the served context must hold tokens"),
                 ),
                 ..initial_desired_state.model_runtime_parameters.clone()

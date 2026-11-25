@@ -6,9 +6,7 @@ use paddler_agent_text_generation::continuous_batch_terminal_outcome::Continuous
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_agent_text_generation_tests::constants::GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT;
 use paddler_agent_text_generation_tests::grammar_refusing_the_greedy_selection::GrammarRefusingTheGreedySelection;
-use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
 #[test]
@@ -24,24 +22,20 @@ fn a_grammar_refusing_the_token_that_triggers_it_ends_the_generation_as_rejected
         .expect("the prompt must decode");
 
     assert!(matches!(
-        ReadyToSampleRequest {
-            llama_context: &llama_context,
-            prompt: GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT,
-            prompt_sampling_positions,
-            runtime: &refusal.runtime,
-        }
-        .advance(|prepared_request| PreparedGenerationRequest {
-            token_sampling: TokenSampling {
-                chain: LlamaSampler::greedy().expect("the greedy sampler must initialize"),
-                grammar: GrammarSampling::Constrained(
-                    refusal
-                        .grammar_awaiting_the_greedy_selection()
-                        .expect("the lazy grammar must compile")
-                ),
-            },
-            ..prepared_request
-        })
-        .expect("the request must be ready to sample"),
+        refusal
+            .ready_to_sample(&llama_context, prompt_sampling_positions)
+            .advance(|prepared_request| PreparedGenerationRequest {
+                token_sampling: TokenSampling {
+                    chain: LlamaSampler::greedy().expect("the greedy sampler must initialize"),
+                    grammar: GrammarSampling::Constrained(
+                        refusal
+                            .grammar_awaiting_the_greedy_selection()
+                            .expect("the lazy grammar must compile")
+                    ),
+                },
+                ..prepared_request
+            })
+            .expect("the request must be ready to sample"),
         ContinuousBatchTerminalOutcome::EmitToClient(
             GeneratedTokenResult::GrammarRejectedModelOutput(_)
         )

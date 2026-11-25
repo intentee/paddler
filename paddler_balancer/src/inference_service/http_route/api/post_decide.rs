@@ -7,7 +7,7 @@ use actix_web::web::post;
 
 use llama_cpp_bindings_types::decision_request::DecisionRequest;
 
-use paddler_messaging::constants::API_PATH_DECIDE;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::validates::Validates as _;
 
@@ -49,5 +49,5 @@ async fn respond(
 }
 
 pub fn post_decide(cfg: &mut web::ServiceConfig) {
-    cfg.route(API_PATH_DECIDE, post().to(respond));
+    cfg.route(ApiPath::decide(), post().to(respond));
 }

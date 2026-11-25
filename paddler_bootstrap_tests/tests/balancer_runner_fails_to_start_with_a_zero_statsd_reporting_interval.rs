@@ -8,14 +8,14 @@ use paddler_balancer::statsd_service::configuration::Configuration as StatsdServ
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 #[tokio::test]
 async fn balancer_runner_fails_to_start_with_a_zero_statsd_reporting_interval() {
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
     params.bootstrap_config.statsd_service_configuration = Some(StatsdServiceConfiguration {
-        statsd_addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+        statsd_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
         statsd_reporting_interval: Duration::ZERO,
     });
 

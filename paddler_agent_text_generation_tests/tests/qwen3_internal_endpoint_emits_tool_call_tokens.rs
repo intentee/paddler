@@ -14,7 +14,7 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
+use paddler_request_params_fixture::weather_tool_question::weather_tool_question;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
@@ -29,7 +29,7 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
                 add_generation_prompt: true,
                 conversation_history: ConversationHistory::new(vec![
                     ConversationMessage::Message {
-                        content: ConversationMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
+                        content: ConversationMessageContent::Text(weather_tool_question()),
                         role: "user".to_owned(),
                     },
                 ]),

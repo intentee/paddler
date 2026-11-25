@@ -1,10 +1,11 @@
 use nix::sys::signal::Signal;
 use nix::sys::wait::WaitStatus;
 
-use paddler_cli_tests::constants::UNREACHABLE_MANAGEMENT_ADDR;
 use paddler_cli_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
+
+use crate::constants::UNREACHABLE_MANAGEMENT_ADDR;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_signals_report_a_killed_process_that_cannot_be_paused() {

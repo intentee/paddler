@@ -5,10 +5,7 @@ use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
 use llama_cpp_bindings_types::decision_request::DecisionRequest;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
-use paddler_messaging::constants::API_PATH_DECIDE;
-use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
@@ -88,7 +85,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
+            ApiPath::continue_from_conversation_history(),
             params,
         )
         .await
@@ -104,7 +101,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            API_PATH_CONTINUE_FROM_RAW_PROMPT,
+            ApiPath::continue_from_raw_prompt(),
             params,
         )
         .await
@@ -118,7 +115,7 @@ impl ClientInference {
         cancellation_token: CancellationToken,
         params: &DecisionRequest,
     ) -> Result<InferenceMessageStream> {
-        self.post_streaming(cancellation_token, API_PATH_DECIDE, params)
+        self.post_streaming(cancellation_token, ApiPath::decide(), params)
             .await
     }
 
@@ -132,7 +129,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            API_PATH_GENERATE_EMBEDDING_BATCH,
+            ApiPath::generate_embedding_batch(),
             params,
         )
         .await

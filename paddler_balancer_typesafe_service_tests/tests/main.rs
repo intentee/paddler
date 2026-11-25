@@ -1,3 +1,4 @@
+mod constants;
 mod typesafe_health_returns_ok;
 mod typesafe_models_is_unavailable_once_the_agent_settled_without_a_model;
 mod typesafe_models_lists_nothing_while_no_agent_serves_the_desired_model;

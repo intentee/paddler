@@ -15,18 +15,18 @@ use paddler_balancer::web_admin_panel_service::configuration::Configuration as W
 use paddler_balancer_state_database::state_database_type::StateDatabaseType;
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_BUFFERED_REQUEST_TIMEOUT;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_INFERENCE_ITEM_TIMEOUT;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_INFERENCE_PORT;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_MANAGEMENT_PORT;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_MAX_BUFFERED_REQUESTS;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_STATSD_PREFIX;
-use paddler_bootstrap::constants::BALANCER_DEFAULT_STATSD_REPORTING_INTERVAL;
 
 use super::run_announced_service_manager::run_announced_service_manager;
 use super::value_parser::parse_duration::parse_duration;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 use crate::cli_error::CliError;
+use crate::constants::BALANCER_DEFAULT_BUFFERED_REQUEST_TIMEOUT;
+use crate::constants::BALANCER_DEFAULT_INFERENCE_ITEM_TIMEOUT;
+use crate::constants::BALANCER_DEFAULT_INFERENCE_PORT;
+use crate::constants::BALANCER_DEFAULT_MANAGEMENT_PORT;
+use crate::constants::BALANCER_DEFAULT_MAX_BUFFERED_REQUESTS;
+use crate::constants::BALANCER_DEFAULT_STATSD_PREFIX;
+use crate::constants::BALANCER_DEFAULT_STATSD_REPORTING_INTERVAL;
 
 #[derive(Parser)]
 pub struct Balancer {

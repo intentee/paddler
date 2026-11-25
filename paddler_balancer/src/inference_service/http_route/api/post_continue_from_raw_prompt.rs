@@ -4,7 +4,7 @@ use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
 use crate::agent_streaming_request::AgentStreamingRequest as _;
@@ -40,5 +40,5 @@ async fn respond(
 }
 
 pub fn post_continue_from_raw_prompt(cfg: &mut web::ServiceConfig) {
-    cfg.route(API_PATH_CONTINUE_FROM_RAW_PROMPT, post().to(respond));
+    cfg.route(ApiPath::continue_from_raw_prompt(), post().to(respond));
 }

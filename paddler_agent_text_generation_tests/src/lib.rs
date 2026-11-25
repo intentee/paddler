@@ -1,6 +1,5 @@
 pub mod audio_transcription_conversation;
 pub mod chat_template_rendering_every_message_after;
-pub mod constants;
 pub mod default_model_capabilities_settings;
 pub mod first_byte_of_the_first_message_chat_template;
 pub mod first_message_content_request_preparer;
@@ -15,7 +14,7 @@ pub mod last_generated_token_result;
 pub mod max_tokens_for_forced_text;
 pub mod model_capabilities_request_preparer;
 pub mod qwen3_chat_completion_prompt;
-pub mod qwen3_without_a_chat_template;
+pub mod qwen3_with_a_patched_chat_template;
 pub mod ready_to_sample_request;
 pub mod sampling_with_a_smaller_vocabulary_grammar;
 pub mod single_image_question;

@@ -12,7 +12,7 @@ use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster_harness::is_unending_generation_text::is_unending_generation_text;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_cluster_harness::unending_generation::unending_generation;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -50,7 +50,9 @@ async fn generating_request_keeps_every_token_when_multimodal_request_is_admitte
                         content: ConversationMessageContent::Parts(vec![
                             ConversationMessageContentPart::ImageUrl {
                                 image_url: ImageUrl {
-                                    url: LLAMAS_JPEG.data_uri().expect("the test image must load"),
+                                    url: ImageFixture::LlamasJpeg
+                                        .data_uri()
+                                        .expect("the test image must load"),
                                 },
                             },
                             ConversationMessageContentPart::Text {

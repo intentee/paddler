@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation_tests::start_cluster_with_gemma_3_and_mmproj_and_n_batch::start_cluster_with_gemma_3_and_mmproj_and_n_batch;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_file_fixture::constants::SARNOW_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -42,7 +42,7 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() {
                         content: ConversationMessageContent::Parts(vec![
                             ConversationMessageContentPart::ImageUrl {
                                 image_url: ImageUrl {
-                                    url: SARNOW_JPEG
+                                    url: ImageFixture::SarnowJpeg
                                         .data_uri()
                                         .expect("the test fixture must load"),
                                 },

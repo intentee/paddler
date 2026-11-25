@@ -2,7 +2,7 @@
 
 use std::process::Command;
 
-use paddler_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
+use paddler_cluster_harness::failed_run_exit_code::failed_run_exit_code;
 
 const USER_AGENT_ORIGIN_WITH_A_LINE_BREAK: &str = "paddler\ntests";
 
@@ -18,6 +18,6 @@ fn run_with_test_cluster_fails_when_its_agents_cannot_set_up_their_hugging_face_
             .status()
             .expect("the test cluster runner must run")
             .code(),
-        Some(FAILED_RUN_EXIT_CODE)
+        Some(failed_run_exit_code())
     );
 }

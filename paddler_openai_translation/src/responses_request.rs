@@ -6,11 +6,10 @@ use serde::Deserialize;
 
 use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
-use paddler_messaging::constants::SYSTEM_ROLE;
-use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::conversation_role::ConversationRole;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::validates::Validates;
 
@@ -77,14 +76,14 @@ impl ResponsesRequest {
         {
             messages.push(ConversationMessage::Message {
                 content: ConversationMessageContent::Text(instructions.clone()),
-                role: SYSTEM_ROLE.to_owned(),
+                role: ConversationRole::System.name().to_owned(),
             });
         }
 
         match input {
             ResponsesInput::Text(text) => messages.push(ConversationMessage::Message {
                 content: ConversationMessageContent::Text(text),
-                role: USER_ROLE.to_owned(),
+                role: ConversationRole::User.name().to_owned(),
             }),
             ResponsesInput::Items(items) => {
                 for item in items {

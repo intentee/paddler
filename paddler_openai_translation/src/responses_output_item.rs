@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::conversation_role::ConversationRole;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::encoded_once_text::EncodedOnceText;
@@ -55,7 +55,7 @@ impl ResponsesOutputItem {
         Self::Message {
             content: vec![ResponsesContentPart::output_text(text)],
             id,
-            role: ASSISTANT_ROLE,
+            role: ConversationRole::Assistant.name(),
             status: ResponsesItemStatus::Completed,
         }
     }
@@ -91,7 +91,7 @@ impl ResponsesOutputItem {
         Self::Message {
             content: Vec::new(),
             id,
-            role: ASSISTANT_ROLE,
+            role: ConversationRole::Assistant.name(),
             status: ResponsesItemStatus::InProgress,
         }
     }

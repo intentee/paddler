@@ -13,7 +13,7 @@ use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation_tests::default_model_capabilities_settings::default_model_capabilities_settings;
 use paddler_agent_text_generation_tests::first_byte_of_the_first_message_chat_template::first_byte_of_the_first_message_chat_template;
 use paddler_agent_text_generation_tests::model_capabilities_request_preparer::ModelCapabilitiesRequestPreparer;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -22,7 +22,7 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 use paddler_model_card_fixture::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 
@@ -47,7 +47,9 @@ fn a_multimodal_conversation_whose_template_renders_invalid_utf8_cannot_be_read(
                     },
                     ConversationMessageContentPart::ImageUrl {
                         image_url: ImageUrl {
-                            url: LLAMAS_JPEG.data_uri().expect("the test image must load"),
+                            url: ImageFixture::LlamasJpeg
+                                .data_uri()
+                                .expect("the test image must load"),
                         },
                     },
                 ]),
@@ -80,7 +82,7 @@ fn a_multimodal_conversation_whose_template_renders_invalid_utf8_cannot_be_read(
                 ),
                 ..default_model_capabilities_settings()
             },
-            sequence_context_size: SERVED_CONTEXT_SIZE.get(),
+            sequence_context_size: served_context_size().get(),
         }
         .into_generation_request_preparer()
         .expect("llama.cpp must prepare the template and the multimodal projection")

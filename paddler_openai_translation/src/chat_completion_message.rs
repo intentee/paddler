@@ -1,10 +1,8 @@
 use serde::Deserialize;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
-use paddler_messaging::constants::SYSTEM_ROLE;
-use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::conversation_role::ConversationRole;
 
 use crate::chat_completion_message_role::ChatCompletionMessageRole;
 use crate::chat_completion_requested_tool_call::ChatCompletionRequestedToolCall;
@@ -70,12 +68,12 @@ impl ChatCompletionMessage {
                 match role {
                     ChatCompletionMessageRole::Assistant => ConversationMessage::Message {
                         content,
-                        role: ASSISTANT_ROLE.to_owned(),
+                        role: ConversationRole::Assistant.name().to_owned(),
                     },
                     ChatCompletionMessageRole::Developer | ChatCompletionMessageRole::System => {
                         ConversationMessage::Message {
                             content,
-                            role: SYSTEM_ROLE.to_owned(),
+                            role: ConversationRole::System.name().to_owned(),
                         }
                     }
                     ChatCompletionMessageRole::Tool => ConversationMessage::ToolResult {
@@ -85,7 +83,7 @@ impl ChatCompletionMessage {
                     },
                     ChatCompletionMessageRole::User => ConversationMessage::Message {
                         content,
-                        role: USER_ROLE.to_owned(),
+                        role: ConversationRole::User.name().to_owned(),
                     },
                 }
             }

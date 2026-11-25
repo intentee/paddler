@@ -19,7 +19,7 @@ use serde_json::from_str;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_server::identified_request::IdentifiedRequest;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
@@ -255,5 +255,5 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 }
 
 pub fn ws_inference_socket(service_config: &mut ServiceConfig) {
-    service_config.route(API_PATH_INFERENCE_SOCKET, get().to(respond));
+    service_config.route(ApiPath::inference_socket(), get().to(respond));
 }

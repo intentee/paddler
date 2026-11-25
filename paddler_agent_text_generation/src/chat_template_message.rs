@@ -1,8 +1,8 @@
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_role::ConversationRole;
 
 use crate::chat_template_message_content::ChatTemplateMessageContent;
 use crate::chat_template_tool_call::ChatTemplateToolCall;
@@ -20,7 +20,7 @@ impl ChatTemplateMessage {
     ) -> ChatMessage {
         match self.0 {
             ConversationMessage::AssistantReasoning { reasoning_content } => ChatMessage::Message {
-                role: ASSISTANT_ROLE.to_owned(),
+                role: ConversationRole::Assistant.name().to_owned(),
                 content: ChatMessageContent::Text(String::new()),
                 reasoning_content: Some(reasoning_content),
             },

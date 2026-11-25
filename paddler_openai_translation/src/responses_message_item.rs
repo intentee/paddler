@@ -1,9 +1,7 @@
 use serde::Deserialize;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
-use paddler_messaging::constants::SYSTEM_ROLE;
-use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_role::ConversationRole;
 
 use crate::responses_assistant_message_content::ResponsesAssistantMessageContent;
 use crate::responses_message_content::ResponsesMessageContent;
@@ -31,17 +29,17 @@ impl ResponsesMessageItem {
         match self {
             Self::Assistant { content } => ConversationMessage::Message {
                 content: content.into_conversation_content(),
-                role: ASSISTANT_ROLE.to_owned(),
+                role: ConversationRole::Assistant.name().to_owned(),
             },
             Self::Developer { content } | Self::System { content } => {
                 ConversationMessage::Message {
                     content: content.into_conversation_content(),
-                    role: SYSTEM_ROLE.to_owned(),
+                    role: ConversationRole::System.name().to_owned(),
                 }
             }
             Self::User { content } => ConversationMessage::Message {
                 content: content.into_conversation_content(),
-                role: USER_ROLE.to_owned(),
+                role: ConversationRole::User.name().to_owned(),
             },
         }
     }

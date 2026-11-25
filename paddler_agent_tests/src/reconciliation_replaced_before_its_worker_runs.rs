@@ -26,9 +26,9 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
-use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
+use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
 use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
 use crate::agent_tests_error::AgentTestsError;
@@ -42,7 +42,7 @@ fn desired_model_resolver_caching_in(
         .and_then(|download_manager| {
             HuggingFaceHub {
                 cache_location: HuggingFaceCacheLocation::HubDefault,
-                endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                endpoint: HuggingFaceEndpoint::HubDefault,
             }
             .client()
             .map_err(AgentTestsError::HuggingFaceClientUnstartable)

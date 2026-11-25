@@ -6,7 +6,7 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
-use paddler_agent_text_generation_tests::qwen3_without_a_chat_template::Qwen3WithoutAChatTemplate;
+use paddler_agent_text_generation_tests::qwen3_with_a_patched_chat_template::Qwen3WithAPatchedChatTemplate;
 use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
@@ -24,7 +24,7 @@ const TEMPLATE_CALLING_ONE_TOOL_PER_TURN: &str = "{%- if tools %}{{ tools[0].fun
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_sets_up_tool_call_parsing_from_the_chat_template_override_of_a_model_without_one() {
-    let qwen3_without_a_chat_template = Qwen3WithoutAChatTemplate::write()
+    let qwen3_without_a_chat_template = Qwen3WithAPatchedChatTemplate::without_a_chat_template()
         .expect("the model without a chat template must be written");
     let cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, 1),

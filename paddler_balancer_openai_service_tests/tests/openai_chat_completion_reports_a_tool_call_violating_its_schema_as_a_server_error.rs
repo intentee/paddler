@@ -13,7 +13,7 @@ use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::post_openai_request::post_openai_request;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
-use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
+use paddler_request_params_fixture::weather_tool_question::weather_tool_question;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_reports_a_tool_call_violating_its_schema_as_a_server_error() {
@@ -35,7 +35,7 @@ async fn openai_chat_completion_reports_a_tool_call_violating_its_schema_as_a_se
             "model": "qwen3-test",
             "messages": [{
                 "role": "user",
-                "content": WEATHER_TOOL_QUESTION
+                "content": weather_tool_question()
             }],
             "max_completion_tokens": 400,
             "tools": [{

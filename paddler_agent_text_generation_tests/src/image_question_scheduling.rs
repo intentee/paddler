@@ -20,7 +20,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_agent_text_generation::generation_request_preparer::GenerationRequestPreparer;
 use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 use paddler_model_card_fixture::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
@@ -78,7 +78,9 @@ impl ImageQuestionScheduling {
             mut generated_tokens_rx,
         } = ConversationGeneration::new(
             SingleImageQuestion {
-                image_data_uri: LLAMAS_JPEG.data_uri().context("the test image must load")?,
+                image_data_uri: ImageFixture::LlamasJpeg
+                    .data_uri()
+                    .context("the test image must load")?,
                 max_tokens: NonZeroU32::MIN,
                 question: IMAGE_QUESTION,
             }

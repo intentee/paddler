@@ -2,13 +2,11 @@
 
 use futures_util::future::join_all;
 use llama_cpp_bindings_types::decision_request::DecisionRequest;
-use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
-use paddler_request_params_fixture::sample_decision::SAMPLE_DECISION_STATE;
-use paddler_request_params_fixture::sample_decision::sample_decision;
+use paddler_request_params_fixture::ticket_decision::ticket_decision;
 
 const CONCURRENT_DECISIONS: usize = 5;
 
@@ -21,12 +19,7 @@ async fn decisions_are_identical_alone_and_concurrently() {
     .start_cluster()
     .await
     .expect("the cluster must start");
-    let decisions: Vec<DecisionRequest> = (0..CONCURRENT_DECISIONS)
-        .map(|decision_index| DecisionRequest {
-            state: json!(format!("Ticket {decision_index}: {SAMPLE_DECISION_STATE}")),
-            ..sample_decision()
-        })
-        .collect();
+    let decisions: Vec<DecisionRequest> = (0..CONCURRENT_DECISIONS).map(ticket_decision).collect();
     let mut answers_alone = Vec::new();
 
     for decision in &decisions {

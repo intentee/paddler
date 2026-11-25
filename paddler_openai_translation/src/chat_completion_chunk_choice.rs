@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde::Serializer;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::conversation_role::ConversationRole;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::chat_completion_tool_call::ChatCompletionToolCall;
@@ -70,7 +70,7 @@ impl Serialize for ChatCompletionChunkChoice {
             Self::Content(content) => SerializedChoice {
                 index: 0,
                 delta: ChoiceDelta::Content {
-                    role: ASSISTANT_ROLE,
+                    role: ConversationRole::Assistant.name(),
                     content,
                 },
                 logprobs: (),
@@ -85,7 +85,7 @@ impl Serialize for ChatCompletionChunkChoice {
             Self::ToolCalls(parsed_calls) => SerializedChoice {
                 index: 0,
                 delta: ChoiceDelta::ToolCalls {
-                    role: ASSISTANT_ROLE,
+                    role: ConversationRole::Assistant.name(),
                     tool_calls: ToolCallsDelta(parsed_calls),
                 },
                 logprobs: (),

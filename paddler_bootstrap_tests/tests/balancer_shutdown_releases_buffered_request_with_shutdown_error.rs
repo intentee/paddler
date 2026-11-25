@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap_tests::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
@@ -21,7 +21,8 @@ async fn balancer_shutdown_releases_buffered_request_with_shutdown_error() {
     let held_response = Client::new()
         .post(format!(
             "http://{}{}",
-            runner.addresses.inference, API_PATH_CONTINUE_FROM_RAW_PROMPT
+            runner.addresses.inference,
+            ApiPath::continue_from_raw_prompt()
         ))
         .json(&ContinueFromRawPromptParams {
             grammar: None,

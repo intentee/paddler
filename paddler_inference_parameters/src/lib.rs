@@ -6,6 +6,7 @@ pub mod embedding_parameters;
 pub mod invalid_inference_parameters;
 pub mod kv_cache_dtype;
 pub mod model_default_or;
+pub mod offloads_every_layer;
 pub mod pooling_type;
 pub mod raw_desired_model_runtime_parameters;
 pub mod raw_desired_sampling_parameters;

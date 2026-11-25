@@ -11,8 +11,9 @@ use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPositions;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
-use crate::constants::GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT;
+use crate::ready_to_sample_request::ReadyToSampleRequest;
 
+const GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT: &str = "Paddler balances";
 const GREEDY_SELECTION_AFTER_THE_PROMPT: LlamaToken = LlamaToken::new(383);
 const GRAMMAR_REFUSING_EVERY_PROSE_TOKEN: &str = r#"root ::= "{{{{{{""#;
 const GRAMMAR_ROOT: &str = "root";
@@ -78,5 +79,19 @@ impl GrammarRefusingTheGreedySelection {
             &[],
             &[GREEDY_SELECTION_AFTER_THE_PROMPT],
         )
+    }
+
+    #[must_use]
+    pub const fn ready_to_sample<'runtime>(
+        &'runtime self,
+        llama_context: &'runtime LlamaContext<'runtime>,
+        prompt_sampling_positions: PromptSamplingPositions,
+    ) -> ReadyToSampleRequest<'runtime> {
+        ReadyToSampleRequest {
+            llama_context,
+            prompt: GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT,
+            prompt_sampling_positions,
+            runtime: &self.runtime,
+        }
     }
 }

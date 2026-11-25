@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -22,7 +22,9 @@ async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() {
         .await
         .expect("the cluster must start");
 
-    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
+    let image_data_uri = ImageFixture::LlamasJpeg
+        .data_uri()
+        .expect("the test image must load");
 
     let conversation_history = ConversationHistory::new(vec![ConversationMessage::Message {
         content: ConversationMessageContent::Parts(vec![

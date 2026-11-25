@@ -4,9 +4,9 @@ use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 use paddler_model_card_fixture::model_card::ModelCard;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 pub struct DecisionDesiredState {
     pub context_size: NonZeroU32,
@@ -38,7 +38,7 @@ impl DecisionDesiredState {
 impl Default for DecisionDesiredState {
     fn default() -> Self {
         Self {
-            context_size: SERVED_CONTEXT_SIZE,
+            context_size: served_context_size(),
             model_card: kev_0_8b(),
             n_batch: BatchSize::default(),
         }

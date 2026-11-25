@@ -11,7 +11,7 @@ use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use crate::agent_config::AgentConfig;
 use crate::cluster_desired_state::ClusterDesiredState;
 use crate::cluster_params::ClusterParams;
-use crate::constants::LONGER_THAN_ANY_TEST_RUN;
+use crate::longer_than_any_test_run::longer_than_any_test_run;
 
 pub struct EmbeddingClusterParams {
     pub agents: Vec<AgentConfig>,
@@ -55,7 +55,7 @@ impl Default for EmbeddingClusterParams {
     fn default() -> Self {
         Self {
             agents: AgentConfig::uniform(1, 4),
-            buffered_request_timeout: LONGER_THAN_ANY_TEST_RUN,
+            buffered_request_timeout: longer_than_any_test_run(),
             embedding_parameters: EmbeddingParameters::default(),
             max_buffered_requests: 10,
             model_card: nomic_embed_text_v1_5(),

@@ -15,7 +15,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
@@ -178,5 +178,5 @@ impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
 }
 
 pub fn post_generate_embedding_batch(cfg: &mut web::ServiceConfig) {
-    cfg.route(API_PATH_GENERATE_EMBEDDING_BATCH, post().to(respond));
+    cfg.route(ApiPath::generate_embedding_batch(), post().to(respond));
 }

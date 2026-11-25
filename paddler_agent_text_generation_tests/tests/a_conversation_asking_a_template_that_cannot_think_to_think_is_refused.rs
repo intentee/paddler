@@ -47,10 +47,7 @@ fn a_conversation_asking_a_template_that_cannot_think_to_think_is_refused() {
             parse_tool_calls: false,
             tools: vec![],
         },
-        runtime
-            .inference_runtime_context
-            .slot_aggregated_status
-            .clone(),
+        runtime.inference_runtime_context.slot_aggregated_status,
     );
 
     assert!(matches!(

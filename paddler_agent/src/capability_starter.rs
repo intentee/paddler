@@ -141,30 +141,6 @@ impl CapabilityStarter<'_> {
         }
     }
 
-    fn served_model_of(
-        capabilities_start: ControlFlow<CapabilityStartupInterruption, ServedCapabilities>,
-        loaded_llama_model: LoadedLlamaModel,
-        model_capabilities: Arc<EstablishedModelCapabilities>,
-        model_serving_settings: ModelServingSettings,
-    ) -> ControlFlow<Box<ServingInterruption>, ServedModel> {
-        match capabilities_start {
-            ControlFlow::Continue(capabilities) => ControlFlow::Continue(ServedModel {
-                capabilities,
-                loaded_llama_model,
-                model_capabilities,
-                model_serving_settings,
-            }),
-            ControlFlow::Break(interruption) => {
-                drop(model_capabilities);
-
-                ControlFlow::Break(Box::new(ServingInterruption {
-                    interruption,
-                    loaded_llama_model,
-                }))
-            }
-        }
-    }
-
     async fn complete_with_text_generation(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
@@ -217,6 +193,30 @@ impl CapabilityStarter<'_> {
         {
             Ok(model_capabilities) => ControlFlow::Continue(Arc::new(model_capabilities)),
             Err(establishment_error) => ControlFlow::Break(startup_failure(establishment_error)),
+        }
+    }
+
+    fn served_model_of(
+        capabilities_start: ControlFlow<CapabilityStartupInterruption, ServedCapabilities>,
+        loaded_llama_model: LoadedLlamaModel,
+        model_capabilities: Arc<EstablishedModelCapabilities>,
+        model_serving_settings: ModelServingSettings,
+    ) -> ControlFlow<Box<ServingInterruption>, ServedModel> {
+        match capabilities_start {
+            ControlFlow::Continue(capabilities) => ControlFlow::Continue(ServedModel {
+                capabilities,
+                loaded_llama_model,
+                model_capabilities,
+                model_serving_settings,
+            }),
+            ControlFlow::Break(interruption) => {
+                drop(model_capabilities);
+
+                ControlFlow::Break(Box::new(ServingInterruption {
+                    interruption,
+                    loaded_llama_model,
+                }))
+            }
         }
     }
 

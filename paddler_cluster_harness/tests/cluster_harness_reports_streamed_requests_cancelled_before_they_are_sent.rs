@@ -8,8 +8,7 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -66,7 +65,7 @@ async fn cluster_harness_reports_streamed_requests_cancelled_before_they_are_sen
     assert!(
         is_cancelled_request_to(
             raw_prompt_stream_error.as_ref(),
-            &format_api_url(inference_base_url, API_PATH_CONTINUE_FROM_RAW_PROMPT)
+            &format_api_url(inference_base_url, ApiPath::continue_from_raw_prompt())
         ),
         "{raw_prompt_stream_error:?}"
     );
@@ -75,7 +74,7 @@ async fn cluster_harness_reports_streamed_requests_cancelled_before_they_are_sen
             conversation_history_stream_error.as_ref(),
             &format_api_url(
                 inference_base_url,
-                API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY
+                ApiPath::continue_from_conversation_history()
             )
         ),
         "{conversation_history_stream_error:?}"

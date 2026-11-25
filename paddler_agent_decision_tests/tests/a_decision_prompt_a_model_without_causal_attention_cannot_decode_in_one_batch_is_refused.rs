@@ -32,7 +32,7 @@ async fn a_decision_prompt_a_model_without_causal_attention_cannot_decode_in_one
         .await
         .expect("the decision must be answered with a refusal");
 
-    assert!(collected.answers.is_empty());
+    assert_eq!(collected.answers, Vec::new());
     assert!(matches!(
         collected.terminal_result,
         DecisionResult::RequestRejected(_)

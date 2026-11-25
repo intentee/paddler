@@ -1,21 +1,23 @@
 use log::Level;
 
 use paddler_agent_tests::agent_answer_after_a_notification::agent_answer_after_a_notification;
-use paddler_agent_tests::constants::ANSWERED_REQUEST_ID;
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 
+use crate::constants::ANSWERED_REQUEST_ID;
+
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_keeps_a_management_connection_after_a_stop_for_an_unknown_request() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     assert_eq!(
-        agent_answer_after_a_notification(AgentJsonRpcNotification::StopRespondingTo(
-            "unknown-request".to_owned(),
-        ))
+        agent_answer_after_a_notification(
+            AgentJsonRpcNotification::StopRespondingTo("unknown-request".to_owned()),
+            ANSWERED_REQUEST_ID,
+        )
         .await
         .expect("the agent must answer after the notification"),
         ResponseEnvelope {
@@ -26,7 +28,8 @@ async fn agent_keeps_a_management_connection_after_a_stop_for_an_unknown_request
     );
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::balancer_message_context")
+        capturing_logger
+            .records_for("paddler_agent::balancer_message_context")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Debug)
     );

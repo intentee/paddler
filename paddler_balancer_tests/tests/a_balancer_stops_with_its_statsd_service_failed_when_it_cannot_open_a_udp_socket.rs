@@ -18,8 +18,8 @@ use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
-use paddler_cluster_harness::constants::LONGER_THAN_ANY_TEST_RUN;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
+use paddler_cluster_harness::longer_than_any_test_run::longer_than_any_test_run;
 use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
 use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
@@ -54,8 +54,8 @@ async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_u
     let mut balancer_runner = BalancerRunner::start(BalancerRunnerParams {
         bootstrap_config: BalancerBootstrapConfig {
             statsd_service_configuration: Some(StatsdServiceConfiguration {
-                statsd_addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
-                statsd_reporting_interval: LONGER_THAN_ANY_TEST_RUN,
+                statsd_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
+                statsd_reporting_interval: longer_than_any_test_run(),
             }),
             ..balancer_runner_params.bootstrap_config
         },

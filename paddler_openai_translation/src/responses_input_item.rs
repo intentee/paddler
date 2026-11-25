@@ -1,8 +1,8 @@
 use serde::Deserialize;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::conversation_role::ConversationRole;
 
 use crate::openai_translation_error::OpenAITranslationError;
 use crate::responses_function_call_output_item::ResponsesFunctionCallOutputItem;
@@ -44,7 +44,7 @@ impl ResponsesInputItem {
                         }
                     }
                     Some(ConversationMessage::Message { content, role })
-                        if role == ASSISTANT_ROLE =>
+                        if role == ConversationRole::Assistant.name() =>
                     {
                         ConversationMessage::AssistantToolCalls {
                             content,

@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 
 use crate::cluster_harness_error::ClusterHarnessError;
-use crate::constants::EPHEMERAL_LOOPBACK_ADDR;
+use crate::ephemeral_loopback_addr::ephemeral_loopback_addr;
 use crate::untrusted_balancer_socket::UntrustedBalancerSocket;
 
 pub struct UntrustedBalancerSocketServer {
@@ -19,7 +19,7 @@ impl UntrustedBalancerSocketServer {
     ///
     /// Returns the [`IoError`] of a loopback listener that cannot be bound or whose address cannot be read.
     pub async fn bind() -> Result<Self, IoError> {
-        TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
+        TcpListener::bind(ephemeral_loopback_addr())
             .await
             .and_then(|tcp_listener| {
                 tcp_listener.local_addr().map(|management_addr| Self {

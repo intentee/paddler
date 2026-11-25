@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision_tests::snowy_weather_decision::snowy_weather_decision;
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
 use paddler_messaging::decision_result::DecisionResult;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -19,14 +19,18 @@ async fn a_decision_about_an_image_for_a_model_that_cannot_see_is_refused() {
         .decide(
             CancellationToken::new(),
             &DecisionRequest {
-                images: vec![LLAMAS_JPEG.data_uri().expect("the test image must load")],
+                images: vec![
+                    ImageFixture::LlamasJpeg
+                        .data_uri()
+                        .expect("the test image must load"),
+                ],
                 ..snowy_weather_decision()
             },
         )
         .await
         .expect("the decision must be answered with a refusal");
 
-    assert!(collected.answers.is_empty());
+    assert_eq!(collected.answers, Vec::new());
     assert!(matches!(
         collected.terminal_result,
         DecisionResult::RequestRejected(_)

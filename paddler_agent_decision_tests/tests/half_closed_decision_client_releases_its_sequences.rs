@@ -11,7 +11,7 @@ use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_messaging::constants::API_PATH_DECIDE;
+use paddler_messaging::api_path::ApiPath;
 use paddler_request_params_fixture::repeated_state_decision::repeated_state_decision;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
@@ -38,7 +38,7 @@ async fn half_closed_decision_client_releases_its_sequences() {
         .clone();
     let mut half_closed_client = HalfClosedClient::post_json_then_half_close(
         cluster.balancer.addresses.inference,
-        API_PATH_DECIDE,
+        ApiPath::decide(),
         &to_value(repeated_state_decision(
             STATE_REPETITIONS_SPANNING_MANY_DECODES,
         ))

@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_text_generation_tests::audio_transcription_conversation::audio_transcription_conversation;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
-use paddler_file_fixture::constants::QUICK_BROWN_FOX_WAV;
+use paddler_file_fixture::audio_fixture::AudioFixture;
 use paddler_messaging::conversation_feature::ConversationFeature;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::unsupported_conversation_feature::UnsupportedConversationFeature;
@@ -20,7 +20,7 @@ async fn a_model_that_cannot_hear_refuses_audio() {
         .continue_from_conversation_history(
             CancellationToken::new(),
             &audio_transcription_conversation(
-                QUICK_BROWN_FOX_WAV
+                AudioFixture::QuickBrownFoxWav
                     .input_audio()
                     .expect("the test audio must load"),
             ),

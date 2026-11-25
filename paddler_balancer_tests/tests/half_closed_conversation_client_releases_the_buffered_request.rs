@@ -5,7 +5,7 @@ use serde_json::to_value;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
+use paddler_messaging::api_path::ApiPath;
 use paddler_request_params_fixture::greeting_conversation::greeting_conversation;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -18,7 +18,7 @@ async fn half_closed_conversation_client_releases_the_buffered_request() {
     let params = greeting_conversation(NonZeroU32::new(2048).unwrap());
     let mut client = HalfClosedClient::post_json_then_half_close(
         inference_addr,
-        API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
+        ApiPath::continue_from_conversation_history(),
         &to_value(&params).expect("the request parameters must serialize"),
     )
     .await

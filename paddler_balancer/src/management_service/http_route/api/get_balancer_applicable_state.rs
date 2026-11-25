@@ -4,7 +4,7 @@ use actix_web::Responder;
 use actix_web::web;
 use actix_web::web::get;
 
-use paddler_messaging::constants::API_PATH_BALANCER_APPLICABLE_STATE;
+use paddler_messaging::api_path::ApiPath;
 
 use crate::management_service::app_data::AppData;
 
@@ -17,7 +17,7 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
 }
 
 pub fn get_balancer_applicable_state(cfg: &mut web::ServiceConfig) {
-    cfg.route(API_PATH_BALANCER_APPLICABLE_STATE, get().to(respond));
+    cfg.route(ApiPath::balancer_applicable_state(), get().to(respond));
 }
 
 #[cfg(test)]
@@ -38,8 +38,8 @@ mod tests {
     use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::constants::API_PATH_BALANCER_APPLICABLE_STATE;
 
     use super::get_balancer_applicable_state;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -80,7 +80,7 @@ mod tests {
         let response = call_service(
             &app,
             TestRequest::get()
-                .uri(API_PATH_BALANCER_APPLICABLE_STATE)
+                .uri(ApiPath::balancer_applicable_state())
                 .to_request(),
         )
         .await;

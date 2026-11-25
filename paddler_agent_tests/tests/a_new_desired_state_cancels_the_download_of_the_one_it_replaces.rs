@@ -1,19 +1,15 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_cluster_harness::constants::BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT;
 use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
-use paddler_local_http_fixture::fixture_response::FixtureResponse;
-use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
+use paddler_cluster_harness::trickling_model_server::trickling_model_server;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_new_desired_state_cancels_the_download_of_the_one_it_replaces() {
-    let fixture = LocalHttpFixture::start(FixtureResponse::EndlessTrickle {
-        byte_interval: BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT,
-    })
-    .await
-    .expect("the local HTTP fixture must start");
+    let fixture = trickling_model_server()
+        .await
+        .expect("the local HTTP fixture must start");
     let cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
         model: AgentDesiredModel::Uri(fixture.url("/endless.gguf")),
         ..BalancerDesiredState::default()

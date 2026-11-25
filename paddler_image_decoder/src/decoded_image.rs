@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn rasterizes_small_svg() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let svg_data = br#"<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
             <rect width="50" height="50" fill="red"/>
@@ -462,7 +462,8 @@ mod tests {
         assert_eq!(decoded_image.height, 50);
         assert_eq!(decoded_image.rgb_pixels.first_chunk(), Some(&[255, 0, 0]));
         assert!(
-            CapturingLogger::records_for("paddler_image_decoder::decoded_image")
+            capturing_logger
+                .records_for("paddler_image_decoder::decoded_image")
                 .iter()
                 .any(|CapturedRecord { level, .. }| *level == Level::Info)
         );

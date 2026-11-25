@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn closing_notifies_open_requests_after_one_receiver_was_dropped() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = InferenceSocketExchange::default();
         let abandoned_request = exchange
@@ -259,11 +259,10 @@ mod tests {
             Ok(Err(Error::ConnectionDropped { request_id })) if request_id == "awaited"
         ));
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inference_socket_exchange"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Debug)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inference_socket_exchange")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Debug)
         );
     }
 
@@ -368,7 +367,7 @@ mod tests {
 
     #[test]
     fn failing_an_abandoned_request_forgets_it() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = InferenceSocketExchange::default();
         let abandoned_request = exchange
@@ -390,11 +389,10 @@ mod tests {
             },
         ));
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inference_socket_exchange"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Debug)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inference_socket_exchange")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Debug)
         );
     }
 
@@ -419,7 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_failed_write_drops_every_awaiting_request() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = Arc::new(InferenceSocketExchange::default());
         let (frames_tx, frames_rx) = channel::<WsMessage>(1);
@@ -442,11 +440,10 @@ mod tests {
             Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inference_socket_exchange"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inference_socket_exchange")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 }

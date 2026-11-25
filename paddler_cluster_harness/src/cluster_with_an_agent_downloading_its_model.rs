@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -9,7 +8,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use crate::cluster::Cluster;
 use crate::cluster_desired_state::ClusterDesiredState;
 use crate::cluster_params::ClusterParams;
-use crate::constants::BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT;
+use crate::trickling_model_server::trickling_model_server;
 
 pub struct ClusterWithAnAgentDownloadingItsModel {
     pub cluster: Cluster,
@@ -21,11 +20,9 @@ impl ClusterWithAnAgentDownloadingItsModel {
     ///
     /// Returns an error when the model server cannot start, when the cluster cannot start, and when its first agent does not start downloading the model.
     pub async fn start(cluster_params: ClusterParams) -> Result<Self> {
-        let model_server = LocalHttpFixture::start(FixtureResponse::EndlessTrickle {
-            byte_interval: BYTE_INTERVAL_WITHIN_THE_READ_TIMEOUT,
-        })
-        .await
-        .context("the model server must start")?;
+        let model_server = trickling_model_server()
+            .await
+            .context("the model server must start")?;
         let mut cluster = Cluster::start_in_process(ClusterParams {
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
                 model: AgentDesiredModel::Uri(model_server.url("/model.gguf")),

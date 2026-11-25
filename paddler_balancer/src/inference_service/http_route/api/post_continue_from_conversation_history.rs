@@ -5,7 +5,7 @@ use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -50,7 +50,7 @@ async fn respond(
 
 pub fn post_continue_from_conversation_history(cfg: &mut web::ServiceConfig) {
     cfg.route(
-        API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
+        ApiPath::continue_from_conversation_history(),
         post().to(respond),
     );
 }

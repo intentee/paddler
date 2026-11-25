@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_client::error::Error as ClientError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
-use paddler_messaging::constants::API_PATH_DECIDE;
+use paddler_messaging::api_path::ApiPath;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_a_decision_without_questions_with_bad_request() {
@@ -20,7 +20,7 @@ async fn balancer_rejects_a_decision_without_questions_with_bad_request() {
     let decide_url = cluster
         .balancer
         .inference_base_url
-        .join(API_PATH_DECIDE)
+        .join(ApiPath::decide())
         .expect("the decide path must extend the inference address");
     let rejection = cluster
         .decide(

@@ -3,7 +3,7 @@ use reqwest::get;
 
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
+use paddler_messaging::api_path::ApiPath;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_rejects_a_request_without_a_websocket_upgrade() {
@@ -13,7 +13,8 @@ async fn inference_socket_rejects_a_request_without_a_websocket_upgrade() {
 
     let response = get(format!(
         "http://{}{}",
-        cluster.balancer.addresses.inference, API_PATH_INFERENCE_SOCKET
+        cluster.balancer.addresses.inference,
+        ApiPath::inference_socket()
     ))
     .await
     .expect("the balancer must answer a plain HTTP request");

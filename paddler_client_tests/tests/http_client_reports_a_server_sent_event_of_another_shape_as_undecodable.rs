@@ -8,7 +8,7 @@ use paddler_client::http_client::HttpClient;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_messaging::constants::API_PATH_AGENTS_STREAM;
+use paddler_messaging::api_path::ApiPath;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_client_reports_a_server_sent_event_of_another_shape_as_undecodable() {
@@ -16,7 +16,7 @@ async fn http_client_reports_a_server_sent_event_of_another_shape_as_undecodable
         .await
         .expect("a balancer without agents must start");
     let mut events = HttpClient::new(cluster.balancer.management_base_url.clone())
-        .get_sse_json::<String>(CancellationToken::new(), API_PATH_AGENTS_STREAM)
+        .get_sse_json::<String>(CancellationToken::new(), ApiPath::agents_stream())
         .await
         .expect("the agents event stream must open");
     let empty_pool_snapshot = to_string(&AgentControllerPoolSnapshot { agents: Vec::new() })

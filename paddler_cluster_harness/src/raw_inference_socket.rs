@@ -15,7 +15,7 @@ use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_tungstenite::tungstenite::Message;
 
-use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
@@ -65,9 +65,12 @@ impl RawInferenceSocket {
     ///
     /// Returns the [`WebSocketError`] of a connection to the inference socket that cannot be established.
     pub async fn connect(inference_addr: SocketAddr) -> Result<Self, WebSocketError> {
-        connect_async(format!("ws://{inference_addr}{API_PATH_INFERENCE_SOCKET}"))
-            .await
-            .map(|(websocket, _handshake_response)| Self { websocket })
+        connect_async(format!(
+            "ws://{inference_addr}{}",
+            ApiPath::inference_socket()
+        ))
+        .await
+        .map(|(websocket, _handshake_response)| Self { websocket })
     }
 
     /// # Errors

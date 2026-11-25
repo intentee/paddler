@@ -1,10 +1,11 @@
 use std::os::unix::process::ExitStatusExt as _;
 use std::process::ExitStatus;
 
-use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+
+use crate::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_cluster_reports_a_balancer_that_exits_before_announcing() {

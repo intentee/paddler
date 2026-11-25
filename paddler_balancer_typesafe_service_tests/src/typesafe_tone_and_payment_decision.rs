@@ -9,12 +9,13 @@ use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::system_one_request::system_one_request;
 use paddler_cluster_harness::typesafe_api_response::TypeSafeApiResponse;
 
-use crate::constants::TYPESAFE_TONE_AND_PAYMENT_REQUEST_ID;
-
-async fn decide_the_tone_and_payment(cluster: Cluster) -> Result<TypeSafeApiResponse> {
+async fn decide_the_tone_and_payment(
+    cluster: Cluster,
+    request_id: &str,
+) -> Result<TypeSafeApiResponse> {
     cluster
         .typesafe_system_one(
-            TYPESAFE_TONE_AND_PAYMENT_REQUEST_ID,
+            request_id,
             &system_one_request(
                 &json!("The invoice was paid on time."),
                 &json!({
@@ -36,10 +37,10 @@ async fn decide_the_tone_and_payment(cluster: Cluster) -> Result<TypeSafeApiResp
 /// # Errors
 ///
 /// Returns an error when the decision cluster cannot start, when the System One request is not answered, and when the cluster does not shut down cleanly.
-pub async fn typesafe_tone_and_payment_decision() -> Result<TypeSafeApiResponse> {
+pub async fn typesafe_tone_and_payment_decision(request_id: &str) -> Result<TypeSafeApiResponse> {
     DecisionClusterParams::default()
         .start_cluster()
         .map(|started| started.context("the cluster must start"))
-        .and_then(decide_the_tone_and_payment)
+        .and_then(|cluster| decide_the_tone_and_payment(cluster, request_id))
         .await
 }

@@ -9,13 +9,13 @@ use paddler_messaging::management_socket::agent::request::Request as AgentJsonRp
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 
 use crate::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
-use crate::constants::ANSWERED_REQUEST_ID;
 
 /// # Errors
 ///
 /// Returns an error when the agent cannot connect to the untrusted balancer, when the notification or the request cannot be sent, and when the agent does not answer over the same connection.
 pub async fn agent_answer_after_a_notification(
     notification: AgentJsonRpcNotification,
+    answered_request_id: &str,
 ) -> Result<ResponseEnvelope<AgentJsonRpcResponse>> {
     AgentConnectedToAnUntrustedBalancer::connect()
         .and_then(|connected_agent| {
@@ -23,7 +23,7 @@ pub async fn agent_answer_after_a_notification(
         })
         .and_then(|connected_agent| {
             connected_agent.send_agent_message(AgentJsonRpcMessage::Request(RequestEnvelope {
-                id: ANSWERED_REQUEST_ID.to_owned(),
+                id: answered_request_id.to_owned(),
                 request: AgentJsonRpcRequest::GetModelMetadata,
             }))
         })

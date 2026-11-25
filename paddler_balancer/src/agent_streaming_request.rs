@@ -1,7 +1,6 @@
 use std::num::NonZeroU16;
 use std::sync::Arc;
 
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -90,11 +89,7 @@ impl AgentStreamingRequest for DecideParams {
     }
 
     fn slot_demand(&self) -> SlotDemand {
-        SlotDemand::Exactly(if self.request.questions.len() > 1 {
-            DECISION_SLOTS_MINIMUM
-        } else {
-            NonZeroU16::MIN
-        })
+        SlotDemand::Exactly(self.slots_needed())
     }
 }
 
@@ -119,11 +114,6 @@ mod tests {
     use std::num::NonZeroU16;
     use std::num::NonZeroU32;
 
-    use indexmap::IndexMap;
-    use llama_cpp_bindings_types::decision_question::DecisionQuestion;
-    use llama_cpp_bindings_types::decision_request::DecisionRequest;
-    use serde_json::json;
-
     use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
     use paddler_messaging::conversation_history::ConversationHistory;
@@ -134,31 +124,11 @@ mod tests {
     use paddler_messaging::request_params::decide_params::DecideParams;
     use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
     use paddler_messaging::requested_capability::RequestedCapability;
+    use paddler_request_params_fixture::many_question_decision::many_question_decision;
 
     use super::AgentStreamingRequest as _;
     use crate::dispatch_requirement::DispatchRequirement;
     use crate::slot_demand::SlotDemand;
-
-    fn decision_with_questions(question_ids: &[&str]) -> DecideParams {
-        DecideParams {
-            request: DecisionRequest {
-                images: Vec::new(),
-                questions: question_ids
-                    .iter()
-                    .map(|question_id| {
-                        (
-                            (*question_id).to_owned(),
-                            DecisionQuestion::Noul {
-                                criteria: IndexMap::new(),
-                                instructions: json!("Is it so?"),
-                            },
-                        )
-                    })
-                    .collect(),
-                state: json!("state"),
-            },
-        }
-    }
 
     fn embedding_batch(documents: usize) -> GenerateEmbeddingBatchParams {
         GenerateEmbeddingBatchParams {
@@ -210,20 +180,12 @@ mod tests {
     }
 
     #[test]
-    fn a_decision_asking_one_question_demands_only_its_state_slot() {
+    fn a_decision_demands_the_decision_slots_its_questions_need() {
         assert_eq!(
-            decision_with_questions(&["only"]).dispatch_requirement(),
-            DispatchRequirement {
-                requested_capability: RequestedCapability::Decisions,
-                slot_demand: SlotDemand::Exactly(NonZeroU16::MIN),
+            DecideParams {
+                request: many_question_decision(2),
             }
-        );
-    }
-
-    #[test]
-    fn a_decision_asking_several_questions_demands_its_state_and_question_lane_slots() {
-        assert_eq!(
-            decision_with_questions(&["first", "second"]).dispatch_requirement(),
+            .dispatch_requirement(),
             DispatchRequirement {
                 requested_capability: RequestedCapability::Decisions,
                 slot_demand: SlotDemand::Exactly(DECISION_SLOTS_MINIMUM),
