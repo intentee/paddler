@@ -3,6 +3,7 @@ use std::io::ErrorKind;
 
 use http::header::RANGE;
 use httparse::EMPTY_HEADER;
+use httparse::Header;
 use httparse::Request;
 use tokio::io::AsyncReadExt as _;
 use tokio::net::TcpStream;
@@ -24,8 +25,8 @@ pub async fn read_range_header(stream: &mut TcpStream) -> io::Result<Option<Vec<
             return Ok(request
                 .headers
                 .iter()
-                .find(|parsed_header| parsed_header.name.eq_ignore_ascii_case(RANGE.as_str()))
-                .map(|range_header| range_header.value.to_vec()));
+                .find(|&&Header { name, .. }| name.eq_ignore_ascii_case(RANGE.as_str()))
+                .map(|&Header { value, .. }| value.to_vec()));
         }
 
         if stream.read_buf(&mut received).await? == 0 {

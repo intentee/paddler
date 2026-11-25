@@ -5,41 +5,45 @@ use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_DECIDE;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::validates::Validates as _;
 
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+use crate::decisions_serving::DecisionsServing;
 use crate::inference_service::app_data::AppData;
 use crate::invalid_request_parameters_description::invalid_request_parameters_description;
 use crate::ndjson_response::ndjson_response;
-use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
-use crate::unbounded_stream_from_agent_params::UnboundedStreamFromAgentParams;
+use crate::unbounded_stream_from_agent::UnboundedStreamFromAgent;
 
 async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<RawDecideParams>,
 ) -> Result<impl Responder, Error> {
-    app_data
-        .balancer_applicable_state_holder
-        .require_decisions()
-        .map_err(ErrorServiceUnavailable)?;
+    if let DecisionsServing::NotServed(cluster_serves_no_decisions) =
+        app_data.agent_controller_pool.decisions_serving()
+    {
+        return Err(ErrorServiceUnavailable(cluster_serves_no_decisions));
+    }
 
     let validated_params = params.into_inner().validate().map_err(|validation_error| {
         ErrorBadRequest(invalid_request_parameters_description(&validation_error))
     })?;
 
-    Ok(ndjson_response(unbounded_stream_from_agent(
-        UnboundedStreamFromAgentParams {
+    Ok(ndjson_response(
+        UnboundedStreamFromAgent {
             buffered_request_manager: app_data.buffered_request_manager.clone(),
-            inference_service_configuration: app_data.inference_service_configuration.clone(),
+            inference_item_timeout: app_data
+                .inference_service_configuration
+                .inference_item_timeout,
             request_params: validated_params,
             shutdown: app_data.shutdown.clone(),
             transformer: IdentityTransformer::new(),
-        },
-    )))
+        }
+        .into_stream(),
+    ))
 }
 
 pub fn post_decide(cfg: &mut web::ServiceConfig) {
-    cfg.route(ApiPath::DECIDE, post().to(respond));
+    cfg.route(API_PATH_DECIDE, post().to(respond));
 }

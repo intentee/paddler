@@ -9,7 +9,7 @@ impl<TServed> CapabilityPlan<TServed>
 where
     TServed: ShutsDown + Send,
 {
-    pub async fn retaining<TSettings: PartialEq>(
+    pub async fn retaining<TSettings: PartialEq + Sync>(
         served: TServed,
         served_settings: &TSettings,
         desired_settings: &TSettings,
@@ -46,15 +46,15 @@ mod tests {
     #[tokio::test]
     async fn keeps_a_capability_whose_settings_did_not_change() {
         assert_eq!(
-            discriminant(&CapabilityPlan::retaining(ServedDecisions::Disabled, &1, &1).await),
-            discriminant(&CapabilityPlan::Keep(ServedDecisions::Disabled))
+            discriminant(&CapabilityPlan::retaining(ServedDecisions::NotServed, &1, &1).await),
+            discriminant(&CapabilityPlan::Keep(ServedDecisions::NotServed))
         );
     }
 
     #[tokio::test]
     async fn restarts_a_capability_whose_settings_changed() {
         assert_eq!(
-            discriminant(&CapabilityPlan::retaining(ServedDecisions::Disabled, &1, &2).await),
+            discriminant(&CapabilityPlan::retaining(ServedDecisions::NotServed, &1, &2).await),
             discriminant(&CapabilityPlan::<ServedDecisions>::Start)
         );
     }

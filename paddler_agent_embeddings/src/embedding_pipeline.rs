@@ -33,6 +33,9 @@ pub struct EmbeddingPipeline {
 }
 
 impl EmbeddingPipeline {
+    /// # Errors
+    ///
+    /// Returns [`EmbeddingError::AgentRuntime`] when the embeddings context cannot be created or warmed up.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,
@@ -85,7 +88,7 @@ impl EmbeddingPipeline {
                                     agent_name: inference_runtime_context.agent_name.clone(),
                                     preparation: EmbeddingBatchPreparer {
                                         loaded_llama_model: loaded_llama_model.clone(),
-                                        n_batch: batch.limits().n_batch as usize,
+                                        n_batch: batch.limits().batch as usize,
                                         sequence_context_limit: SequenceContextLimit::of(
                                             &llama_context,
                                         ),

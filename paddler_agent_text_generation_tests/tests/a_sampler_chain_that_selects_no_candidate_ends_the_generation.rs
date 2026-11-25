@@ -1,0 +1,54 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
+use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
+use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
+use paddler_agent_text_generation::token_sampling::TokenSampling;
+use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+
+const PROMPT: &str = "Paddler balances";
+
+#[test]
+fn a_sampler_chain_that_selects_no_candidate_ends_the_generation() {
+    let runtime = LlamaRuntime::load(
+        &kev_0_8b()
+            .cached_path()
+            .expect("the kev model must be in the Hugging Face cache"),
+        agent_inference_runtime_context(1),
+    )
+    .expect("the kev model must load");
+    let mut llama_context = runtime
+        .create_text_generation_llama_context(1)
+        .expect("the context must be created");
+    let prompt_sampling_positions = runtime
+        .decode_prompt_for_sampling(&mut llama_context, PROMPT)
+        .expect("the prompt must decode");
+
+    assert_eq!(
+        ReadyToSampleRequest {
+            llama_context: &llama_context,
+            prompt: PROMPT,
+            prompt_sampling_positions,
+            runtime: &runtime,
+        }
+        .advance(|prepared_request| PreparedGenerationRequest {
+            token_sampling: TokenSampling {
+                chain: LlamaSampler::top_k(1).expect("the top-k sampler must initialize"),
+                grammar: GrammarSampling::Unconstrained,
+            },
+            ..prepared_request
+        })
+        .expect("the request must be ready to sample"),
+        ContinuousBatchTerminalOutcome::EmitToClient(
+            GeneratedTokenResult::SamplingCandidatesExhausted(
+                "all token candidates were eliminated during sampling".to_owned()
+            )
+        )
+    );
+}

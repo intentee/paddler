@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 use paddler_agent_runtime::resident_llama_model::ResidentLlamaModel;
 
@@ -18,6 +18,9 @@ pub struct PromptTokenizer {
 }
 
 impl PromptTokenizer {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::PromptTokenizationFailed`] when the model cannot tokenize the prompt, [`TextGenerationError::PromptTokenizedToNothing`] when it yields no tokens, and [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context.
     pub fn tokenize(&self, prompt: &str) -> Result<Vec<LlamaToken>, TextGenerationError> {
         let mut prompt_tokens = self
             .model
@@ -34,6 +37,9 @@ impl PromptTokenizer {
         self.servable(prompt_tokens)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::ChatPromptTokenizationFailed`] when the chat session cannot tokenize its prompt, [`TextGenerationError::PromptTokenizedToNothing`] when it yields no tokens, and [`TextGenerationError::PromptExceedsContextSize`] when it does not fit the sequence context.
     pub fn tokenize_chat_session(
         &self,
         chat_session: &ChatSession,

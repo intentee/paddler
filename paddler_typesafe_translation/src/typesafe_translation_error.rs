@@ -1,7 +1,5 @@
 use serde_json::Error as JsonError;
 
-use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
-
 #[derive(Debug, thiserror::Error)]
 pub enum TypeSafeTranslationError {
     #[error(
@@ -32,12 +30,11 @@ pub enum TypeSafeTranslationError {
         question_id: String,
     },
 
-    #[error("the System One request is not a valid decision: {source}")]
-    DecisionInvalid {
-        #[source]
-        source: RequestParamsValidationError,
-    },
-    #[error("question {question_id} is malformed: {source}")]
+    #[error(
+        "the System One request is not a valid decision: a decision needs at least one question"
+    )]
+    DecisionWithoutQuestions,
+    #[error("question {question_id} is malformed")]
     QuestionMalformed {
         question_id: String,
         #[source]

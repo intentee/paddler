@@ -9,7 +9,6 @@ use paddler_messaging::agent_issue_params::model_path::ModelPath;
 pub enum DesiredModelFile {
     Model,
     MultimodalProjection,
-    PointerHead,
 }
 
 impl DesiredModelFile {
@@ -20,10 +19,6 @@ impl DesiredModelFile {
                     .register_fix(&AgentIssueFix::ModelFileExists(ModelPath::from(path)));
             }
             Self::MultimodalProjection => {}
-            Self::PointerHead => {
-                slot_aggregated_status
-                    .register_fix(&AgentIssueFix::PointerHeadFileExists(ModelPath::from(path)));
-            }
         }
     }
 
@@ -35,7 +30,6 @@ impl DesiredModelFile {
             Self::MultimodalProjection => {
                 AgentIssue::MultimodalProjectionCannotBeLoaded(model_path)
             }
-            Self::PointerHead => AgentIssue::PointerHeadCannotBeLoaded(model_path),
         });
     }
 }

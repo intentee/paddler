@@ -1,7 +1,7 @@
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_failed_params::HuggingFaceDownloadFailedParams;
+use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 
 #[derive(Debug)]
@@ -14,9 +14,6 @@ pub enum AgentIssueFix {
     ModelDownloadCompleted(ModelPath),
     ModelDownloadStarted(ModelPath),
     MultimodalProjectionIsLoaded(ModelPath),
-    PointerHeadFileExists(ModelPath),
-    PointerHeadIsCompatibleWithModel(ModelPath),
-    PointerHeadIsLoaded(ModelPath),
     SlotStarted(u32),
 }
 
@@ -30,14 +27,11 @@ impl AgentIssueFix {
                 }
                 _ => false,
             },
-            AgentIssue::HuggingFaceCannotAcquireLock(hugging_face_download_lock) => match self {
-                Self::HuggingFaceDownloadedModel(fix_model_path)
-                | Self::HuggingFaceStartedDownloading(fix_model_path) => {
-                    hugging_face_download_lock.model_path.eq(fix_model_path)
-                }
-                _ => false,
-            },
-            AgentIssue::HuggingFaceDownloadFailed(HuggingFaceDownloadFailedParams {
+            AgentIssue::HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock {
+                lock_path: _,
+                model_path: issue_model_path,
+            })
+            | AgentIssue::HuggingFaceDownloadFailed(HuggingFaceDownloadFailedParams {
                 failure: _,
                 model_path: issue_model_path,
             }) => match self {
@@ -62,8 +56,7 @@ impl AgentIssueFix {
             },
             AgentIssue::LocalModelFileCannotBeChecked(issue_model_path) => match self {
                 Self::ModelFileExists(fix_model_path)
-                | Self::MultimodalProjectionIsLoaded(fix_model_path)
-                | Self::PointerHeadFileExists(fix_model_path) => {
+                | Self::MultimodalProjectionIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
                 _ => false,
@@ -77,6 +70,8 @@ impl AgentIssueFix {
             },
             AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(_)
             | AgentIssue::AgentModelUriIsNotCanonical(_)
+            | AgentIssue::DecisionModelIsMalformed(_)
+            | AgentIssue::DecisionTypeIsUnsupported(_)
             | AgentIssue::HuggingFaceModelUriIsMalformed(_)
             | AgentIssue::ModelUriIsUnparseable(_)
             | AgentIssue::SlotsInsufficientForDecisions(_)
@@ -84,24 +79,6 @@ impl AgentIssueFix {
             AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
                 matches!(self, Self::MultimodalProjectionIsLoaded(_))
             }
-            AgentIssue::PointerHeadCannotBeLoaded(issue_pointer_head_path) => match self {
-                Self::PointerHeadFileExists(fix_pointer_head_path)
-                | Self::PointerHeadIsLoaded(fix_pointer_head_path) => {
-                    issue_pointer_head_path.eq(fix_pointer_head_path)
-                }
-                _ => false,
-            },
-            AgentIssue::PointerHeadIncompatibleWithModel(
-                PointerHeadIncompatibleWithModelParams {
-                    incompatibility: _,
-                    pointer_head_path: issue_pointer_head_path,
-                },
-            ) => match self {
-                Self::PointerHeadIsCompatibleWithModel(fix_pointer_head_path) => {
-                    issue_pointer_head_path.eq(fix_pointer_head_path)
-                }
-                _ => false,
-            },
             AgentIssue::SlotCannotStart(SlotCannotStartParams {
                 error: _,
                 inference_capability: _,
@@ -120,11 +97,17 @@ impl AgentIssueFix {
             | AgentIssue::DownloadServerRejectedRequest(issue_model_path)
             | AgentIssue::DownloadUrlIsMalformed(issue_model_path)
             | AgentIssue::ModelCacheIsCorrupted(issue_model_path)
-            | AgentIssue::ModelDoesNotExistAtUrl(issue_model_path) => match self {
-                Self::ModelDownloadCompleted(fix_model_path)
-                | Self::ModelDownloadStarted(fix_model_path) => issue_model_path.eq(fix_model_path),
-                _ => false,
-            },
+            | AgentIssue::ModelDoesNotExistAtUrl(issue_model_path) => {
+                self.fixes_the_download_of(issue_model_path)
+            }
+        }
+    }
+
+    fn fixes_the_download_of(&self, issue_model_path: &ModelPath) -> bool {
+        match self {
+            Self::ModelDownloadCompleted(fix_model_path)
+            | Self::ModelDownloadStarted(fix_model_path) => issue_model_path.eq(fix_model_path),
+            _ => false,
         }
     }
 }
@@ -138,29 +121,23 @@ mod tests {
     use paddler_messaging::agent_issue_params::hugging_face_download_failure::HuggingFaceDownloadFailure;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
-    use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
-    use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
     use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
     use paddler_messaging::inference_capability::InferenceCapability;
 
     use super::AgentIssueFix;
 
-    fn model_path(path: &str) -> ModelPath {
-        ModelPath {
-            model_path: path.to_owned(),
-        }
-    }
-
     #[test]
     fn configuration_issues_are_cleared_only_with_their_scope() {
-        let issue_path = model_path("model_a");
+        let issue_path = ModelPath::from("model_a");
         let configuration_issues = [
             AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(issue_path.clone()),
             AgentIssue::AgentModelUriIsNotCanonical(AgentModelUriNotCanonicalParams {
                 canonical_uri: "agent:///model_a".to_owned(),
                 model_path: issue_path.clone(),
             }),
+            AgentIssue::DecisionModelIsMalformed(issue_path.clone()),
+            AgentIssue::DecisionTypeIsUnsupported(issue_path.clone()),
             AgentIssue::HuggingFaceModelUriIsMalformed(issue_path.clone()),
             AgentIssue::ModelUriIsUnparseable(issue_path.clone()),
             AgentIssue::SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams {
@@ -177,10 +154,7 @@ mod tests {
             AgentIssueFix::ModelDownloadStarted(issue_path.clone()),
             AgentIssueFix::ModelFileExists(issue_path.clone()),
             AgentIssueFix::ModelIsLoaded(issue_path.clone()),
-            AgentIssueFix::MultimodalProjectionIsLoaded(issue_path.clone()),
-            AgentIssueFix::PointerHeadFileExists(issue_path.clone()),
-            AgentIssueFix::PointerHeadIsCompatibleWithModel(issue_path.clone()),
-            AgentIssueFix::PointerHeadIsLoaded(issue_path),
+            AgentIssueFix::MultimodalProjectionIsLoaded(issue_path),
             AgentIssueFix::SlotStarted(0),
         ];
 
@@ -192,76 +166,20 @@ mod tests {
     }
 
     #[test]
-    fn pointer_head_file_exists_fixes_only_the_pointer_head_it_names() {
-        let fix = AgentIssueFix::PointerHeadFileExists(model_path("pointer_head_a"));
-
-        assert!(
-            fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(model_path(
-                "pointer_head_a"
-            )))
-        );
-        assert!(
-            !fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(model_path(
-                "pointer_head_b"
-            )))
-        );
-    }
-
-    #[test]
-    fn pointer_head_is_loaded_fixes_only_the_pointer_head_it_names() {
-        let fix = AgentIssueFix::PointerHeadIsLoaded(model_path("pointer_head_a"));
-
-        assert!(
-            fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(model_path(
-                "pointer_head_a"
-            )))
-        );
-        assert!(
-            !fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(model_path(
-                "pointer_head_b"
-            )))
-        );
-    }
-
-    #[test]
-    fn pointer_head_is_compatible_with_model_fixes_only_the_incompatibility_of_the_pointer_head_it_names()
-     {
-        let fix = AgentIssueFix::PointerHeadIsCompatibleWithModel(model_path("pointer_head_a"));
-        let incompatibility_of = |pointer_head_path: &str| {
-            AgentIssue::PointerHeadIncompatibleWithModel(PointerHeadIncompatibleWithModelParams {
-                incompatibility: PointerHeadIncompatibility::HiddenSizeMismatch {
-                    model_hidden_size: 1024,
-                    pointer_head_hidden_size: 512,
-                },
-                pointer_head_path: model_path(pointer_head_path),
-            })
-        };
-
-        assert!(fix.can_fix(&incompatibility_of("pointer_head_a")));
-        assert!(!fix.can_fix(&incompatibility_of("pointer_head_b")));
-        assert!(
-            !fix.can_fix(&AgentIssue::PointerHeadCannotBeLoaded(model_path(
-                "pointer_head_a"
-            )))
-        );
-    }
-
-    #[test]
     fn a_local_model_file_that_cannot_be_checked_is_cleared_once_that_file_is_found() {
         let found_file_fixes = [
-            AgentIssueFix::ModelFileExists(model_path("model_a")),
-            AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")),
-            AgentIssueFix::PointerHeadFileExists(model_path("model_a")),
+            AgentIssueFix::ModelFileExists(ModelPath::from("model_a")),
+            AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath::from("model_a")),
         ];
 
         for fix in &found_file_fixes {
             assert!(
-                fix.can_fix(&AgentIssue::LocalModelFileCannotBeChecked(model_path(
+                fix.can_fix(&AgentIssue::LocalModelFileCannotBeChecked(ModelPath::from(
                     "model_a"
                 )))
             );
             assert!(
-                !fix.can_fix(&AgentIssue::LocalModelFileCannotBeChecked(model_path(
+                !fix.can_fix(&AgentIssue::LocalModelFileCannotBeChecked(ModelPath::from(
                     "model_b"
                 )))
             );
@@ -270,16 +188,14 @@ mod tests {
 
     #[test]
     fn a_local_model_file_that_cannot_be_checked_is_not_cleared_by_fixes_that_do_not_find_it() {
-        let issue = AgentIssue::LocalModelFileCannotBeChecked(model_path("model_a"));
+        let issue = AgentIssue::LocalModelFileCannotBeChecked(ModelPath::from("model_a"));
         let unrelated_fixes = [
-            AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a")),
-            AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")),
-            AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a")),
-            AgentIssueFix::ModelDownloadCompleted(model_path("model_a")),
-            AgentIssueFix::ModelDownloadStarted(model_path("model_a")),
-            AgentIssueFix::ModelIsLoaded(model_path("model_a")),
-            AgentIssueFix::PointerHeadIsCompatibleWithModel(model_path("model_a")),
-            AgentIssueFix::PointerHeadIsLoaded(model_path("model_a")),
+            AgentIssueFix::ChatTemplateIsCompiled(ModelPath::from("model_a")),
+            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath::from("model_a")),
+            AgentIssueFix::HuggingFaceStartedDownloading(ModelPath::from("model_a")),
+            AgentIssueFix::ModelDownloadCompleted(ModelPath::from("model_a")),
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("model_a")),
+            AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a")),
             AgentIssueFix::SlotStarted(0),
         ];
 
@@ -290,10 +206,10 @@ mod tests {
 
     #[test]
     fn chat_template_is_compiled_fixes_matching_compile_issue() {
-        let fix = AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a"));
+        let fix = AgentIssueFix::ChatTemplateIsCompiled(ModelPath::from("model_a"));
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
             error: "syntax error".to_owned(),
-            model_path: model_path("model_a"),
+            model_path: ModelPath::from("model_a"),
             template_content: "template".to_owned(),
         });
 
@@ -302,10 +218,10 @@ mod tests {
 
     #[test]
     fn chat_template_is_compiled_does_not_fix_different_model() {
-        let fix = AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a"));
+        let fix = AgentIssueFix::ChatTemplateIsCompiled(ModelPath::from("model_a"));
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
             error: "syntax error".to_owned(),
-            model_path: model_path("model_b"),
+            model_path: ModelPath::from("model_b"),
             template_content: "template".to_owned(),
         });
 
@@ -322,7 +238,7 @@ mod tests {
         });
         let non_matching_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
             error: "failed".to_owned(),
-            inference_capability: InferenceCapability::Decisions,
+            inference_capability: InferenceCapability::TextGeneration,
             slot_index: 5,
         });
 
@@ -332,134 +248,154 @@ mod tests {
 
     #[test]
     fn model_is_loaded_fixes_model_cannot_be_loaded_with_same_path() {
-        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
-        let issue = AgentIssue::ModelCannotBeLoaded(model_path("model_a"));
+        let fix = AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a"));
+        let issue = AgentIssue::ModelCannotBeLoaded(ModelPath::from("model_a"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_file_exists_fixes_model_file_does_not_exist() {
-        let fix = AgentIssueFix::ModelFileExists(model_path("model_a"));
-        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_a"));
+        let fix = AgentIssueFix::ModelFileExists(ModelPath::from("model_a"));
+        let issue = AgentIssue::ModelFileDoesNotExist(ModelPath::from("model_a"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_completed_fixes_model_does_not_exist_at_url_with_same_path() {
-        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::ModelDoesNotExistAtUrl(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadCompleted(ModelPath::from("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::ModelDoesNotExistAtUrl(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_download_server_denied_access() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
         let issue =
-            AgentIssue::DownloadServerDeniedAccess(model_path("https://example.com/m.gguf"));
+            AgentIssue::DownloadServerDeniedAccess(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_cache_directory_is_not_writable() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
         let issue =
-            AgentIssue::CacheDirectoryIsNotWritable(model_path("https://example.com/m.gguf"));
+            AgentIssue::CacheDirectoryIsNotWritable(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_cache_storage_is_full() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::CacheStorageIsFull(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue = AgentIssue::CacheStorageIsFull(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_download_server_is_unreachable() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
         let issue =
-            AgentIssue::DownloadServerIsUnreachable(model_path("https://example.com/m.gguf"));
+            AgentIssue::DownloadServerIsUnreachable(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_download_url_is_malformed() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::DownloadUrlIsMalformed(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::DownloadUrlIsMalformed(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_model_cache_is_corrupted() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::ModelCacheIsCorrupted(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::ModelCacheIsCorrupted(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_download_server_errored() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::DownloadServerErrored(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::DownloadServerErrored(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_download_interrupted() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::DownloadInterrupted(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadInterrupted(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_completed_does_not_fix_different_url() {
-        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/a.gguf"));
-        let issue = AgentIssue::ModelDoesNotExistAtUrl(model_path("https://example.com/b.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadCompleted(ModelPath::from("https://example.com/a.gguf"));
+        let issue =
+            AgentIssue::ModelDoesNotExistAtUrl(ModelPath::from("https://example.com/b.gguf"));
 
         assert!(!fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_fixes_cache_cannot_acquire_lock() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::CacheCannotAcquireLock(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_completed_fixes_cache_cannot_acquire_lock() {
-        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadCompleted(ModelPath::from("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::CacheCannotAcquireLock(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_download_started_does_not_fix_huggingface_issues() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
         let issue =
-            AgentIssue::HuggingFaceModelDoesNotExist(model_path("https://example.com/m.gguf"));
+            AgentIssue::HuggingFaceModelDoesNotExist(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(!fix.can_fix(&issue));
     }
 
     #[test]
     fn chat_template_does_not_compile_not_fixed_by_unrelated_fix() {
-        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
+        let fix = AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a"));
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
             error: "error".to_owned(),
-            model_path: model_path("model_a"),
+            model_path: ModelPath::from("model_a"),
             template_content: "template".to_owned(),
         });
 
@@ -467,83 +403,100 @@ mod tests {
     }
 
     #[test]
-    fn hugging_face_cannot_acquire_lock_fixes() {
+    fn hugging_face_cannot_acquire_lock_is_fixed_only_by_downloading_the_same_model() {
         let issue = AgentIssue::HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock {
             lock_path: "/tmp/lock".to_owned(),
-            model_path: model_path("model_a"),
+            model_path: ModelPath::from("model_a"),
         });
 
-        assert!(AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")).can_fix(&issue));
         assert!(
-            AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a")).can_fix(&issue)
+            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath::from("model_a")).can_fix(&issue)
         );
         assert!(
-            !AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_b")).can_fix(&issue)
+            AgentIssueFix::HuggingFaceStartedDownloading(ModelPath::from("model_a"))
+                .can_fix(&issue)
         );
-        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(
+            !AgentIssueFix::HuggingFaceStartedDownloading(ModelPath::from("model_b"))
+                .can_fix(&issue)
+        );
+        assert!(!AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a")).can_fix(&issue));
     }
 
     #[test]
     fn a_failed_hugging_face_download_is_fixed_only_by_downloading_the_same_model() {
         let issue = AgentIssue::HuggingFaceDownloadFailed(HuggingFaceDownloadFailedParams {
             failure: HuggingFaceDownloadFailure::HubConnectionFailed,
-            model_path: model_path("model_a"),
+            model_path: ModelPath::from("model_a"),
         });
 
         assert!(
-            AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a")).can_fix(&issue)
+            AgentIssueFix::HuggingFaceStartedDownloading(ModelPath::from("model_a"))
+                .can_fix(&issue)
         );
-        assert!(AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")).can_fix(&issue));
         assert!(
-            !AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_b")).can_fix(&issue)
+            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath::from("model_a")).can_fix(&issue)
         );
-        assert!(!AgentIssueFix::ModelDownloadStarted(model_path("model_a")).can_fix(&issue));
+        assert!(
+            !AgentIssueFix::HuggingFaceStartedDownloading(ModelPath::from("model_b"))
+                .can_fix(&issue)
+        );
+        assert!(!AgentIssueFix::ModelDownloadStarted(ModelPath::from("model_a")).can_fix(&issue));
     }
 
     #[test]
-    fn hugging_face_model_does_not_exist_fixes() {
-        let issue = AgentIssue::HuggingFaceModelDoesNotExist(model_path("model_a"));
+    fn hugging_face_model_does_not_exist_is_fixed_by_a_downloaded_model_or_a_loaded_projection_but_not_a_loaded_model()
+     {
+        let issue = AgentIssue::HuggingFaceModelDoesNotExist(ModelPath::from("model_a"));
 
-        assert!(AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")).can_fix(&issue));
-        assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
-        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(
+            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath::from("model_a")).can_fix(&issue)
+        );
+        assert!(
+            AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath::from("model_a")).can_fix(&issue)
+        );
+        assert!(!AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a")).can_fix(&issue));
     }
 
     #[test]
     fn hugging_face_permissions_fixed_by_started_downloading() {
-        let fix = AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a"));
-        let issue = AgentIssue::HuggingFacePermissions(model_path("model_a"));
+        let fix = AgentIssueFix::HuggingFaceStartedDownloading(ModelPath::from("model_a"));
+        let issue = AgentIssue::HuggingFacePermissions(ModelPath::from("model_a"));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn model_cannot_be_loaded_not_fixed_by_unrelated_fix() {
-        let fix = AgentIssueFix::ModelFileExists(model_path("model_a"));
-        let issue = AgentIssue::ModelCannotBeLoaded(model_path("model_a"));
+        let fix = AgentIssueFix::ModelFileExists(ModelPath::from("model_a"));
+        let issue = AgentIssue::ModelCannotBeLoaded(ModelPath::from("model_a"));
 
         assert!(!fix.can_fix(&issue));
     }
 
     #[test]
-    fn model_file_does_not_exist_fixed_by_multimodal_projection_and_not_others() {
-        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_a"));
+    fn model_file_does_not_exist_is_fixed_by_a_loaded_projection_but_not_a_loaded_model() {
+        let issue = AgentIssue::ModelFileDoesNotExist(ModelPath::from("model_a"));
 
-        assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
-        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(
+            AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath::from("model_a")).can_fix(&issue)
+        );
+        assert!(!AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a")).can_fix(&issue));
     }
 
     #[test]
     fn multimodal_projection_cannot_be_loaded_fixed_only_by_multimodal_projection_loaded() {
-        let issue = AgentIssue::MultimodalProjectionCannotBeLoaded(model_path("model_a"));
+        let issue = AgentIssue::MultimodalProjectionCannotBeLoaded(ModelPath::from("model_a"));
 
-        assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
-        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(
+            AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath::from("model_a")).can_fix(&issue)
+        );
+        assert!(!AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a")).can_fix(&issue));
     }
 
     #[test]
     fn slot_cannot_start_not_fixed_by_unrelated_fix() {
-        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
+        let fix = AgentIssueFix::ModelIsLoaded(ModelPath::from("model_a"));
         let issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
             error: "failed".to_owned(),
             inference_capability: InferenceCapability::Embeddings,
@@ -555,17 +508,19 @@ mod tests {
 
     #[test]
     fn download_server_rejected_request_fixed_by_model_download_started() {
-        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue =
-            AgentIssue::DownloadServerRejectedRequest(model_path("https://example.com/m.gguf"));
+        let fix =
+            AgentIssueFix::ModelDownloadStarted(ModelPath::from("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadServerRejectedRequest(ModelPath::from(
+            "https://example.com/m.gguf",
+        ));
 
         assert!(fix.can_fix(&issue));
     }
 
     #[test]
     fn download_issue_not_fixed_by_unrelated_fix() {
-        let fix = AgentIssueFix::ModelIsLoaded(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::DownloadInterrupted(model_path("https://example.com/m.gguf"));
+        let fix = AgentIssueFix::ModelIsLoaded(ModelPath::from("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadInterrupted(ModelPath::from("https://example.com/m.gguf"));
 
         assert!(!fix.can_fix(&issue));
     }

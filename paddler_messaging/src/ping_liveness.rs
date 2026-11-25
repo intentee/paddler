@@ -1,42 +1,52 @@
+use crate::constants::UNANSWERED_PINGS_TOLERATED;
 use crate::ping_turn::PingTurn;
-use crate::unanswered_pings_tolerated::UNANSWERED_PINGS_TOLERATED;
 
-#[derive(Default)]
+const PINGS_ALLOWED_WITHOUT_A_PONG: u32 = UNANSWERED_PINGS_TOLERATED + 1;
+
 pub struct PingLiveness {
-    unanswered_pings: u32,
+    pings_left_without_a_pong: u32,
 }
 
 impl PingLiveness {
-    pub const fn record_pong(&mut self) {
-        self.unanswered_pings = 0;
-    }
-
     #[must_use]
     pub const fn next_ping(&mut self) -> PingTurn {
-        if self.unanswered_pings > UNANSWERED_PINGS_TOLERATED {
-            PingTurn::PeerStoppedAnswering
-        } else {
-            self.unanswered_pings += 1;
+        match self.pings_left_without_a_pong.checked_sub(1) {
+            Some(pings_left_without_a_pong) => {
+                self.pings_left_without_a_pong = pings_left_without_a_pong;
 
-            PingTurn::SendPing
+                PingTurn::SendPing
+            }
+            None => PingTurn::PeerStoppedAnswering,
+        }
+    }
+
+    pub const fn record_pong(&mut self) {
+        self.pings_left_without_a_pong = PINGS_ALLOWED_WITHOUT_A_PONG;
+    }
+}
+
+impl Default for PingLiveness {
+    fn default() -> Self {
+        Self {
+            pings_left_without_a_pong: PINGS_ALLOWED_WITHOUT_A_PONG,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::iter::repeat_with;
+
     use super::PingLiveness;
+    use crate::constants::UNANSWERED_PINGS_TOLERATED;
     use crate::ping_turn::PingTurn;
-    use crate::unanswered_pings_tolerated::UNANSWERED_PINGS_TOLERATED;
 
     fn pings_until_the_peer_is_unresponsive(ping_liveness: &mut PingLiveness) -> u32 {
-        let mut sent_pings = 0;
+        let sent_pings = repeat_with(|| ping_liveness.next_ping())
+            .take_while(|ping_turn| *ping_turn == PingTurn::SendPing)
+            .count();
 
-        while ping_liveness.next_ping() == PingTurn::SendPing {
-            sent_pings += 1;
-        }
-
-        sent_pings
+        u32::try_from(sent_pings).expect("the sent pings must fit in u32")
     }
 
     #[test]

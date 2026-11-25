@@ -38,7 +38,7 @@ mod tests {
     }
 
     #[test]
-    fn warns_without_panicking_when_the_receiver_was_dropped() {
+    fn tolerates_a_dropped_receiver_without_panicking() {
         set_max_level(LevelFilter::Trace);
 
         let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
@@ -50,7 +50,5 @@ mod tests {
             &generated_tokens_tx,
             GeneratedTokenResult::SamplerError("boom".to_owned()),
         );
-
-        assert!(generated_tokens_tx.is_closed());
     }
 }

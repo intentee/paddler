@@ -1,19 +1,17 @@
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
-use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
-use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
-use llama_cpp_bindings::error::token_attr_error::TokenAttrError;
+use std::ffi::c_int;
+use std::num::ParseFloatError;
+use std::num::TryFromIntError;
+
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
+use llama_cpp_model::model_error::ModelError;
 use log::error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
 
-use paddler_agent_pointer_head::pointer_head_error::PointerHeadError;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_agent_runtime::send_result_or_warn::send_result_or_warn;
-use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 
@@ -24,54 +22,82 @@ pub enum DecisionError {
     #[error(transparent)]
     AgentRuntime(#[from] AgentRuntimeError),
 
-    #[error("failed to add a decision token to the batch: {0}")]
-    BatchAssemblyFailed(#[source] BatchAddError),
+    #[error("failed to add a decision token to the batch")]
+    BatchAssemblyFailed(#[source] ContextError),
 
-    #[error("the client stopped listening for decisions: {0}")]
+    #[error("the client stopped listening for decisions")]
     ClientDisconnected(#[source] SendError<DecisionResult>),
 
-    #[error("no pointer head is configured, so the agent serves no decisions")]
+    #[error("the agent serves no decisions with the loaded model")]
     DecisionsNotServed,
 
-    #[error("llama.cpp rejected the decision batch: {0}")]
-    DecodeFailed(#[source] DecodeError),
+    #[error("llama.cpp rejected the decision batch")]
+    DecodeFailed(#[source] ContextError),
 
-    #[error("unable to read the attributes of the pointer head delimiter {delimiter}: {source}")]
+    #[error("unable to read the attributes of the decision delimiter {delimiter}")]
     DelimiterAttributesUnreadable {
         delimiter: String,
         #[source]
-        source: TokenAttrError,
+        source: ModelError,
     },
 
-    #[error("unable to tokenize the pointer head delimiter {delimiter}: {source}")]
+    #[error("the decision delimiter {delimiter} is not a single control token of the model")]
+    DelimiterIsNotAControlToken { delimiter: String },
+
+    #[error("unable to tokenize the decision delimiter {delimiter}")]
     DelimiterTokenizationFailed {
         delimiter: String,
         #[source]
-        source: StringToTokenError,
+        source: ModelError,
     },
 
-    #[error("unable to read the hidden state of a decision output: {0}")]
-    HiddenStateUnavailable(#[source] EmbeddingsError),
+    #[error("unable to read the hidden state of a decision output")]
+    HiddenStateUnavailable(#[source] ContextError),
 
-    #[error("failed to tokenize the decision input: {0}")]
-    InputTokenizationFailed(#[source] StringToTokenError),
+    #[error("failed to tokenize the decision input")]
+    InputTokenizationFailed(#[source] ModelError),
 
-    #[error("failed to copy the decision state into its question lane: {0}")]
-    KvCacheCopyFailed(#[source] MemorySeqCpError),
+    #[error("the metadata of the kev decision model names no architecture")]
+    KevArchitectureUnknown,
 
-    #[error("failed to remove a decision sequence from the KV cache: {0}")]
-    KvCacheRemovalFailed(#[source] MemorySeqRmError),
+    #[error(
+        "half of the {n_embd_out} outputs of the kev decision model does not fit a head dimension"
+    )]
+    KevHeadDimensionUnrepresentable {
+        n_embd_out: c_int,
+        #[source]
+        source: TryFromIntError,
+    },
+
+    #[error("the kev decision model holds no {key} temperature")]
+    KevTemperatureMissing { key: String },
+
+    #[error(
+        "the kev decision model declares different temperatures for choices ({choice}), scores ({score}) and noul questions ({noul}), and decisions carry no question type to pick one"
+    )]
+    KevTemperaturesDiffer { choice: f32, noul: f32, score: f32 },
+
+    #[error(
+        "the kev decision model declares {key} as {temperature}, which is not a finite positive temperature"
+    )]
+    KevTemperatureOutOfRange { key: String, temperature: f32 },
+
+    #[error("the kev decision model declares {key} as {declared:?}, which is not a number")]
+    KevTemperatureUnparseable {
+        declared: String,
+        key: String,
+        #[source]
+        source: ParseFloatError,
+    },
+
+    #[error("failed to copy the decision state into its question lane")]
+    KvCacheCopyFailed(#[source] ContextMemoryError),
+
+    #[error("failed to remove a decision sequence from the KV cache")]
+    KvCacheRemovalFailed(#[source] ContextMemoryError),
 
     #[error("no model is loaded")]
     ModelNotLoaded,
-
-    #[error("unable to load the pointer head: {0}")]
-    PointerHeadCannotBeLoaded(#[source] PointerHeadError),
-
-    #[error("the pointer head does not fit the model: {incompatibility:?}")]
-    PointerHeadIncompatibleWithModel {
-        incompatibility: PointerHeadIncompatibility,
-    },
 
     #[error(
         "the decision needs {} tokens in the cache, more than the {} the context holds",
@@ -82,12 +108,22 @@ pub enum DecisionError {
 
     #[error("the scheduler is no longer accepting requests")]
     SchedulerUnavailable,
+}
 
-    #[error("decisions need {required_slots} slots, the agent runs {desired_slots}")]
-    SlotsInsufficient {
-        desired_slots: u16,
-        required_slots: u16,
-    },
+impl DecisionError {
+    pub fn report_decisions_not_served(
+        agent_name: Option<&str>,
+        decision_result_tx: &mpsc::UnboundedSender<DecisionResult>,
+    ) {
+        Self::DecisionsNotServed.report(agent_name, decision_result_tx);
+    }
+
+    pub fn report_model_not_loaded(
+        agent_name: Option<&str>,
+        decision_result_tx: &mpsc::UnboundedSender<DecisionResult>,
+    ) {
+        Self::ModelNotLoaded.report(agent_name, decision_result_tx);
+    }
 }
 
 impl ReportsDecisionOutcome for DecisionError {
@@ -103,11 +139,15 @@ impl ReportsDecisionOutcome for DecisionError {
         let result = match self {
             Self::AgentRuntime(_)
             | Self::DelimiterAttributesUnreadable { .. }
+            | Self::DelimiterIsNotAControlToken { .. }
             | Self::DelimiterTokenizationFailed { .. }
-            | Self::ModelNotLoaded
-            | Self::PointerHeadCannotBeLoaded(_)
-            | Self::PointerHeadIncompatibleWithModel { .. }
-            | Self::SlotsInsufficient { .. } => DecisionResult::ModelNotLoaded(message),
+            | Self::KevArchitectureUnknown
+            | Self::KevHeadDimensionUnrepresentable { .. }
+            | Self::KevTemperatureMissing { .. }
+            | Self::KevTemperatureOutOfRange { .. }
+            | Self::KevTemperaturesDiffer { .. }
+            | Self::KevTemperatureUnparseable { .. }
+            | Self::ModelNotLoaded => DecisionResult::ModelNotLoaded(message),
             Self::BatchAssemblyFailed(_) => DecisionResult::BatchAssemblyFailed(message),
             Self::ClientDisconnected(_) => return,
             Self::DecisionsNotServed => DecisionResult::DecisionsNotServed(message),
@@ -128,15 +168,11 @@ impl ReportsDecisionOutcome for DecisionError {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CString;
     use std::mem::discriminant;
 
-    use llama_cpp_bindings::batch_add_error::BatchAddError;
-    use llama_cpp_bindings::error::decode_error::DecodeError;
-    use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
-    use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
-    use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
+    use llama_cpp_context::context_error::ContextError;
+    use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
+    use llama_cpp_model::model_error::ModelError;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::SendError;
 
@@ -163,7 +199,7 @@ mod tests {
         };
         let failures = [
             (
-                DecisionError::BatchAssemblyFailed(BatchAddError::BatchFull { n_batch: 1 }),
+                DecisionError::BatchAssemblyFailed(ContextError::BatchFull { n_batch: 1 }),
                 DecisionResult::BatchAssemblyFailed(description()),
             ),
             (
@@ -171,31 +207,31 @@ mod tests {
                 DecisionResult::DecisionsNotServed(description()),
             ),
             (
-                DecisionError::DecodeFailed(DecodeError::NoKvCacheSlot),
+                DecisionError::DecodeFailed(ContextError::DecodeNoKvCacheSlot),
                 DecisionResult::DecodeFailed(description()),
             ),
             (
-                DecisionError::HiddenStateUnavailable(EmbeddingsError::TokenNotAnOutput {
+                DecisionError::HiddenStateUnavailable(ContextError::EmbeddingTokenNotAnOutput {
                     token_index: 0,
                 }),
                 DecisionResult::HiddenStateUnavailable(description()),
             ),
             (
-                DecisionError::InputTokenizationFailed(StringToTokenError::NulError(
-                    CString::new("a \0 byte").unwrap_err(),
-                )),
+                DecisionError::InputTokenizationFailed(ModelError::TokenizeNotEnoughMemory),
                 DecisionResult::InputTokenizationFailed(description()),
             ),
             (
-                DecisionError::KvCacheCopyFailed(MemorySeqCpError::MemoryHandleUnavailable),
+                DecisionError::KvCacheCopyFailed(ContextMemoryError::SeqCpMemoryHandleUnavailable),
                 DecisionResult::KvCacheCopyFailed(description()),
             ),
             (
-                DecisionError::KvCacheRemovalFailed(MemorySeqRmError::PartialSequenceNotRemoved {
-                    seq_id: 0,
-                    p0: -1,
-                    p1: -1,
-                }),
+                DecisionError::KvCacheRemovalFailed(
+                    ContextMemoryError::SeqRmPartialSequenceNotRemoved {
+                        seq_id: 0,
+                        p0: -1,
+                        p1: -1,
+                    },
+                ),
                 DecisionResult::KvCacheRemovalFailed(description()),
             ),
             (

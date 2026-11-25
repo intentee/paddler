@@ -1,0 +1,40 @@
+use anyhow::Result;
+use async_trait::async_trait;
+
+use paddler_bootstrap::agent_runner::AgentRunner;
+
+use crate::managed_process::ManagedProcess;
+use crate::process_end::ProcessEnd;
+
+pub struct InProcessAgent {
+    runner: AgentRunner,
+}
+
+impl InProcessAgent {
+    #[must_use]
+    pub const fn new(runner: AgentRunner) -> Self {
+        Self { runner }
+    }
+}
+
+impl InProcessAgent {
+    async fn wait_for_exit(&mut self) -> ProcessEnd {
+        self.runner
+            .wait_for_completion()
+            .await
+            .map_or_else(ProcessEnd::failed, |()| ProcessEnd::Clean)
+    }
+}
+
+#[async_trait]
+impl ManagedProcess for InProcessAgent {
+    async fn exited(&mut self) -> ProcessEnd {
+        self.wait_for_exit().await
+    }
+
+    fn terminate(&mut self) -> Result<()> {
+        self.runner.cancel();
+
+        Ok(())
+    }
+}

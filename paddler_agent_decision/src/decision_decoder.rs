@@ -1,7 +1,8 @@
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory as _;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
 
 use paddler_agent_runtime::sequence_id::SequenceId;
 
@@ -14,12 +15,11 @@ pub struct DecisionDecoder<'scheduler, 'model> {
 }
 
 impl DecisionDecoder<'_, '_> {
-    const fn tokens_per_decode(&self) -> usize {
-        self.batch.limits().n_batch as usize
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::KvCacheRemovalFailed`] when the destination sequence cannot be cleared, and [`DecisionError::KvCacheCopyFailed`] when llama.cpp cannot copy the source sequence into it.
     pub fn copy_sequence(
-        &mut self,
+        &self,
         source_sequence_id: SequenceId,
         destination_sequence_id: SequenceId,
     ) -> Result<(), DecisionError> {
@@ -34,38 +34,9 @@ impl DecisionDecoder<'_, '_> {
             .map_err(DecisionError::KvCacheCopyFailed)
     }
 
-    pub fn ingest_state_chunk(
-        &mut self,
-        sequence_id: SequenceId,
-        state: &[LlamaToken],
-        next_offset: usize,
-    ) -> Result<usize, DecisionError> {
-        self.batch.clear();
-
-        let tokens_per_decode = self.tokens_per_decode();
-
-        for (position, token) in (0_i32..)
-            .zip(state)
-            .skip(next_offset)
-            .take(tokens_per_decode)
-        {
-            self.batch
-                .add(
-                    &SampledToken::Content(*token),
-                    position,
-                    &[sequence_id.llama_sequence_id()],
-                    false,
-                )
-                .map_err(DecisionError::BatchAssemblyFailed)?;
-        }
-
-        self.llama_context
-            .decode(self.batch)
-            .map_err(DecisionError::DecodeFailed)?;
-
-        Ok(next_offset + self.batch.n_tokens() as usize)
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::BatchAssemblyFailed`] when a row token does not fit the batch, [`DecisionError::DecodeFailed`] when llama.cpp rejects the batch, and [`DecisionError::HiddenStateUnavailable`] when the hidden state of an output token cannot be read.
     pub fn decode_row_chunk(
         &mut self,
         sequence_id: SequenceId,
@@ -76,18 +47,18 @@ impl DecisionDecoder<'_, '_> {
     ) -> Result<usize, DecisionError> {
         self.batch.clear();
 
-        let row_chunk = row
-            .tokens
-            .iter()
-            .enumerate()
+        let mut unread_row_offsets = next_offset..row.tokens.len();
+        let row_chunk = (0_i32..)
+            .skip(state_length)
+            .zip(&row.tokens)
             .skip(next_offset)
-            .take(self.tokens_per_decode());
-        let row_chunk_positions = (0_i32..).skip(state_length + next_offset);
+            .take(self.tokens_per_decode())
+            .zip(&mut unread_row_offsets);
 
-        for (position, (row_offset, token)) in row_chunk_positions.zip(row_chunk) {
+        for ((position, token), row_offset) in row_chunk {
             self.batch
                 .add(
-                    &SampledToken::Content(*token),
+                    SampledToken::Content(*token),
                     position,
                     &[sequence_id.llama_sequence_id()],
                     row.is_output(row_offset),
@@ -103,7 +74,53 @@ impl DecisionDecoder<'_, '_> {
 
         hidden_states.extend(row_hidden_states?);
 
-        Ok(next_offset + self.batch.n_tokens() as usize)
+        Ok(unread_row_offsets.start)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::BatchAssemblyFailed`] when a state token does not fit the batch, and [`DecisionError::DecodeFailed`] when llama.cpp rejects the batch.
+    pub fn ingest_state_chunk(
+        &mut self,
+        sequence_id: SequenceId,
+        state: &[LlamaToken],
+        next_offset: usize,
+    ) -> Result<usize, DecisionError> {
+        self.batch.clear();
+
+        let tokens_per_decode = self.tokens_per_decode();
+        let mut unread_state_offsets = next_offset..state.len();
+
+        for ((position, token), _state_offset) in (0_i32..)
+            .zip(state)
+            .skip(next_offset)
+            .take(tokens_per_decode)
+            .zip(&mut unread_state_offsets)
+        {
+            self.batch
+                .add(
+                    SampledToken::Content(*token),
+                    position,
+                    &[sequence_id.llama_sequence_id()],
+                    false,
+                )
+                .map_err(DecisionError::BatchAssemblyFailed)?;
+        }
+
+        self.llama_context
+            .decode(self.batch)
+            .map_err(DecisionError::DecodeFailed)?;
+
+        Ok(unread_state_offsets.start)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`DecisionError::KvCacheRemovalFailed`] when llama.cpp cannot remove the sequence from the KV cache.
+    pub fn remove_sequence(&self, sequence_id: SequenceId) -> Result<(), DecisionError> {
+        sequence_id
+            .clear_kv_cache_in(self.llama_context)
+            .map_err(DecisionError::KvCacheRemovalFailed)
     }
 
     fn decode_row_hidden_states(&mut self) -> Result<Vec<Vec<f32>>, DecisionError> {
@@ -123,9 +140,7 @@ impl DecisionDecoder<'_, '_> {
             .collect()
     }
 
-    pub fn remove_sequence(&mut self, sequence_id: SequenceId) -> Result<(), DecisionError> {
-        sequence_id
-            .clear_kv_cache_in(self.llama_context)
-            .map_err(DecisionError::KvCacheRemovalFailed)
+    const fn tokens_per_decode(&self) -> usize {
+        self.batch.limits().batch as usize
     }
 }

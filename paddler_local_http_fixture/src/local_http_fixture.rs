@@ -15,7 +15,6 @@ use tokio::task::JoinHandle;
 
 use crate::fixture_response::FixtureResponse;
 use crate::observed_requests::ObservedRequests;
-use crate::serve_connection::serve_connection;
 
 async fn serve_sequentially_until_stopped(
     listener: TcpListener,
@@ -32,7 +31,7 @@ async fn serve_sequentially_until_stopped(
 
         select! {
             biased;
-            served_connection = serve_connection(stream, &response, &observed_requests) => {
+            served_connection = response.serve_connection(stream, &observed_requests) => {
                 served_connection?;
             }
             Err(oneshot::error::RecvError { .. }) = &mut serving_stopped => return Ok(()),
@@ -48,6 +47,9 @@ pub struct LocalHttpFixture {
 }
 
 impl LocalHttpFixture {
+    /// # Errors
+    ///
+    /// Returns the [`io::Error`] when the loopback listener cannot be bound or its local address cannot be read.
     pub async fn start(response: FixtureResponse) -> io::Result<Self> {
         TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
             .await
@@ -75,13 +77,8 @@ impl LocalHttpFixture {
     }
 
     #[must_use]
-    pub fn url(&self, path: &str) -> String {
-        format!("http://{}{path}", self.addr)
-    }
-
-    #[must_use]
-    pub fn request_count(&self) -> u32 {
-        self.observed_requests.count()
+    pub fn abandoned_trickle_departures(&self) -> Vec<ErrorKind> {
+        self.observed_requests.abandoned_trickle_departures()
     }
 
     #[must_use]
@@ -89,17 +86,19 @@ impl LocalHttpFixture {
         self.observed_requests.last_range_header()
     }
 
-    pub async fn wait_for_requests(&self, expected_request_count: u32) -> Result<(), RecvError> {
-        self.observed_requests
-            .wait_for_count(expected_request_count)
-            .await
+    #[must_use]
+    pub fn request_count(&self) -> usize {
+        self.observed_requests.count()
     }
 
     #[must_use]
-    pub fn abandoned_trickle_departures(&self) -> Vec<ErrorKind> {
-        self.observed_requests.abandoned_trickle_departures()
+    pub fn url(&self, path: &str) -> String {
+        format!("http://{}{path}", self.addr)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`RecvError`] when the record of abandoned trickles is dropped before it reaches the expected count.
     pub async fn wait_for_abandoned_trickles(
         &self,
         expected_abandoned_trickle_count: usize,
@@ -108,9 +107,21 @@ impl LocalHttpFixture {
             .wait_for_abandoned_trickles(expected_abandoned_trickle_count)
             .await
     }
+
+    /// # Errors
+    ///
+    /// Returns [`RecvError`] when the record of requests is dropped before it reaches the expected count.
+    pub async fn wait_for_requests(&self, expected_request_count: usize) -> Result<(), RecvError> {
+        self.observed_requests
+            .wait_for_count(expected_request_count)
+            .await
+    }
 }
 
 impl LocalHttpFixture {
+    /// # Errors
+    ///
+    /// Returns the [`JoinError`] of the serving task when it panicked or was cancelled; the [`io::Error`] that ended serving is the inner result.
     pub async fn stop(self) -> Result<io::Result<()>, JoinError> {
         let Self {
             serving_task,
@@ -123,6 +134,9 @@ impl LocalHttpFixture {
         serving_task.await
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`JoinError`] of the serving task when it panicked or was cancelled; the [`io::Error`] that ended serving is the inner result.
     pub async fn wait_until_serving_fails(self) -> Result<io::Result<()>, JoinError> {
         let Self {
             serving_task,

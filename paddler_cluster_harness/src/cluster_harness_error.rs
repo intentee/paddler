@@ -1,0 +1,154 @@
+use std::collections::BTreeSet;
+use std::io::Error as IoError;
+use std::net::SocketAddr;
+
+use async_openai::error::OpenAIError;
+use quick_xml::Error as XmlError;
+use quick_xml::events::attributes::AttrError;
+use reqwest::Error as ReqwestError;
+use serde_json::Error as SerdeJsonError;
+use thiserror::Error;
+use tokio::task::JoinError;
+use tokio_tungstenite::tungstenite::Error as WebSocketError;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use url::ParseError;
+
+use paddler_client::error::Error as ClientError;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+
+use crate::process_end::ProcessEnd;
+use crate::snapshots_stream::SnapshotsStream;
+
+#[derive(Debug, Error)]
+pub enum ClusterHarnessError {
+    #[error("The decision stream ended before it reported its outcome")]
+    DecisionStreamEndedWithoutTerminalResult,
+    #[error("The decision stream yielded an error")]
+    DecisionStreamFailed(#[source] ClientError),
+    #[error("The decision stream carried a message that is not a decision result: {message:?}")]
+    DecisionStreamMessageUnexpected { message: Box<InferenceMessage> },
+    #[error("The embedding stream carried a message that is not an embedding result: {message:?}")]
+    EmbeddingStreamMessageUnexpected { message: Box<InferenceMessage> },
+    #[error("The embedding stream yielded an error")]
+    EmbeddingStreamFailed(#[source] ClientError),
+    #[error("The token generation stream returned JSON-RPC error code {} ({})", error.code, error.description)]
+    TokenStreamReturnedError { error: JsonRpcError },
+    #[error("The token generation stream yielded an error")]
+    TokenStreamFailed(#[source] ClientError),
+    #[error(
+        "The token generation stream carried a message that is not a generated token: {message:?}"
+    )]
+    TokenStreamMessageUnexpected { message: Box<InferenceMessage> },
+    #[error("The agent hung up on the untrusted balancer socket before it responded")]
+    AgentHungUpBeforeResponding,
+    #[error("The agent hung up on the untrusted balancer socket before it served its model")]
+    AgentHungUpBeforeServing,
+    #[error("Agent {agent_id} left the balancer's pool while it was being observed")]
+    AgentLeftThePool { agent_id: String },
+    #[error(
+        "The balancer closed the untrusted agent socket before sending it text: {close_frame:?}"
+    )]
+    AgentSocketClosedBeforeText { close_frame: Option<CloseFrame> },
+    #[error("The untrusted agent socket client ended without a close frame")]
+    AgentSocketEndedWithoutClosing,
+    #[error("The untrusted agent socket client ended before the balancer sent it text")]
+    AgentSocketEndedWithoutText,
+    #[error("The untrusted agent socket client could not receive a frame")]
+    AgentSocketReceiveFailed(#[source] WebSocketError),
+    #[error("The untrusted agent socket client could not send a frame")]
+    AgentSocketSendFailed(#[source] WebSocketError),
+    #[error("Agent {agent_name:?} exited before it was ready: {process_end:?}")]
+    AgentExitedBeforeReady {
+        agent_name: String,
+        process_end: ProcessEnd,
+    },
+    #[error("Agent {agent_name:?} reported issues while starting: {issues:?}")]
+    AgentReportedIssues {
+        agent_name: String,
+        issues: BTreeSet<AgentIssue>,
+    },
+    #[error("The untrusted balancer socket could not accept an agent connection")]
+    BalancerSocketAcceptFailed(#[source] IoError),
+    #[error("The untrusted balancer socket could not complete the agent's WebSocket handshake")]
+    BalancerSocketHandshakeFailed(#[source] WebSocketError),
+    #[error("The untrusted balancer socket could not send a frame")]
+    BalancerSocketSendFailed(#[source] WebSocketError),
+    #[error("The cluster has no registered agent to wait for")]
+    ClusterHasNoRegisteredAgent,
+    #[error("The balancer does not serve the OpenAI compatibility service")]
+    CompatOpenAIServiceNotServed,
+    #[error("Unable to build the base URL of the OpenAI compatibility service")]
+    CompatOpenAIBaseUrlInvalid(#[source] ParseError),
+    #[error("The balancer does not serve the TypeSafe compatibility service")]
+    CompatTypeSafeServiceNotServed,
+    #[error("Unable to build the base URL of the typesafe compatibility service")]
+    CompatTypeSafeBaseUrlInvalid(#[source] ParseError),
+    #[error("The web admin panel page carries a malformed attribute")]
+    DashboardAttributeMalformed(#[source] AttrError),
+    #[error("The web admin panel page carries an attribute value that cannot be unescaped")]
+    DashboardAttributeValueUnreadable(#[source] XmlError),
+    #[error("The web admin panel page has no dashboard element")]
+    DashboardElementMissing,
+    #[error("The web admin panel page cannot be read as markup")]
+    DashboardMarkupUnreadable(#[source] XmlError),
+    #[error(
+        "The test requested another HTTP connection while holding {held_connections}; every supported system's listen backlog queues at most {limit}"
+    )]
+    ConcurrentConnectionsExceedPortableListenBacklog {
+        held_connections: usize,
+        limit: usize,
+    },
+    #[error("Unable to build the runtime that holds the cluster's connections")]
+    ConnectionRuntimeUnbuildable(#[source] IoError),
+    #[error("The work on the cluster's connection runtime did not complete")]
+    ConnectionTaskFailed(#[source] JoinError),
+    #[error("Unable to spawn the thread that drives the cluster's connection runtime")]
+    ConnectionThreadUnspawnable(#[source] IoError),
+    #[error("The generation did not end with a summary; its last result was {last_token_result:?}")]
+    GenerationEndedWithoutSummary {
+        last_token_result: Option<GeneratedTokenResult>,
+    },
+    #[error("The half-closed client could not reach {addr}")]
+    HalfClosedClientUnreachable {
+        addr: SocketAddr,
+        #[source]
+        source: IoError,
+    },
+    #[error("The inference request failed")]
+    InferenceRequestFailed(#[source] ClientError),
+    #[error("Unable to build the base URL of the inference service")]
+    InferenceBaseUrlInvalid(#[source] ParseError),
+    #[error("The raw inference socket closed before answering request {request_id}")]
+    InferenceSocketClosedBeforeAnswer { request_id: String },
+    #[error("The raw inference socket closed before answering any request")]
+    InferenceSocketClosedBeforeAnyAnswer,
+    #[error("The raw inference socket closed before answering the ping")]
+    InferenceSocketClosedBeforePong,
+    #[error("The raw inference socket received a message it could not read")]
+    InferenceSocketMessageUnreadable(#[source] SerdeJsonError),
+    #[error("The raw inference socket could not receive a frame")]
+    InferenceSocketReceiveFailed(#[source] WebSocketError),
+    #[error("The raw inference socket could not serialize a request")]
+    InferenceSocketRequestUnserializable(#[source] SerdeJsonError),
+    #[error("The raw inference socket could not send a frame")]
+    InferenceSocketSendFailed(#[source] WebSocketError),
+    #[error("Unable to build the base URL of the management service")]
+    ManagementBaseUrlInvalid(#[source] ParseError),
+    #[error("The OpenAI compatibility request failed")]
+    OpenAIRequestFailed(#[source] OpenAIError),
+    #[error("Unable to list the open file descriptors of the current process")]
+    OpenFileDescriptorsUnreadable(#[source] IoError),
+    #[error("The {snapshots_stream:?} stream closed before reaching the expected state")]
+    SnapshotsStreamClosed { snapshots_stream: SnapshotsStream },
+    #[error("The {snapshots_stream:?} stream failed")]
+    SnapshotsStreamFailed {
+        snapshots_stream: SnapshotsStream,
+        #[source]
+        source: ClientError,
+    },
+    #[error("The TypeSafe compatibility request failed")]
+    TypeSafeRequestFailed(#[source] ReqwestError),
+}

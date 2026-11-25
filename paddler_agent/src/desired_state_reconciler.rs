@@ -4,6 +4,7 @@ use log::error;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 
@@ -39,7 +40,12 @@ impl DesiredStateReconciler {
                 DesiredStateReconciliation::Pending(Box::new(agent_desired_state))
             }
             Err(conversion_error) => {
-                error!("Failed to convert to applicable state: {conversion_error}");
+                error!(
+                    "Failed to convert to applicable state: {}",
+                    ErrorChain {
+                        error: &conversion_error
+                    }
+                );
 
                 DesiredStateReconciliation::Pending(Box::new(agent_desired_state))
             }
@@ -58,8 +64,8 @@ mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_model_source::model_source::ModelSource;
 

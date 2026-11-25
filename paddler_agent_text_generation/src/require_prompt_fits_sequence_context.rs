@@ -2,6 +2,9 @@ use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 
 use crate::text_generation_error::TextGenerationError;
 
+/// # Errors
+///
+/// Returns [`TextGenerationError::PromptExceedsContextSize`] when the prompt holds at least as many tokens as the sequence context.
 pub const fn require_prompt_fits_sequence_context(
     prompt_tokens: usize,
     sequence_context_size: u32,

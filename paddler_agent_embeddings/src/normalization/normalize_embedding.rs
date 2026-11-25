@@ -4,6 +4,9 @@ use crate::embedding_error::EmbeddingError;
 use crate::normalization::l2::l2;
 use crate::normalization::rms_norm::rms_norm;
 
+/// # Errors
+///
+/// Returns [`EmbeddingError::EmbeddingTooLongForRmsNormalization`] when RMS normalization is requested for an embedding with more dimensions than sixteen bits count.
 pub fn normalize_embedding(
     mut embedding: Vec<f32>,
     normalization_method: &EmbeddingNormalizationMethod,

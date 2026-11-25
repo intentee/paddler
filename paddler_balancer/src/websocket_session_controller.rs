@@ -2,12 +2,12 @@ use std::future::Future;
 use std::future::ready;
 use std::marker::PhantomData;
 
-use anyhow::Result;
 use serde_json::to_string;
 use tokio::sync::mpsc::UnboundedSender;
 
 use paddler_messaging::rpc_message::RpcMessage;
 
+use crate::balancer_error::BalancerError;
 use crate::controls_session::ControlsSession;
 use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 
@@ -31,11 +31,13 @@ where
         }
     }
 
-    fn send_text_frame(&self, message: &TResponse) -> Result<()> {
-        self.outbound_tx
-            .send(WebSocketOutboundFrame::Text(to_string(message)?))?;
+    fn send_text_frame(&self, message: &TResponse) -> Result<(), BalancerError> {
+        let serialized_message =
+            to_string(message).map_err(BalancerError::ResponseUnserializable)?;
 
-        Ok(())
+        self.outbound_tx
+            .send(WebSocketOutboundFrame::Text(serialized_message))
+            .map_err(BalancerError::WebSocketOutboundClosed)
     }
 }
 
@@ -43,7 +45,10 @@ impl<TResponse> ControlsSession<TResponse> for WebSocketSessionController<TRespo
 where
     TResponse: RpcMessage + Sync + 'static,
 {
-    fn send_response(&mut self, message: TResponse) -> impl Future<Output = Result<()>> + Send {
+    fn send_response(
+        &mut self,
+        message: TResponse,
+    ) -> impl Future<Output = Result<(), BalancerError>> + Send {
         ready(self.send_text_frame(&message))
     }
 }
@@ -64,8 +69,19 @@ mod tests {
     use paddler_messaging::rpc_message::RpcMessage;
 
     use super::WebSocketSessionController;
+    use crate::balancer_error::BalancerError;
     use crate::controls_session::ControlsSession as _;
     use crate::websocket_outbound_frame::WebSocketOutboundFrame;
+
+    fn request_rejection() -> OutgoingMessage {
+        OutgoingMessage::Error(ErrorEnvelope {
+            request_id: "request".to_owned(),
+            error: JsonRpcError {
+                code: 400,
+                description: "rejected".to_owned(),
+            },
+        })
+    }
 
     struct MessageThatCannotSerialize;
 
@@ -85,49 +101,33 @@ mod tests {
 
     impl RpcMessage for MessageThatCannotSerialize {}
 
-    fn request_rejection() -> OutgoingMessage {
-        OutgoingMessage::Error(ErrorEnvelope {
-            request_id: "request".to_owned(),
-            error: JsonRpcError {
-                code: 400,
-                description: "rejected".to_owned(),
-            },
-        })
-    }
-
     #[tokio::test]
     async fn a_response_for_a_writer_that_stopped_is_reported_as_undelivered() {
         let (outbound_tx, outbound_rx) = unbounded_channel();
 
         drop(outbound_rx);
 
-        let SendError(undelivered_frame) =
+        assert!(matches!(
             WebSocketSessionController::<OutgoingMessage>::new(outbound_tx)
                 .send_response(request_rejection())
-                .await
-                .unwrap_err()
-                .downcast::<SendError<WebSocketOutboundFrame>>()
-                .unwrap();
-
-        assert_eq!(
-            undelivered_frame,
-            WebSocketOutboundFrame::Text(to_string(&request_rejection()).unwrap())
-        );
+                .await,
+            Err(BalancerError::WebSocketOutboundClosed(SendError(undelivered_frame)))
+                if undelivered_frame
+                    == WebSocketOutboundFrame::Text(to_string(&request_rejection()).unwrap())
+        ));
     }
 
     #[tokio::test]
     async fn a_response_that_cannot_be_serialized_never_reaches_the_writer() {
         let (outbound_tx, mut outbound_rx) = unbounded_channel();
 
-        assert_eq!(
+        assert!(matches!(
             WebSocketSessionController::<MessageThatCannotSerialize>::new(outbound_tx)
                 .send_response(MessageThatCannotSerialize)
-                .await
-                .err()
-                .as_ref()
-                .map(ToString::to_string),
-            Some("the message cannot be serialized".to_owned())
-        );
+                .await,
+            Err(BalancerError::ResponseUnserializable(serialization_error))
+                if serialization_error.is_data()
+        ));
         assert_eq!(outbound_rx.try_recv(), Err(TryRecvError::Disconnected));
     }
 }

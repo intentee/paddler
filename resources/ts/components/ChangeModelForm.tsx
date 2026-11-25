@@ -55,16 +55,6 @@ export function ChangeModelForm() {
     [editedDesiredState, setEditedDesiredState],
   );
 
-  const onPointerHead = useCallback(
-    function (pointer_head: AgentDesiredModel) {
-      setEditedDesiredState({
-        ...editedDesiredState,
-        decision: { ...editedDesiredState.decision, pointer_head },
-      });
-    },
-    [editedDesiredState, setEditedDesiredState],
-  );
-
   const onSubmit = useCallback(
     function (event: SubmitEvent<HTMLFormElement>) {
       event.preventDefault();
@@ -126,6 +116,13 @@ export function ChangeModelForm() {
             <code>
               https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/mmproj-F16.gguf
             </code>
+            <p>
+              Agents serve decisions when the model is a kev decision model,
+              for example:
+            </p>
+            <code>
+              https://huggingface.co/ggml-org/Kev-0.8B-GGUF/blob/main/Kev-0.8B-BF16.gguf
+            </code>
           </dd>
           <dt>Local File</dt>
           <dd>
@@ -154,17 +151,6 @@ export function ChangeModelForm() {
               name="model_uri"
               onModel={onBaseModel}
               required
-            />
-          </label>
-          <label className={changeModelForm__formLabel}>
-            <div className={changeModelForm__formLabel__title}>
-              Pointer Head URI (optional, set it to serve decisions)
-            </div>
-            <ModelUriInput
-              model={editedDesiredState.decision.pointer_head}
-              name="pointer_head_uri"
-              onModel={onPointerHead}
-              required={false}
             />
           </label>
           <label className={changeModelForm__formLabel}>

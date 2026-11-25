@@ -1,4 +1,4 @@
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
+use paddler_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::subprocess_signals::SubprocessSignals;
 

@@ -30,7 +30,9 @@ mod tests {
     #[should_panic(expected = "the blocking work crashed")]
     async fn the_awaiting_task_resumes_the_panic_of_the_blocking_work() {
         spawn_blocking_resuming_panic(|| {
-            panic!("the blocking work crashed");
+            "not a number"
+                .parse::<u32>()
+                .expect("the blocking work crashed")
         })
         .await;
     }

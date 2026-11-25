@@ -1,0 +1,42 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use tokio_util::sync::CancellationToken;
+
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_raw_prompt_with_gbnf_grammar_constrains_output() {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
+        .await
+        .expect("the cluster must start");
+
+    let collected = cluster
+        .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
+            grammar: Some(GrammarConstraint::Gbnf {
+                grammar: r#"root ::= "yes" | "no""#.to_owned(),
+                root: "root".to_owned(),
+            }),
+            max_tokens: NonZeroU32::new(10).unwrap(),
+            raw_prompt:
+                "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+                    .to_owned(),
+        })
+        .await.expect("the inference request must be accepted");
+
+    let answer = collected.text.as_str();
+
+    assert!(
+        ["yes", "no"].contains(&answer),
+        "GBNF grammar should constrain output to yes/no; got {answer:?}"
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

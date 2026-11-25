@@ -1,4 +1,5 @@
 use std::env::var_os;
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::cache_dir_error::CacheDirError;
@@ -12,6 +13,15 @@ pub struct CacheDir {
 
 impl CacheDir {
     #[must_use]
+    pub fn from_explicit_path(path: &Path) -> Self {
+        Self {
+            explicit: Some(path.to_path_buf()),
+            home: None,
+            xdg: None,
+        }
+    }
+
+    #[must_use]
     pub fn from_process_env() -> Self {
         Self {
             explicit: var_os("PADDLER_CACHE_DIR").map(PathBuf::from),
@@ -20,6 +30,9 @@ impl CacheDir {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`CacheDirError::HomeVariableUnset`] when neither an explicit nor an XDG cache directory is set and `HOME` is unset.
     pub fn resolve(&self) -> Result<PathBuf, CacheDirError> {
         if let Some(explicit) = &self.explicit {
             return Ok(explicit.clone());

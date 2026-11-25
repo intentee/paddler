@@ -5,12 +5,13 @@ use std::collections::BTreeSet;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_cluster_harness::embedding_with_producer::EmbeddingWithProducer;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_embedding_batch_across_agents() {
@@ -49,7 +50,7 @@ async fn balancer_distributes_embedding_batch_across_agents() {
     let producers: BTreeSet<&str> = collected
         .embeddings
         .iter()
-        .filter_map(|produced| produced.generated_by.as_deref())
+        .filter_map(|EmbeddingWithProducer { generated_by, .. }| generated_by.as_deref())
         .collect();
 
     assert!(

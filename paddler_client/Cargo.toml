@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 bytes = { workspace = true }
 futures-util = { workspace = true }
@@ -20,14 +23,16 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tokio-stream = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
 http = { workspace = true }
+paddler_capturing_logger = { workspace = true }
+paddler_chunked_response_fixture = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
+tokio-stream = { workspace = true }
 
 [lints]
 workspace = true

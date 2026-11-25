@@ -8,11 +8,13 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 fslock = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 
 paddler_sha256_hex = { workspace = true }
 

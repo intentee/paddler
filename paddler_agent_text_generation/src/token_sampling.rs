@@ -1,8 +1,7 @@
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::sample_error::SampleError;
-use llama_cpp_bindings::error::sampler_apply_error::SamplerApplyError;
-use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 
 use crate::grammar_sampling::GrammarSampling;
 use crate::sampling_outcome::SamplingOutcome;
@@ -14,6 +13,9 @@ pub struct TokenSampling {
 }
 
 impl TokenSampling {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::TokenDataUnreadable`] when the logits of the batch position cannot be read, [`TextGenerationError::GrammarConstraintFailed`] when the grammar fails to constrain the candidates, [`TextGenerationError::SamplerChainApplicationFailed`] when the sampler chain fails to apply, and [`TextGenerationError::SamplerChainRejectedToken`] when the chain rejects the selected token.
     pub fn sample(
         &mut self,
         llama_context: &LlamaContext,
@@ -25,9 +27,9 @@ impl TokenSampling {
             .map_err(TextGenerationError::TokenDataUnreadable)?;
         match self.grammar.constrain(candidates) {
             Ok(()) => {}
-            Err(SampleError::SamplerApply(SamplerApplyError::EveryCandidateExcluded)) => {
+            Err(SamplerError::EveryCandidateExcluded) => {
                 return Ok(SamplingOutcome::GrammarRejectedModelOutput(
-                    SamplerApplyError::EveryCandidateExcluded.to_string(),
+                    SamplerError::EveryCandidateExcluded.to_string(),
                 ));
             }
             Err(constraint_error) => {

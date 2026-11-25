@@ -25,7 +25,9 @@ mod tests {
     #[should_panic(expected = "the spawned task crashed")]
     async fn the_awaiting_task_resumes_the_panic_of_the_spawned_task() {
         spawn_resuming_panic(async {
-            panic!("the spawned task crashed");
+            "not a number"
+                .parse::<u32>()
+                .expect("the spawned task crashed")
         })
         .await;
     }

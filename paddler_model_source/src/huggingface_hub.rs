@@ -10,6 +10,9 @@ pub struct HuggingFaceHub {
 }
 
 impl HuggingFaceHub {
+    /// # Errors
+    ///
+    /// Returns an [`HFError`] when the endpoint is not a valid URL or the HTTP clients of the Hugging Face client cannot be built.
     pub fn client(&self) -> Result<HFClient, HFError> {
         self.cache_location
             .client_builder()

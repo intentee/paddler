@@ -1,0 +1,41 @@
+use http::StatusCode;
+
+use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
+use paddler_local_http_fixture::fixture_response::FixtureResponse;
+use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_reports_download_server_errored() {
+    let fixture =
+        LocalHttpFixture::start(FixtureResponse::Status(StatusCode::INTERNAL_SERVER_ERROR))
+            .await
+            .expect("the local HTTP fixture must start");
+    let model_url = fixture.url("/broken.gguf");
+    let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
+        model: AgentDesiredModel::Uri(model_url.clone()),
+        ..BalancerDesiredState::default()
+    })
+    .await
+    .expect("a single-agent cluster must start");
+
+    cluster
+        .wait_for_first_agent_issue(|issue| {
+            matches!(issue, AgentIssue::DownloadServerErrored(model_path) if model_path.model_path == model_url)
+        })
+        .await
+        .expect("the agent must report DownloadServerErrored for the configured URL");
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
+}

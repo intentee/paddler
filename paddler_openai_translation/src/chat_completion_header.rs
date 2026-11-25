@@ -39,14 +39,15 @@ impl CompletesGeneration for ChatCompletionHeader {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
+    use paddler_messaging::token_usage::TokenUsage;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::ChatCompletionHeader;
     use crate::completes_generation::CompletesGeneration as _;
@@ -76,9 +77,9 @@ mod tests {
                 &GenerationSummary {
                     finish: GenerationFinish::EndOfGeneration,
                     usage: TokenUsage {
-                        prompt_tokens,
-                        content_tokens,
-                        reasoning_tokens,
+                        prompt: prompt_tokens,
+                        content: content_tokens,
+                        reasoning: reasoning_tokens,
                         ..TokenUsage::default()
                     },
                 },
@@ -131,7 +132,14 @@ mod tests {
                         name: "get_weather".to_owned(),
                     },
                     GeneratedToolCall {
-                        arguments: ToolCallArguments::from_string("{not valid json".to_owned()),
+                        arguments: ToolCallArguments::InvalidJson {
+                            raw: "{not valid json".to_owned(),
+                            error: InvalidArgumentsJson {
+                                message: "key must be a string at line 1 column 2".to_owned(),
+                                line: 1,
+                                column: 2,
+                            },
+                        },
                         id: "call_invalid".to_owned(),
                         index: 1,
                         name: "broken_tool".to_owned(),

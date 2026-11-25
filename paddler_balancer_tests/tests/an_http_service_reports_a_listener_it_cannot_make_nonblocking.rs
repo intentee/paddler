@@ -1,0 +1,62 @@
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
+
+use actix_web::App;
+use libc::EPERM;
+use libc::FIONBIO;
+use libc::SYS_ioctl;
+use seccompiler::SeccompCmpArgLen;
+use seccompiler::SeccompCmpOp;
+use seccompiler::SeccompCondition;
+use seccompiler::SeccompRule;
+use tokio_util::sync::CancellationToken;
+
+use paddler_balancer::balancer_error::BalancerError;
+use paddler_balancer::http_listener::HttpListener;
+use paddler_balancer::http_service_runner::HttpServiceRunner;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
+
+const SERVICE_NAME: &str = "balancer::service_that_cannot_listen";
+
+#[actix_web::test]
+async fn an_http_service_reports_a_listener_it_cannot_make_nonblocking() {
+    let http_listener = HttpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+        .expect("the listener must bind before nonblocking mode is refused");
+    let local_addr = http_listener.local_addr;
+
+    RefusedSyscalls {
+        errno: EPERM,
+        refused_syscalls: vec![RefusedSyscall {
+            syscall: SYS_ioctl,
+            rules: vec![
+                SeccompRule::new(vec![
+                    SeccompCondition::new(1, SeccompCmpArgLen::Dword, SeccompCmpOp::Eq, FIONBIO)
+                        .expect("the nonblocking request condition must be valid"),
+                ])
+                .expect("the nonblocking request rule must be valid"),
+            ],
+        }],
+    }
+    .apply_to_every_thread()
+    .expect("the refusing filter must apply to every thread of the test process");
+
+    let service_error = HttpServiceRunner {
+        app_factory: App::new,
+        http_listener,
+        service_name: SERVICE_NAME,
+        worker_count: 1,
+    }
+    .run(CancellationToken::new())
+    .await
+    .expect_err("a listener that cannot become nonblocking must not be served");
+
+    assert!(matches!(
+        service_error,
+        BalancerError::HttpServiceCannotListen {
+            local_addr: unlistened_local_addr,
+            service_name: SERVICE_NAME,
+            source,
+        } if unlistened_local_addr == local_addr && source.raw_os_error() == Some(EPERM)
+    ));
+}

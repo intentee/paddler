@@ -1,5 +1,5 @@
-use llama_cpp_bindings::error::sampling_error::SamplingError;
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 
@@ -9,7 +9,10 @@ pub struct SamplerChainFactory {
 }
 
 impl SamplerChainFactory {
-    pub fn create(&self, seed: u32) -> Result<LlamaSampler, SamplingError> {
+    /// # Errors
+    ///
+    /// Returns the [`SamplerError`] llama.cpp reports when a sampler of the chain, or the chain itself, cannot be created.
+    pub fn create(&self, seed: u32) -> Result<LlamaSampler, SamplerError> {
         let sampling_parameters = &self.sampling_parameters;
         let samplers = [
             LlamaSampler::penalties(
@@ -32,9 +35,9 @@ impl SamplerChainFactory {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::token::LlamaToken;
-    use llama_cpp_bindings::token::data::LlamaTokenData;
-    use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::llama_token_data::LlamaTokenData;
+    use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
     use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 

@@ -1,0 +1,120 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use futures_util::StreamExt as _;
+use tokio_util::sync::CancellationToken;
+
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_cluster_harness::unending_generation::unending_generation;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+
+const WAITING_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(32).unwrap();
+const SLOT_COUNT: u16 = 4;
+const WAITING_REQUEST_COUNT: u64 = 4;
+
+fn waiting_prompt() -> ContinueFromRawPromptParams {
+    ContinueFromRawPromptParams {
+        grammar: None,
+        max_tokens: WAITING_MAX_TOKENS,
+        raw_prompt: "The capital of France is".to_owned(),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn inference_socket_burst_cancellation_serves_every_buffered_request() {
+    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(SLOT_COUNT)])
+        .await
+        .expect("the cluster must start");
+    let agent_id = cluster
+        .agent_ids
+        .first()
+        .expect("cluster must have one registered agent")
+        .clone();
+
+    let slot_filling_tokens: Vec<CancellationToken> = (0..SLOT_COUNT)
+        .map(|_slot_index| CancellationToken::new())
+        .collect();
+    let mut slot_filling_streams = Vec::new();
+
+    for slot_filling_token in &slot_filling_tokens {
+        slot_filling_streams.push(
+            cluster
+                .client_inference
+                .continue_from_raw_prompt(slot_filling_token.clone(), unending_generation())
+                .await
+                .expect("the inference request must be accepted"),
+        );
+    }
+
+    for slot_filling_stream in &mut slot_filling_streams {
+        slot_filling_stream
+            .next()
+            .await
+            .expect("each slot-filling request must stream a message before it is cancelled")
+            .expect("the message must be readable");
+    }
+
+    cluster
+        .wait_for_slots_processing(&agent_id, u64::from(SLOT_COUNT))
+        .await
+        .expect("the agent must reach the expected slot usage");
+
+    let mut waiting_streams = Vec::new();
+
+    for _ in 0..WAITING_REQUEST_COUNT {
+        waiting_streams.push(
+            cluster
+                .client_inference
+                .continue_from_raw_prompt(CancellationToken::new(), waiting_prompt())
+                .await
+                .expect("the inference request must be accepted"),
+        );
+    }
+
+    cluster
+        .wait_for_buffered_request_count(WAITING_REQUEST_COUNT)
+        .await
+        .expect("the balancer must reach the expected buffered request count");
+
+    for slot_filling_token in &slot_filling_tokens {
+        slot_filling_token.cancel();
+    }
+
+    for mut slot_filling_stream in slot_filling_streams {
+        assert!(
+            slot_filling_stream.next().await.is_none(),
+            "a cancelled request must end its stream"
+        );
+    }
+
+    for waiting_stream in waiting_streams {
+        let collected = collect_generated_tokens(waiting_stream)
+            .await
+            .expect("the generated tokens must be collected");
+
+        collected
+            .summary()
+            .expect("every buffered request must run to completion once a slot frees, not end with an error");
+        assert!(
+            collected
+                .token_results
+                .iter()
+                .any(|token_result_with_producer| token_result_with_producer
+                    .token_result
+                    .is_token()),
+            "every buffered request must be served, not finished without generating a single token"
+        );
+    }
+
+    cluster
+        .wait_for_slots_processing(&agent_id, 0)
+        .await
+        .expect("the agent must reach the expected slot usage");
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

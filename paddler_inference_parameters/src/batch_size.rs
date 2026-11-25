@@ -59,8 +59,8 @@ impl TryFrom<u32> for BatchSize {
 }
 
 impl From<BatchSize> for u32 {
-    fn from(batch_size: BatchSize) -> Self {
-        batch_size.0.get()
+    fn from(BatchSize(tokens): BatchSize) -> Self {
+        tokens.get()
     }
 }
 

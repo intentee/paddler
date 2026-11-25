@@ -2,12 +2,16 @@
 
 use tokio_util::sync::CancellationToken;
 
-use crate::subprocess_cluster_with_a_serving_and_a_stuck_agent::SERVING_AGENT_SLOTS;
-use crate::subprocess_cluster_with_a_serving_and_a_stuck_agent::subprocess_cluster_with_a_serving_and_a_stuck_agent;
+use paddler_cli_tests::constants::SERVING_AGENT_SLOTS;
+use paddler_cli_tests::subprocess_cluster_with_a_serving_and_a_stuck_agent::subprocess_cluster_with_a_serving_and_a_stuck_agent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_metrics_count_only_the_slots_of_serving_agents() {
-    let cluster = subprocess_cluster_with_a_serving_and_a_stuck_agent().await;
+    let cluster = subprocess_cluster_with_a_serving_and_a_stuck_agent(env!(
+        "CARGO_BIN_EXE_paddler_cluster_node"
+    ))
+    .await
+    .expect("the cluster must start with a serving and a stuck agent");
 
     let metrics = cluster
         .client_management

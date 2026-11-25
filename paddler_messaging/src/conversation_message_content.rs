@@ -1,11 +1,7 @@
-use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
-use llama_cpp_bindings_types::chat_message_content_part::ChatMessageContentPart;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::conversation_message_content_part::ConversationMessageContentPart;
-use crate::image_url::ImageUrl;
-use crate::media_marker::MediaMarker;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -15,31 +11,6 @@ pub enum ConversationMessageContent {
 }
 
 impl ConversationMessageContent {
-    pub fn into_chat_template_content(
-        self,
-        media_marker: &MediaMarker,
-        image_urls: &mut Vec<ImageUrl>,
-    ) -> ChatMessageContent {
-        match self {
-            Self::Text(text) => ChatMessageContent::Text(text),
-            Self::Parts(parts) => ChatMessageContent::Parts(
-                parts
-                    .into_iter()
-                    .map(|part| match part {
-                        ConversationMessageContentPart::Text { text } => {
-                            ChatMessageContentPart::Text(text)
-                        }
-                        ConversationMessageContentPart::ImageUrl { image_url } => {
-                            image_urls.push(image_url);
-
-                            ChatMessageContentPart::MediaMarker(media_marker.marker.clone())
-                        }
-                    })
-                    .collect(),
-            ),
-        }
-    }
-
     #[must_use]
     pub fn text_content(&self) -> String {
         match self {
@@ -54,66 +25,16 @@ impl ConversationMessageContent {
                 .join(""),
         }
     }
-
-    #[must_use]
-    pub fn image_urls(&self) -> Vec<&ImageUrl> {
-        match self {
-            Self::Text(_) => vec![],
-            Self::Parts(parts) => parts
-                .iter()
-                .filter_map(|part| match part {
-                    ConversationMessageContentPart::ImageUrl { image_url } => Some(image_url),
-                    ConversationMessageContentPart::Text { .. } => None,
-                })
-                .collect(),
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
-    use llama_cpp_bindings_types::chat_message_content_part::ChatMessageContentPart;
-
     use crate::conversation_message_content::ConversationMessageContent;
     use crate::conversation_message_content_part::ConversationMessageContentPart;
     use crate::image_url::ImageUrl;
-    use crate::media_marker::MediaMarker;
 
     #[test]
-    fn images_reach_the_template_as_media_markers_between_their_text_parts() {
-        let mut image_urls = Vec::new();
-        let image_url = ImageUrl {
-            url: "http://example.com/img.png".to_owned(),
-        };
-        let content = ConversationMessageContent::Parts(vec![
-            ConversationMessageContentPart::Text {
-                text: "before".to_owned(),
-            },
-            ConversationMessageContentPart::ImageUrl {
-                image_url: image_url.clone(),
-            },
-            ConversationMessageContentPart::Text {
-                text: "after".to_owned(),
-            },
-        ]);
-
-        assert_eq!(
-            content.into_chat_template_content(
-                &MediaMarker::new("[IMAGE]".to_owned()),
-                &mut image_urls,
-            ),
-            ChatMessageContent::Parts(vec![
-                ChatMessageContentPart::Text("before".to_owned()),
-                ChatMessageContentPart::MediaMarker("[IMAGE]".to_owned()),
-                ChatMessageContentPart::Text("after".to_owned()),
-            ])
-        );
-        assert_eq!(image_urls, vec![image_url]);
-    }
-
-    #[test]
-    fn text_content_from_text_variant() {
+    fn text_content_of_a_text_variant_is_its_text() {
         let content = ConversationMessageContent::Text("hello world".to_owned());
 
         assert_eq!(content.text_content(), "hello world");
@@ -136,37 +57,5 @@ mod tests {
         ]);
 
         assert_eq!(content.text_content(), "hello world");
-    }
-
-    #[test]
-    fn image_urls_from_text_variant_is_empty() {
-        let content = ConversationMessageContent::Text("hello".to_owned());
-
-        assert_eq!(content.image_urls(), Vec::<&ImageUrl>::new());
-    }
-
-    #[test]
-    fn image_urls_from_parts_collects_image_urls() {
-        let content = ConversationMessageContent::Parts(vec![
-            ConversationMessageContentPart::Text {
-                text: "hello".to_owned(),
-            },
-            ConversationMessageContentPart::ImageUrl {
-                image_url: ImageUrl {
-                    url: "http://example.com/a.png".to_owned(),
-                },
-            },
-            ConversationMessageContentPart::ImageUrl {
-                image_url: ImageUrl {
-                    url: "http://example.com/b.png".to_owned(),
-                },
-            },
-        ]);
-
-        let urls = content.image_urls();
-
-        assert_eq!(urls.len(), 2);
-        assert_eq!(urls[0].url, "http://example.com/a.png");
-        assert_eq!(urls[1].url, "http://example.com/b.png");
     }
 }

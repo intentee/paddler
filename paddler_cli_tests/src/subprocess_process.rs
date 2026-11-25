@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use nix::unistd::Pid;
 use tokio::process::Child;
 
-use paddler_test_cluster_harness::managed_process::ManagedProcess;
-use paddler_test_cluster_harness::process_end::ProcessEnd;
+use paddler_cluster_harness::managed_process::ManagedProcess;
+use paddler_cluster_harness::process_end::ProcessEnd;
 
 use crate::subprocess_cluster_error::SubprocessClusterError;
 use crate::subprocess_signals::SubprocessSignals;
@@ -56,15 +56,15 @@ impl SubprocessProcess {
 
 #[async_trait]
 impl ManagedProcess for SubprocessProcess {
+    async fn exited(&mut self) -> ProcessEnd {
+        self.wait_for_exit().await
+    }
+
     fn terminate(&mut self) -> Result<()> {
         let Some(signals) = self.signals() else {
             return Ok(());
         };
 
         signals.terminate().map_err(Into::into)
-    }
-
-    async fn exited(&mut self) -> ProcessEnd {
-        self.wait_for_exit().await
     }
 }

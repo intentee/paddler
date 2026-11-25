@@ -1,0 +1,40 @@
+use anyhow::Result;
+use async_trait::async_trait;
+
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+
+use crate::managed_process::ManagedProcess;
+use crate::process_end::ProcessEnd;
+
+pub struct InProcessBalancer {
+    runner: BalancerRunner,
+}
+
+impl InProcessBalancer {
+    #[must_use]
+    pub const fn new(runner: BalancerRunner) -> Self {
+        Self { runner }
+    }
+}
+
+impl InProcessBalancer {
+    async fn wait_for_exit(&mut self) -> ProcessEnd {
+        self.runner
+            .wait_for_completion()
+            .await
+            .map_or_else(ProcessEnd::failed, |()| ProcessEnd::Clean)
+    }
+}
+
+#[async_trait]
+impl ManagedProcess for InProcessBalancer {
+    async fn exited(&mut self) -> ProcessEnd {
+        self.wait_for_exit().await
+    }
+
+    fn terminate(&mut self) -> Result<()> {
+        self.runner.cancel();
+
+        Ok(())
+    }
+}

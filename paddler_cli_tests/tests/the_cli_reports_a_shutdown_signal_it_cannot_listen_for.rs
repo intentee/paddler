@@ -8,10 +8,10 @@ use seccompiler::SeccompCmpOp;
 use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
 
+use paddler_cli::cli_error::CliError;
 use paddler_cli::run;
-
-use crate::refused_syscall::RefusedSyscall;
-use crate::refused_syscalls::RefusedSyscalls;
+use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
+use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
 
 #[test]
 fn the_cli_reports_a_shutdown_signal_it_cannot_listen_for() {
@@ -33,16 +33,19 @@ fn the_cli_reports_a_shutdown_signal_it_cannot_listen_for() {
             ],
         }],
     }
-    .apply_to_every_thread();
+    .apply_to_every_thread()
+    .expect("the refusing filter must apply to every thread of the test process");
 
     let cli_error = run().expect_err("a CLI that cannot listen for SIGTERM must not start");
 
-    assert_eq!(cli_error.to_string(), "failed to listen for SIGTERM");
-    assert_eq!(
-        cli_error
-            .root_cause()
-            .downcast_ref::<io::Error>()
-            .and_then(io::Error::raw_os_error),
-        Some(EPERM)
-    );
+    assert!(matches!(
+        &cli_error,
+        CliError::ShutdownSignalsUnregistrable(registration_failure)
+            if registration_failure.to_string() == "failed to listen for SIGTERM"
+                && registration_failure
+                    .root_cause()
+                    .downcast_ref::<io::Error>()
+                    .and_then(io::Error::raw_os_error)
+                    == Some(EPERM)
+    ));
 }

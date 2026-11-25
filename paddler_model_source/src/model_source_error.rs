@@ -18,11 +18,11 @@ pub enum ModelSourceError {
     AgentUriNotAnAbsoluteLocalPath { uri: String },
     #[error("Agent URI '{uri}' is not canonical: use '{canonical_uri}'")]
     AgentUriNotCanonical { canonical_uri: String, uri: String },
-    #[error("Unable to resolve the model cache directory: {0}")]
+    #[error("Unable to resolve the model cache directory")]
     CacheDirectoryUnresolvable(#[source] CacheDirError),
-    #[error("Unable to set up the model download client: {0}")]
+    #[error("Unable to set up the model download client")]
     DownloadClientUnavailable(#[source] ReqwestError),
-    #[error("Failed to download '{url}': {source}")]
+    #[error("Failed to download '{url}'")]
     DownloadFailed {
         url: String,
         #[source]
@@ -30,15 +30,15 @@ pub enum ModelSourceError {
     },
     #[error("Cannot download '{url}': another agent on this host is downloading it")]
     DownloadLockHeldByAnotherProcess { url: String },
-    #[error("Unable to look up model '{model_path}' in the Hugging Face cache: {source}")]
+    #[error("Unable to look up model '{model_path}' in the Hugging Face cache")]
     HuggingFaceCacheLookupFailed {
         model_path: String,
         #[source]
         source: HFError,
     },
-    #[error("Unable to set up the Hugging Face client: {0}")]
+    #[error("Unable to set up the Hugging Face client")]
     HuggingFaceClientUnavailable(#[source] HFError),
-    #[error("Failed to download model '{model_path}' from Hugging Face: {source}")]
+    #[error("Failed to download model '{model_path}' from Hugging Face")]
     HuggingFaceDownloadFailed {
         model_path: String,
         #[source]
@@ -59,7 +59,7 @@ pub enum ModelSourceError {
     )]
     HuggingFaceModelUriMalformed { uri: String },
     #[error(
-        "Hugging Face model URI '{uri}' has a path component that is not valid UTF-8 once percent-decoded: {source}"
+        "Hugging Face model URI '{uri}' has a path component that is not valid UTF-8 once percent-decoded"
     )]
     HuggingFaceModelUriComponentNotUtf8 {
         uri: String,
@@ -68,9 +68,7 @@ pub enum ModelSourceError {
     },
     #[error("You do not have enough permissions to download '{model_path}' from Hugging Face.")]
     HuggingFacePermissionDenied { model_path: String },
-    #[error("Local file does not exist: {path_display}", path_display = path.display())]
-    LocalFileMissing { path: PathBuf },
-    #[error("Unable to check whether the local model file '{path_display}' exists: {source}", path_display = path.display())]
+    #[error("Unable to check whether the local model file '{path_display}' exists", path_display = path.display())]
     LocalFileUncheckable {
         path: PathBuf,
         #[source]
@@ -80,15 +78,13 @@ pub enum ModelSourceError {
     LocalModelPathClimbsToParentDirectory { path: PathBuf },
     #[error("Local model path '{path_display}' is not absolute", path_display = path.display())]
     LocalModelPathNotAbsolute { path: PathBuf },
-    #[error(
-        "Model URI '{uri}' is neither a Hugging Face, an agent:// nor a downloadable URI: {source}"
-    )]
+    #[error("Model URI '{uri}' is neither a Hugging Face, an agent:// nor a downloadable URI")]
     ModelUriNotDownloadable {
         uri: String,
         #[source]
         source: DownloadError,
     },
-    #[error("Model URI '{uri}' cannot be parsed: {source}")]
+    #[error("Model URI '{uri}' cannot be parsed")]
     ModelUriUnparseable {
         uri: String,
         #[source]

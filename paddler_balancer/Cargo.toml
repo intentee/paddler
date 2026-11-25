@@ -9,6 +9,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 actix-cors = { workspace = true }
 actix-web = { workspace = true }
@@ -23,25 +26,25 @@ dashmap = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 indoc = { workspace = true }
-llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
 mime_guess = { workspace = true, optional = true }
 nanoid = { workspace = true }
+paddler_balancer_dashboard_assets = { workspace = true, optional = true }
+paddler_balancer_state_database = { workspace = true }
+paddler_error_chain = { workspace = true }
 paddler_frame_writer = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
-paddler_openai_translation = { workspace = true }
 paddler_outbox = { workspace = true }
 paddler_request_registry = { workspace = true }
 paddler_spawn_resuming_panic = { workspace = true }
-paddler_state_database = { workspace = true }
-paddler_typesafe_translation = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rust-embed = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 socket2 = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
@@ -52,16 +55,18 @@ default = []
 web_admin_panel = [
     "dep:askama",
     "dep:mime_guess",
-    "dep:paddler_dashboard_assets",
+    "dep:paddler_balancer_dashboard_assets",
     "dep:rust-embed",
 ]
 
 [build-dependencies]
-paddler_dashboard_assets = { workspace = true, optional = true }
+paddler_balancer_dashboard_assets = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
+paddler_balancer_desired_state_fixture = { workspace = true }
 paddler_blocking_thread_fixture = { workspace = true }
-paddler_openai_response_format_validator = { workspace = true }
+paddler_capturing_logger = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

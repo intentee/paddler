@@ -1,8 +1,9 @@
 use serde::Serialize;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
+use crate::encoded_once_text::EncodedOnceText;
 use crate::responses_content_part::ResponsesContentPart;
 use crate::responses_item_status::ResponsesItemStatus;
 use crate::responses_reasoning_part::ResponsesReasoningPart;
@@ -35,36 +36,53 @@ impl ResponsesOutputItem {
     #[must_use]
     pub fn completed_function_call(
         id: String,
-        parsed_tool_call: &GeneratedToolCall,
+        GeneratedToolCall {
+            id: call_id, name, ..
+        }: &GeneratedToolCall,
         arguments: String,
     ) -> Self {
         Self::FunctionCall {
             arguments,
-            call_id: parsed_tool_call.id.clone(),
+            call_id: call_id.clone(),
             id,
-            name: parsed_tool_call.name.clone(),
+            name: name.clone(),
             status: ResponsesItemStatus::Completed,
         }
     }
 
     #[must_use]
-    pub fn function_call_in_progress(id: String, parsed_tool_call: &GeneratedToolCall) -> Self {
-        Self::FunctionCall {
-            arguments: String::new(),
-            call_id: parsed_tool_call.id.clone(),
-            id,
-            name: parsed_tool_call.name.clone(),
-            status: ResponsesItemStatus::InProgress,
-        }
-    }
-
-    #[must_use]
-    pub fn completed_message(id: String, text: String) -> Self {
+    pub fn completed_message(id: String, text: EncodedOnceText) -> Self {
         Self::Message {
             content: vec![ResponsesContentPart::output_text(text)],
             id,
             role: ASSISTANT_ROLE,
             status: ResponsesItemStatus::Completed,
+        }
+    }
+
+    #[must_use]
+    pub fn completed_reasoning(id: String, text: EncodedOnceText) -> Self {
+        Self::Reasoning {
+            content: vec![ResponsesReasoningPart::ReasoningText { text }],
+            id,
+            status: ResponsesItemStatus::Completed,
+            summary: [],
+        }
+    }
+
+    #[must_use]
+    pub fn function_call_in_progress(
+        id: String,
+        GeneratedToolCall {
+            id: call_id, name, ..
+        }: &GeneratedToolCall,
+    ) -> Self {
+        Self::FunctionCall {
+            arguments: String::new(),
+            call_id: call_id.clone(),
+            id,
+            name: name.clone(),
+            status: ResponsesItemStatus::InProgress,
         }
     }
 
@@ -75,16 +93,6 @@ impl ResponsesOutputItem {
             id,
             role: ASSISTANT_ROLE,
             status: ResponsesItemStatus::InProgress,
-        }
-    }
-
-    #[must_use]
-    pub fn completed_reasoning(id: String, text: String) -> Self {
-        Self::Reasoning {
-            content: vec![ResponsesReasoningPart::ReasoningText { text }],
-            id,
-            status: ResponsesItemStatus::Completed,
-            summary: [],
         }
     }
 

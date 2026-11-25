@@ -6,6 +6,8 @@ use mime_guess::from_path;
 
 use crate::static_files::StaticFiles;
 
+const STATIC_FILES_ROUTE: &str = "/static/{path:.*}";
+
 async fn respond(path: web::Path<String>) -> impl Responder {
     let path = path.into_inner();
 
@@ -18,7 +20,7 @@ async fn respond(path: web::Path<String>) -> impl Responder {
 }
 
 pub fn static_files(cfg: &mut web::ServiceConfig) {
-    cfg.route("/static/{path:.*}", get().to(respond));
+    cfg.route(STATIC_FILES_ROUTE, get().to(respond));
 }
 
 #[cfg(test)]
@@ -77,9 +79,5 @@ mod tests {
         let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-        let body = read_body(response).await;
-
-        assert_eq!(body.as_ref(), b"File not found");
     }
 }

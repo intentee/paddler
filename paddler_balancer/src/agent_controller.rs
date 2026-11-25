@@ -26,15 +26,16 @@ use crate::agent_response_receiver::AgentResponseReceiver;
 use crate::agent_response_senders::AgentResponseSenders;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::balancer_applicable_state::BalancerApplicableState;
+use crate::delivered_desired_state_version::DeliveredDesiredStateVersion;
 use crate::response_senders::ResponseSenders;
 
 pub struct AgentController {
     pub agent_outbox: Outbox<AgentJsonRpcMessage>,
     pub agent_response_senders: AgentResponseSenders,
     pub connection_close: CancellationToken,
+    pub delivered_desired_state_version: Mutex<DeliveredDesiredStateVersion>,
     pub id: String,
     pub name: Option<String>,
-    pub next_deliverable_desired_state_version: Mutex<u64>,
     pub reported_status: RwLock<SlotAggregatedStatusSnapshot>,
     pub slots_processing: AtomicValue<AtomicU64>,
 }
@@ -53,9 +54,9 @@ impl AgentController {
             agent_outbox: Outbox::default(),
             agent_response_senders: AgentResponseSenders::default(),
             connection_close,
+            delivered_desired_state_version: Mutex::new(DeliveredDesiredStateVersion::Nothing),
             id,
             name,
-            next_deliverable_desired_state_version: Mutex::new(0),
             reported_status: RwLock::new(reported_status),
             slots_processing: AtomicValue::<AtomicU64>::new(0),
         }
@@ -85,17 +86,17 @@ impl AgentController {
             ..
         }: &BalancerApplicableState,
     ) {
-        let mut next_deliverable_desired_state_version =
-            self.next_deliverable_desired_state_version.lock();
+        let mut delivered_desired_state_version = self.delivered_desired_state_version.lock();
 
-        if *version < *next_deliverable_desired_state_version {
+        if !delivered_desired_state_version.precedes(*version) {
             return;
         }
 
-        *next_deliverable_desired_state_version = version + 1;
+        *delivered_desired_state_version = DeliveredDesiredStateVersion::Version(*version);
         self.agent_outbox.push(agent_desired_state_notification(
             agent_desired_state.clone(),
         ));
+        drop(delivered_desired_state_version);
     }
 
     pub fn stop_responding_to(&self, request_id: String) {
@@ -163,8 +164,7 @@ mod tests {
     use serde_json::to_value;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_balancer_desired_state_fixture::desired_state_with_model::desired_state_with_model;
     use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
     use super::AgentController;
@@ -172,19 +172,13 @@ mod tests {
     use crate::agent_desired_state_notification::agent_desired_state_notification;
     use crate::balancer_applicable_state::BalancerApplicableState;
 
-    fn desired_state_with_model(model_uri: &str) -> BalancerDesiredState {
-        BalancerDesiredState {
-            model: AgentDesiredModel::Uri(model_uri.to_owned()),
-            ..BalancerDesiredState::default()
-        }
-    }
-
     #[test]
     fn a_desired_state_arriving_after_a_newer_one_is_not_sent_to_the_agent() {
         let replaced_state =
             BalancerApplicableState::initial(desired_state_with_model("agent:///replaced.gguf"));
-        let newest_state =
-            replaced_state.superseded_by(desired_state_with_model("agent:///newest.gguf"));
+        let newest_state = replaced_state
+            .superseded_by(desired_state_with_model("agent:///newest.gguf"))
+            .unwrap();
         let agent_controller = AgentController::new(AgentControllerParams {
             connection_close: CancellationToken::new(),
             id: "agent".to_owned(),

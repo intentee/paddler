@@ -113,22 +113,3 @@ jobs:
 
       - name: Lint the TypeSafe Python client suite
         run: make lint.typesafe.python
-
-  kev-converter-lint:
-    name: kev converter lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install Poetry
-        run: pip install poetry==2.4.3
-
-      - name: Lint the kev converter
-        run: make lint.kev_converter.python

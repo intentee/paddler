@@ -7,8 +7,8 @@ use paddler_cli_tests::pausable_agent::PausableAgent;
 use paddler_cli_tests::pausable_agent_params::PausableAgentParams;
 use paddler_cli_tests::stallable_tcp_relay::StallableTcpRelay;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_reconnects_when_the_balancer_stops_answering_pings() {

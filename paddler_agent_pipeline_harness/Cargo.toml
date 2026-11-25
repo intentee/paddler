@@ -1,0 +1,43 @@
+[package]
+name = "paddler_agent_pipeline_harness"
+authors.workspace = true
+description = "Loads models into in-process Paddler agent pipelines for tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+cuda = ["paddler_cluster_harness/cuda"]
+metal = ["paddler_cluster_harness/metal"]
+
+[dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+llama-cpp-backend = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-gguf = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-params = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_agent_decision = { workspace = true }
+paddler_agent_embeddings = { workspace = true }
+paddler_agent_runtime = { workspace = true }
+paddler_agent_status = { workspace = true }
+paddler_agent_text_generation = { workspace = true }
+paddler_cluster_harness = { workspace = true }
+paddler_inference_parameters = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_model_card_fixture = { workspace = true }
+paddler_model_source = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+[lints]
+workspace = true

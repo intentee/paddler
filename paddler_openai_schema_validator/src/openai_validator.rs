@@ -1,0 +1,805 @@
+use jsonschema::ValidationError;
+use jsonschema::Validator;
+use jsonschema::validator_for;
+use serde_json::Value;
+
+use crate::constants::OPENAPI_YAML;
+use crate::openai_validator_error::OpenAIValidatorError;
+use crate::parse_components::parse_components;
+use crate::strict_chat_completion_schema::strict_chat_completion_schema;
+
+const REQUEST_ROOT: &str = "CreateChatCompletionRequest";
+const RESPONSE_ROOT: &str = "CreateChatCompletionResponse";
+const STREAM_ROOT: &str = "CreateChatCompletionStreamResponse";
+
+const REQUEST_STRICT_POINTERS: &[&str] = &["/$defs/CreateChatCompletionRequest"];
+const RESPONSE_STRICT_POINTERS: &[&str] = &[
+    "/$defs/CreateChatCompletionResponse",
+    "/$defs/ChatCompletionResponseMessage",
+    "/$defs/CompletionUsage",
+    "/$defs/CompletionUsage/properties/prompt_tokens_details",
+    "/$defs/CompletionUsage/properties/completion_tokens_details",
+];
+const STREAM_STRICT_POINTERS: &[&str] = &[
+    "/$defs/CreateChatCompletionStreamResponse",
+    "/$defs/ChatCompletionStreamResponseDelta",
+    "/$defs/CompletionUsage",
+    "/$defs/CompletionUsage/properties/prompt_tokens_details",
+    "/$defs/CompletionUsage/properties/completion_tokens_details",
+];
+
+const RESPONSES_REQUEST_ROOT: &str = "CreateResponse";
+const RESPONSES_RESPONSE_ROOT: &str = "Response";
+const RESPONSES_STREAM_EVENT_ROOT: &str = "ResponseStreamEvent";
+
+const RESPONSES_REQUEST_STRICT_POINTERS: &[&str] = &[];
+
+const RESPONSES_SHARED_OUTPUT_STRICT_POINTERS: &[&str] = &[
+    "/$defs/Response",
+    "/$defs/OutputMessage",
+    "/$defs/OutputTextContent",
+    "/$defs/ReasoningItem",
+    "/$defs/FunctionToolCall",
+    "/$defs/ResponseUsage",
+    "/$defs/ResponseUsage/properties/input_tokens_details",
+    "/$defs/ResponseUsage/properties/output_tokens_details",
+];
+
+const RESPONSES_EMITTED_EVENT_STRICT_POINTERS: &[&str] = &[
+    "/$defs/ResponseCreatedEvent",
+    "/$defs/ResponseInProgressEvent",
+    "/$defs/ResponseCompletedEvent",
+    "/$defs/ResponseFailedEvent",
+    "/$defs/ResponseOutputItemAddedEvent",
+    "/$defs/ResponseOutputItemDoneEvent",
+    "/$defs/ResponseContentPartAddedEvent",
+    "/$defs/ResponseContentPartDoneEvent",
+    "/$defs/ResponseTextDeltaEvent",
+    "/$defs/ResponseTextDoneEvent",
+    "/$defs/ResponseReasoningTextDeltaEvent",
+    "/$defs/ResponseReasoningTextDoneEvent",
+    "/$defs/ResponseFunctionCallArgumentsDeltaEvent",
+    "/$defs/ResponseFunctionCallArgumentsDoneEvent",
+];
+
+const ERROR_RESPONSE_ROOT: &str = "ErrorResponse";
+const ERROR_RESPONSE_STRICT_POINTERS: &[&str] = &["/$defs/ErrorResponse", "/$defs/Error"];
+
+fn responses_stream_event_strict_pointers() -> Vec<&'static str> {
+    let mut pointers = RESPONSES_EMITTED_EVENT_STRICT_POINTERS.to_vec();
+
+    pointers.extend_from_slice(RESPONSES_SHARED_OUTPUT_STRICT_POINTERS);
+
+    pointers
+}
+
+fn compile_strict_schema(
+    components: &Value,
+    root_name: &str,
+    strict_pointers: &[&str],
+) -> Result<Validator, OpenAIValidatorError> {
+    let schema = strict_chat_completion_schema(components, root_name, strict_pointers)?;
+
+    validator_for(&schema).map_err(|source| OpenAIValidatorError::StrictSchemaDoesNotCompile {
+        root_name: root_name.to_owned(),
+        source: Box::new(source),
+    })
+}
+
+fn ensure_conformance(
+    validator: &Validator,
+    instance: &Value,
+    nonconformance: impl FnOnce(Vec<ValidationError<'static>>) -> OpenAIValidatorError,
+) -> Result<(), OpenAIValidatorError> {
+    let violations: Vec<ValidationError<'static>> = validator
+        .iter_errors(instance)
+        .map(ValidationError::to_owned)
+        .collect();
+
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(nonconformance(violations))
+    }
+}
+
+pub struct OpenAIValidator {
+    request: Validator,
+    response: Validator,
+    stream_chunk: Validator,
+    responses_request: Validator,
+    responses_response: Validator,
+    responses_stream_event: Validator,
+    error_response: Validator,
+}
+
+impl OpenAIValidator {
+    /// # Errors
+    ///
+    /// Returns the error of [`parse_components`] when the vendored specification cannot be parsed, the error of [`strict_chat_completion_schema`] when a validated schema cannot be assembled from its components, and [`OpenAIValidatorError::StrictSchemaDoesNotCompile`] when an assembled schema does not compile.
+    pub fn new() -> Result<Self, OpenAIValidatorError> {
+        Self::from_openapi_yaml(OPENAPI_YAML)
+    }
+
+    fn from_components(components: &Value) -> Result<Self, OpenAIValidatorError> {
+        Ok(Self {
+            request: compile_strict_schema(components, REQUEST_ROOT, REQUEST_STRICT_POINTERS)?,
+            response: compile_strict_schema(components, RESPONSE_ROOT, RESPONSE_STRICT_POINTERS)?,
+            stream_chunk: compile_strict_schema(components, STREAM_ROOT, STREAM_STRICT_POINTERS)?,
+            responses_request: compile_strict_schema(
+                components,
+                RESPONSES_REQUEST_ROOT,
+                RESPONSES_REQUEST_STRICT_POINTERS,
+            )?,
+            responses_response: compile_strict_schema(
+                components,
+                RESPONSES_RESPONSE_ROOT,
+                RESPONSES_SHARED_OUTPUT_STRICT_POINTERS,
+            )?,
+            responses_stream_event: compile_strict_schema(
+                components,
+                RESPONSES_STREAM_EVENT_ROOT,
+                &responses_stream_event_strict_pointers(),
+            )?,
+            error_response: compile_strict_schema(
+                components,
+                ERROR_RESPONSE_ROOT,
+                ERROR_RESPONSE_STRICT_POINTERS,
+            )?,
+        })
+    }
+
+    fn from_openapi_yaml(openapi_yaml: &str) -> Result<Self, OpenAIValidatorError> {
+        Self::from_components(&parse_components(openapi_yaml)?)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::RequestDoesNotConform`] with every violation when the instance is not a chat completion request conforming to the strict schema of the vendored specification.
+    pub fn validate_chat_completion_request(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.request, instance, |violations| {
+            OpenAIValidatorError::RequestDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponseDoesNotConform`] with every violation when the instance is not a chat completion response conforming to the strict schema of the vendored specification.
+    pub fn validate_chat_completion_response(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.response, instance, |violations| {
+            OpenAIValidatorError::ResponseDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::StreamChunkDoesNotConform`] with every violation when the instance is not a chat completion stream chunk conforming to the strict schema of the vendored specification.
+    pub fn validate_chat_completion_stream_chunk(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.stream_chunk, instance, |violations| {
+            OpenAIValidatorError::StreamChunkDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ErrorResponseDoesNotConform`] with every violation when the instance is not an error response conforming to the strict schema of the vendored specification.
+    pub fn validate_error_response(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.error_response, instance, |violations| {
+            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponsesRequestDoesNotConform`] with every violation when the instance is not a responses request conforming to the strict schema of the vendored specification.
+    pub fn validate_responses_request(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.responses_request, instance, |violations| {
+            OpenAIValidatorError::ResponsesRequestDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponsesResponseDoesNotConform`] with every violation when the instance is not a responses response conforming to the strict schema of the vendored specification.
+    pub fn validate_responses_response(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.responses_response, instance, |violations| {
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`OpenAIValidatorError::ResponsesStreamEventDoesNotConform`] with every violation when the instance is not a responses stream event conforming to the strict schema of the vendored specification.
+    pub fn validate_responses_stream_event(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        ensure_conformance(&self.responses_stream_event, instance, |violations| {
+            OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use jsonschema::ValidationError;
+    use jsonschema::error::ValidationErrorKind;
+    use serde_json::Value;
+    use serde_json::json;
+    use yaml_rust2::YamlLoader;
+
+    use super::OpenAIValidator;
+    use super::compile_strict_schema;
+    use crate::constants::OPENAPI_YAML;
+    use crate::openai_validator_error::OpenAIValidatorError;
+    use crate::parse_components::parse_components;
+
+    fn violations_of(violations: &[ValidationError<'static>]) -> Vec<Violation> {
+        violations
+            .iter()
+            .map(|violation| match violation.kind() {
+                ValidationErrorKind::AnyOf { .. } => Violation::AnyOf,
+                ValidationErrorKind::OneOfNotValid { .. } => Violation::OneOfNotValid,
+                ValidationErrorKind::Required { property } => Violation::Required {
+                    property: property.clone(),
+                },
+                ValidationErrorKind::UnevaluatedProperties { unexpected } => {
+                    Violation::UnevaluatedProperties {
+                        unexpected: unexpected.clone(),
+                    }
+                }
+                unanticipated_kind => Violation::Unanticipated {
+                    keyword: unanticipated_kind.keyword().to_owned(),
+                },
+            })
+            .collect()
+    }
+
+    fn unevaluated(properties: &[&str]) -> Violation {
+        Violation::UnevaluatedProperties {
+            unexpected: properties
+                .iter()
+                .map(|property| (*property).to_owned())
+                .collect(),
+        }
+    }
+
+    fn validator() -> OpenAIValidator {
+        OpenAIValidator::new().unwrap()
+    }
+
+    fn conformant_request() -> Value {
+        json!({
+            "model": "test",
+            "messages": [{ "role": "user", "content": "Say hello" }]
+        })
+    }
+
+    fn conformant_response() -> Value {
+        json!({
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "test",
+            "choices": [{
+                "index": 0,
+                "message": { "role": "assistant", "content": "hello", "refusal": null },
+                "logprobs": null,
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2,
+                "prompt_tokens_details": { "cached_tokens": 0, "audio_tokens": 0 },
+                "completion_tokens_details": { "reasoning_tokens": 0 }
+            }
+        })
+    }
+
+    fn conformant_stream_chunk() -> Value {
+        json!({
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "test",
+            "choices": [{
+                "index": 0,
+                "delta": { "role": "assistant", "content": "hello" },
+                "finish_reason": null
+            }]
+        })
+    }
+
+    fn conformant_responses_request() -> Value {
+        json!({ "model": "test", "input": "Say hello" })
+    }
+
+    fn conformant_responses_response() -> Value {
+        json!({
+            "id": "resp_test",
+            "object": "response",
+            "created_at": 0,
+            "error": null,
+            "incomplete_details": null,
+            "instructions": null,
+            "model": "test",
+            "tools": [],
+            "output": [{
+                "id": "msg_0",
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{
+                    "type": "output_text",
+                    "text": "hello",
+                    "annotations": [],
+                    "logprobs": []
+                }]
+            }],
+            "parallel_tool_calls": true,
+            "metadata": {},
+            "tool_choice": "auto",
+            "temperature": 1,
+            "top_p": 1,
+            "usage": {
+                "input_tokens": 1,
+                "input_tokens_details": { "cached_tokens": 0 },
+                "output_tokens": 1,
+                "output_tokens_details": { "reasoning_tokens": 0 },
+                "total_tokens": 2
+            }
+        })
+    }
+
+    fn conformant_responses_stream_event() -> Value {
+        json!({
+            "type": "response.output_text.delta",
+            "item_id": "msg_0",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "hello",
+            "sequence_number": 1,
+            "logprobs": []
+        })
+    }
+
+    fn conformant_error_response() -> Value {
+        json!({
+            "error": {
+                "message": "boom",
+                "type": "server_error",
+                "param": null,
+                "code": null
+            }
+        })
+    }
+
+    fn with_member(
+        mut document: Value,
+        object_pointer: &str,
+        member_name: &str,
+        member_value: Value,
+    ) -> Value {
+        document
+            .pointer_mut(object_pointer)
+            .and_then(Value::as_object_mut)
+            .expect("the document must hold an object at the pointer")
+            .insert(member_name.to_owned(), member_value);
+
+        document
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum Violation {
+        AnyOf,
+        OneOfNotValid,
+        Required { property: Value },
+        Unanticipated { keyword: String },
+        UnevaluatedProperties { unexpected: Vec<String> },
+    }
+
+    #[test]
+    fn accepts_a_conformant_request() {
+        validator()
+            .validate_chat_completion_request(&conformant_request())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_request_with_chat_template_kwargs() {
+        let request = with_member(
+            conformant_request(),
+            "",
+            "chat_template_kwargs",
+            json!({ "enable_thinking": false }),
+        );
+
+        let error = validator()
+            .validate_chat_completion_request(&request)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::RequestDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["chat_template_kwargs"])]
+        ));
+    }
+
+    #[test]
+    fn accepts_a_conformant_response() {
+        validator()
+            .validate_chat_completion_response(&conformant_response())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_response_with_reasoning_content() {
+        let response = with_member(
+            conformant_response(),
+            "/choices/0/message",
+            "reasoning_content",
+            json!("thinking"),
+        );
+
+        let error = validator()
+            .validate_chat_completion_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["reasoning_content"])]
+        ));
+    }
+
+    #[test]
+    fn rejects_response_with_image_tokens() {
+        let response = with_member(
+            conformant_response(),
+            "/usage/prompt_tokens_details",
+            "image_tokens",
+            json!(3),
+        );
+
+        let error = validator()
+            .validate_chat_completion_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["image_tokens"])]
+        ));
+    }
+
+    #[test]
+    fn accepts_a_conformant_stream_chunk() {
+        validator()
+            .validate_chat_completion_stream_chunk(&conformant_stream_chunk())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_stream_chunk_with_reasoning_content() {
+        let chunk = with_member(
+            conformant_stream_chunk(),
+            "/choices/0/delta",
+            "reasoning_content",
+            json!("thinking"),
+        );
+
+        let error = validator()
+            .validate_chat_completion_stream_chunk(&chunk)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::StreamChunkDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["reasoning_content"])]
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_openapi_yaml() {
+        let error = OpenAIValidator::from_openapi_yaml("key: \"unterminated")
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::SpecNotValidYaml(ref scan_error)
+                if *scan_error == YamlLoader::load_from_str("key: \"unterminated").unwrap_err()
+        ));
+    }
+
+    #[test]
+    fn fails_when_request_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components
+            .as_object_mut()
+            .unwrap()
+            .remove("CreateChatCompletionRequest");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "CreateChatCompletionRequest")
+        );
+    }
+
+    #[test]
+    fn fails_when_response_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components
+            .as_object_mut()
+            .unwrap()
+            .remove("CreateChatCompletionResponse");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "CreateChatCompletionResponse")
+        );
+    }
+
+    #[test]
+    fn fails_when_stream_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components
+            .as_object_mut()
+            .unwrap()
+            .remove("CreateChatCompletionStreamResponse");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "CreateChatCompletionStreamResponse")
+        );
+    }
+
+    #[test]
+    fn fails_to_compile_a_structurally_broken_schema() {
+        let components = json!({ "Broken": { "$ref": "#/$defs/Missing" } });
+
+        let error = compile_strict_schema(&components, "Broken", &["/$defs/Broken"])
+            .err()
+            .unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::StrictSchemaDoesNotCompile { ref root_name, .. } if root_name == "Broken")
+        );
+    }
+
+    #[test]
+    fn accepts_a_conformant_responses_request() {
+        validator()
+            .validate_responses_request(&conformant_responses_request())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_responses_request_with_a_non_string_model() {
+        let request = with_member(conformant_responses_request(), "", "model", json!(42));
+
+        let error = validator()
+            .validate_responses_request(&request)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesRequestDoesNotConform { violations }
+                if violations_of(&violations) == vec![Violation::AnyOf]
+        ));
+    }
+
+    #[test]
+    fn accepts_a_conformant_responses_response() {
+        validator()
+            .validate_responses_response(&conformant_responses_response())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_responses_response_with_an_extra_top_level_key() {
+        let response = with_member(
+            conformant_responses_response(),
+            "",
+            "paddler_extension",
+            json!("nope"),
+        );
+
+        let error = validator()
+            .validate_responses_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["paddler_extension"])]
+        ));
+    }
+
+    #[test]
+    fn rejects_responses_response_with_an_extra_output_text_field() {
+        let response = with_member(
+            conformant_responses_response(),
+            "/output/0/content/0",
+            "reasoning_content",
+            json!("nope"),
+        );
+
+        let error = validator()
+            .validate_responses_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![
+                    Violation::OneOfNotValid,
+                    unevaluated(&[
+                        "id",
+                        "object",
+                        "created_at",
+                        "error",
+                        "incomplete_details",
+                        "instructions",
+                        "output",
+                        "parallel_tool_calls",
+                        "usage"
+                    ])
+                ]
+        ));
+    }
+
+    #[test]
+    fn accepts_a_conformant_responses_stream_event() {
+        validator()
+            .validate_responses_stream_event(&conformant_responses_stream_event())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_responses_stream_event_with_an_extra_key() {
+        let event = with_member(
+            conformant_responses_stream_event(),
+            "",
+            "paddler_extension",
+            json!("nope"),
+        );
+
+        let error = validator()
+            .validate_responses_stream_event(&event)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations }
+                if violations_of(&violations) == vec![Violation::AnyOf]
+        ));
+    }
+
+    #[test]
+    fn fails_when_create_response_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components.as_object_mut().unwrap().remove("CreateResponse");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "CreateResponse")
+        );
+    }
+
+    #[test]
+    fn fails_when_responses_response_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components.as_object_mut().unwrap().remove("Response");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "Response")
+        );
+    }
+
+    #[test]
+    fn fails_when_response_stream_event_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components
+            .as_object_mut()
+            .unwrap()
+            .remove("ResponseStreamEvent");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "ResponseStreamEvent")
+        );
+    }
+
+    #[test]
+    fn accepts_a_conformant_error_response() {
+        validator()
+            .validate_error_response(&conformant_error_response())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_error_response_with_an_extra_key() {
+        let response = with_member(
+            conformant_error_response(),
+            "/error",
+            "paddler_extension",
+            json!("nope"),
+        );
+
+        let error = validator()
+            .validate_error_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![unevaluated(&["paddler_extension"])]
+        ));
+    }
+
+    #[test]
+    fn rejects_error_response_missing_a_required_field() {
+        let response = json!({
+            "error": {
+                "message": "boom",
+                "param": null,
+                "code": null
+            }
+        });
+
+        let error = validator()
+            .validate_error_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ErrorResponseDoesNotConform { violations }
+                if violations_of(&violations) == vec![Violation::Required {
+                    property: json!("type")
+                }]
+        ));
+    }
+
+    #[test]
+    fn fails_when_error_response_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components.as_object_mut().unwrap().remove("ErrorResponse");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(
+            matches!(error, OpenAIValidatorError::UnknownComponent { ref name } if name == "ErrorResponse")
+        );
+    }
+}

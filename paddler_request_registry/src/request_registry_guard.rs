@@ -9,14 +9,6 @@ pub struct RequestRegistryGuard<TValue> {
 
 impl<TValue> RequestRegistryGuard<TValue> {
     #[must_use]
-    pub fn register_fresh(registry: &Arc<RequestRegistry<TValue>>, value: TValue) -> Self {
-        Self {
-            request_id: registry.insert_fresh(value),
-            registry: registry.clone(),
-        }
-    }
-
-    #[must_use]
     pub fn register(
         registry: &Arc<RequestRegistry<TValue>>,
         request_id: String,
@@ -28,6 +20,14 @@ impl<TValue> RequestRegistryGuard<TValue> {
                 request_id,
                 registry: registry.clone(),
             })
+    }
+
+    #[must_use]
+    pub fn register_fresh(registry: &Arc<RequestRegistry<TValue>>, value: TValue) -> Self {
+        Self {
+            request_id: registry.insert_fresh(value),
+            registry: registry.clone(),
+        }
     }
 }
 

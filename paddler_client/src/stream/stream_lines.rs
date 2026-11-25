@@ -3,7 +3,7 @@ use futures_util::stream::unfold;
 use reqwest::Response;
 use tokio_util::sync::CancellationToken;
 
-use crate::error::Result;
+use crate::result::Result;
 use crate::stream::line_buffer::LineBuffer;
 use crate::stream::stream_line::StreamLine;
 

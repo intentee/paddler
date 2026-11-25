@@ -1,9 +1,9 @@
 use paddler_cli_tests::restart_balancer::restart_balancer;
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reconnects_to_its_balancer_after_the_balancer_is_killed() {

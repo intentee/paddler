@@ -17,7 +17,6 @@ pub enum GeneratedTokenFinalResult {
     ImageDecodingFailed(String),
     KvCacheClearFailed(String),
     MediaExceedsMicroBatch(OversizedMediaDetails),
-    MediaMicroBatchCheckFailed(String),
     ModelNotLoaded(String),
     MultimodalIngestionFailed(String),
     MultimodalNotSupported(String),

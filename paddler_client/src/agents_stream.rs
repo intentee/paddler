@@ -4,6 +4,6 @@ use futures_util::Stream;
 
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
-use crate::error::Result;
+use crate::result::Result;
 
 pub type AgentsStream = Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>;

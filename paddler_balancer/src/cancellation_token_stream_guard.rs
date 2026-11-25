@@ -59,10 +59,9 @@ mod tests {
 
     #[tokio::test]
     async fn forwards_inner_stream_items() {
-        let cancellation_token = CancellationToken::new();
         let (sender, receiver) = mpsc::unbounded_channel::<i32>();
         let stream = UnboundedReceiverStream::new(receiver);
-        let mut wrapped = CancellationTokenStreamGuard::new(cancellation_token.clone(), stream);
+        let mut wrapped = CancellationTokenStreamGuard::new(CancellationToken::new(), stream);
 
         assert!(sender.send(7).is_ok());
         assert!(sender.send(11).is_ok());
@@ -71,9 +70,15 @@ mod tests {
         assert_eq!(wrapped.next().await, Some(7));
         assert_eq!(wrapped.next().await, Some(11));
         assert_eq!(wrapped.next().await, None);
-        assert!(!cancellation_token.is_cancelled());
+    }
 
-        drop(wrapped);
-        assert!(cancellation_token.is_cancelled());
+    #[tokio::test]
+    async fn exhausting_the_inner_stream_leaves_the_token_uncancelled() {
+        let cancellation_token = CancellationToken::new();
+        let mut wrapped =
+            CancellationTokenStreamGuard::new(cancellation_token.clone(), stream::empty::<()>());
+
+        assert_eq!(wrapped.next().await, None);
+        assert!(!cancellation_token.is_cancelled());
     }
 }

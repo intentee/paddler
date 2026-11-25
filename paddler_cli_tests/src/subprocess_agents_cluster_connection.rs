@@ -1,9 +1,9 @@
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::subprocess_agent_spawner::SubprocessAgentSpawner;
 
@@ -15,6 +15,9 @@ pub struct SubprocessAgentsClusterConnection<'connection> {
 }
 
 impl SubprocessAgentsClusterConnection<'_> {
+    /// # Errors
+    ///
+    /// Fails when the balancer does not become healthy, when it refuses the desired state, and when its snapshot streams cannot be opened or end before their first snapshot.
     pub async fn connect(self) -> Result<Cluster> {
         let management_addr = self.running_balancer.addresses.management;
 

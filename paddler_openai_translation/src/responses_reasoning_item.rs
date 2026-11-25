@@ -11,6 +11,9 @@ pub struct ResponsesReasoningItem {
 }
 
 impl ResponsesReasoningItem {
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ReasoningItemWithoutContent`] when the item carries no reasoning text.
     pub fn into_conversation_message(self) -> Result<ConversationMessage, OpenAITranslationError> {
         if self.content.is_empty() {
             return Err(OpenAITranslationError::ReasoningItemWithoutContent);

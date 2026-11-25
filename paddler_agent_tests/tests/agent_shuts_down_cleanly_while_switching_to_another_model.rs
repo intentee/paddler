@@ -1,0 +1,19 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use paddler_agent_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_shuts_down_cleanly_while_switching_to_another_model() {
+    ShutdownDuringStateTransition {
+        initial_desired_state: qwen3_desired_state(),
+        next_desired_state: nomic_embed_text_v1_5()
+            .into_desired_state_with_embedding_parameters(EmbeddingParameters::default()),
+        slot_count: 1,
+    }
+    .shut_down_while_the_agent_applies_the_next_state()
+    .await
+    .expect("the cluster must shut down while its agent applies the next state");
+}

@@ -6,5 +6,4 @@ mod a_client_resetting_its_connection_ends_serving_with_a_connection_reset;
 mod a_connection_the_fixture_cannot_accept_ends_serving;
 mod a_fixture_that_cannot_open_its_listener_reports_the_descriptor_limit;
 mod a_malformed_request_ends_serving_with_invalid_data;
-#[cfg(test)]
-mod resetting_client;
+mod a_send_buffer_limit_no_body_can_outlast_is_reported;

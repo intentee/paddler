@@ -6,12 +6,10 @@ use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParamete
 
 use crate::agent_desired_model::AgentDesiredModel;
 use crate::balancer_text_generation_settings::BalancerTextGenerationSettings;
-use crate::decision_settings::DecisionSettings;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BalancerDesiredState {
-    pub decision: DecisionSettings,
     pub embeddings: EmbeddingParameters,
     pub model: AgentDesiredModel,
     pub model_runtime_parameters: ModelRuntimeParameters,

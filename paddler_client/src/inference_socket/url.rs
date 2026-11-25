@@ -1,9 +1,9 @@
 use url::Url;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
 
 use crate::error::Error;
-use crate::error::Result;
+use crate::result::Result;
 
 fn websocket_scheme(scheme: &str) -> Option<&'static str> {
     match scheme {
@@ -13,6 +13,9 @@ fn websocket_scheme(scheme: &str) -> Option<&'static str> {
     }
 }
 
+/// # Errors
+///
+/// Returns [`Error::InferenceSocketUrlSchemeRejected`] when the scheme of the URL is not http, https, ws or wss.
 pub fn url(input: Url) -> Result<Url> {
     let mut url = input;
 
@@ -21,7 +24,7 @@ pub fn url(input: Url) -> Result<Url> {
         .and_then(|scheme| url.set_scheme(scheme))
     {
         Ok(()) => {
-            url.set_path(ApiPath::INFERENCE_SOCKET);
+            url.set_path(API_PATH_INFERENCE_SOCKET);
 
             Ok(url)
         }
@@ -36,42 +39,42 @@ pub fn url(input: Url) -> Result<Url> {
 mod tests {
     use url::Url;
 
-    use paddler_messaging::api_path::ApiPath;
+    use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
 
     use super::url;
     use crate::error::Error;
 
     #[test]
-    fn http_becomes_ws() {
+    fn an_http_url_becomes_a_ws_url_of_the_same_host_and_port() {
         let result = url(Url::parse("http://localhost:8080/some/path").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "ws");
-        assert_eq!(result.path(), ApiPath::INFERENCE_SOCKET);
+        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
         assert_eq!(result.host_str(), Some("localhost"));
         assert_eq!(result.port(), Some(8080));
     }
 
     #[test]
-    fn https_becomes_wss() {
+    fn an_https_url_becomes_a_wss_url() {
         let result = url(Url::parse("https://example.com/ignored").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "wss");
-        assert_eq!(result.path(), ApiPath::INFERENCE_SOCKET);
+        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
     }
 
     #[test]
-    fn ws_scheme_preserved() {
+    fn a_ws_url_keeps_its_scheme_and_points_at_the_inference_socket() {
         let result = url(Url::parse("ws://localhost:9090").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "ws");
-        assert_eq!(result.path(), ApiPath::INFERENCE_SOCKET);
+        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
     }
 
     #[test]
-    fn original_path_replaced() {
+    fn a_url_path_is_replaced_by_the_inference_socket_path() {
         let result = url(Url::parse("http://host/deeply/nested/path?query=1").unwrap()).unwrap();
 
-        assert_eq!(result.path(), ApiPath::INFERENCE_SOCKET);
+        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
     }
 
     #[test]

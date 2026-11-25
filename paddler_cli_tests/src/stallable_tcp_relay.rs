@@ -31,7 +31,7 @@ async fn relay_until_stalled(
 async fn relay_accepted_connections(
     listener: TcpListener,
     upstream_addr: SocketAddr,
-    accepted_connection_count_tx: watch::Sender<u32>,
+    accepted_downstream_addrs_tx: watch::Sender<Vec<SocketAddr>>,
     stall_rx: watch::Receiver<CancellationToken>,
     stop: CancellationToken,
 ) -> io::Result<()> {
@@ -41,10 +41,10 @@ async fn relay_accepted_connections(
         select! {
             () = stop.cancelled() => break Ok(()),
             accepted_connection = listener.accept() => {
-                let (downstream, _downstream_addr) = accepted_connection?;
+                let (downstream, downstream_addr) = accepted_connection?;
 
-                accepted_connection_count_tx.send_modify(|accepted_connection_count| {
-                    *accepted_connection_count += 1;
+                accepted_downstream_addrs_tx.send_modify(|accepted_downstream_addrs| {
+                    accepted_downstream_addrs.push(downstream_addr);
                 });
                 relayed_connections.push(relay_until_stalled(
                     downstream,
@@ -58,7 +58,7 @@ async fn relay_accepted_connections(
 }
 
 pub struct StallableTcpRelay {
-    accepted_connection_count_rx: watch::Receiver<u32>,
+    accepted_downstream_addrs_rx: watch::Receiver<Vec<SocketAddr>>,
     relaying_task: JoinHandle<io::Result<()>>,
     stall_tx: watch::Sender<CancellationToken>,
     stop: CancellationToken,
@@ -67,19 +67,20 @@ pub struct StallableTcpRelay {
 impl StallableTcpRelay {
     #[must_use]
     pub fn start(listener: TcpListener, upstream_addr: SocketAddr) -> Self {
-        let (accepted_connection_count_tx, accepted_connection_count_rx) = watch::channel(0);
+        let (accepted_downstream_addrs_tx, accepted_downstream_addrs_rx) =
+            watch::channel(Vec::new());
         let (stall_tx, stall_rx) = watch::channel(CancellationToken::new());
         let stop = CancellationToken::new();
         let relaying_task = spawn(relay_accepted_connections(
             listener,
             upstream_addr,
-            accepted_connection_count_tx,
+            accepted_downstream_addrs_tx,
             stall_rx,
             stop.clone(),
         ));
 
         Self {
-            accepted_connection_count_rx,
+            accepted_downstream_addrs_rx,
             relaying_task,
             stall_tx,
             stop,
@@ -92,25 +93,34 @@ impl StallableTcpRelay {
             .cancel();
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`JoinError`] of the relaying task when it panicked or was cancelled; the [`io::Error`] that ended relaying is the inner result.
+    pub async fn stop(self) -> Result<io::Result<()>, JoinError> {
+        self.stop.cancel();
+        self.relaying_task.await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`RecvError`] when the relaying task stops recording accepted connections before the expected count.
     pub async fn wait_for_accepted_connections(
         &self,
-        expected_accepted_connection_count: u32,
+        expected_accepted_connection_count: usize,
     ) -> Result<(), RecvError> {
-        self.accepted_connection_count_rx
+        self.accepted_downstream_addrs_rx
             .clone()
-            .wait_for(|accepted_connection_count| {
-                *accepted_connection_count >= expected_accepted_connection_count
+            .wait_for(|accepted_downstream_addrs| {
+                accepted_downstream_addrs.len() >= expected_accepted_connection_count
             })
             .await
             .map(drop)
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`JoinError`] of the relaying task when it panicked or was cancelled; the [`io::Error`] that ended relaying is the inner result.
     pub async fn wait_until_relaying_ends(self) -> Result<io::Result<()>, JoinError> {
-        self.relaying_task.await
-    }
-
-    pub async fn stop(self) -> Result<io::Result<()>, JoinError> {
-        self.stop.cancel();
         self.relaying_task.await
     }
 }

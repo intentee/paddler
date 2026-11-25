@@ -1,6 +1,6 @@
 use std::num::NonZeroU16;
 
-use crate::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
+use crate::constants::DECISION_SLOTS_MINIMUM;
 
 #[must_use]
 pub const fn decision_slots_for_leading_questions(leading_question_count: usize) -> NonZeroU16 {
@@ -16,7 +16,7 @@ mod tests {
     use std::num::NonZeroU16;
 
     use super::decision_slots_for_leading_questions;
-    use crate::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
+    use crate::constants::DECISION_SLOTS_MINIMUM;
 
     #[test]
     fn a_decision_without_leading_questions_needs_only_its_state_slot() {

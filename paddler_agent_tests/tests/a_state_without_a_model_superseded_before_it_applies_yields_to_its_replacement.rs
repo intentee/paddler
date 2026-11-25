@@ -1,0 +1,28 @@
+use tokio_util::sync::CancellationToken;
+
+use paddler_agent::agent_applicable_state::AgentApplicableState;
+use paddler_agent_tests::arbiter_under_test::ArbiterUnderTest;
+use paddler_agent_tests::state_overriding_the_chat_template::state_overriding_the_chat_template;
+
+#[tokio::test]
+async fn a_state_without_a_model_superseded_before_it_applies_yields_to_its_replacement() {
+    let mut arbiter_under_test = ArbiterUnderTest::new(CancellationToken::new());
+
+    arbiter_under_test
+        .pipeline_arbiter
+        .apply(AgentApplicableState::NotConfigured);
+    arbiter_under_test
+        .pipeline_arbiter
+        .apply(state_overriding_the_chat_template());
+    arbiter_under_test.conclude_next_startup().await;
+    arbiter_under_test.conclude_next_startup().await;
+
+    assert_eq!(
+        arbiter_under_test
+            .served_applicable_state_holder
+            .get_agent_applicable_state(),
+        state_overriding_the_chat_template()
+    );
+
+    arbiter_under_test.pipeline_arbiter.shut_down().await;
+}

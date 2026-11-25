@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use log::info;
 use tokio_util::sync::CancellationToken;
 
@@ -10,7 +10,6 @@ use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use crate::active_embedding_request::ActiveEmbeddingRequest;
 use crate::embedding_batch_processor::EmbeddingBatchProcessor;
 use crate::embedding_error::EmbeddingError;
-use crate::embedding_normalization::EmbeddingNormalization;
 use crate::embedding_scheduler_context::EmbeddingSchedulerContext;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 
@@ -46,7 +45,6 @@ impl EmbeddingScheduler<'_> {
             self.active_requests = EmbeddingBatchProcessor {
                 batch: &mut self.batch,
                 llama_context: &mut self.llama_context,
-                normalization: EmbeddingNormalization,
                 scheduler_context: &self.scheduler_context,
             }
             .embed_next_batch(active_requests);

@@ -2,6 +2,9 @@ use paddler_messaging::grammar_constraint::GrammarConstraint;
 
 use crate::text_generation_error::TextGenerationError;
 
+/// # Errors
+///
+/// Returns [`TextGenerationError::GrammarIncompatibleWithThinking`] when a grammar is requested together with thinking.
 pub const fn require_grammar_compatible_with_thinking(
     grammar: Option<&GrammarConstraint>,
     enable_thinking: bool,

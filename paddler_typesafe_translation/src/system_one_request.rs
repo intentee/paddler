@@ -1,13 +1,13 @@
 use std::num::NonZeroU8;
 
+use indexmap::IndexMap;
 use serde::Deserialize;
-use serde_json::Map;
 use serde_json::Value;
-use serde_json::from_value;
+use serde_json::from_str;
+use serde_json::value::RawValue;
 
 use paddler_messaging::decision_question::DecisionQuestion;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_messaging::validates::Validates as _;
+use paddler_messaging::request_params::decide_params::DecideParams;
 
 use crate::render_json_content::render_json_content;
 use crate::system_one_answer_layout::SystemOneAnswerLayout;
@@ -107,21 +107,24 @@ fn translate_question(
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SystemOneRequest {
     pub model: String,
-    pub questions: Map<String, Value>,
+    pub questions: IndexMap<String, Box<RawValue>>,
     pub state: Value,
 }
 
 impl SystemOneRequest {
+    /// # Errors
+    ///
+    /// Returns [`TypeSafeTranslationError::QuestionMalformed`] when a question is not a valid choice, noul or score question, [`TypeSafeTranslationError::ChoiceCriteriaOutOfRange`] or [`TypeSafeTranslationError::ScoreCriteriaOutOfRange`] when a choice or score question has no criteria or more than 255 of them, and [`TypeSafeTranslationError::DecisionWithoutQuestions`] when the request has no questions.
     pub fn translate(self) -> Result<TranslatedSystemOneRequest, TypeSafeTranslationError> {
         let mut answer_layouts = Vec::with_capacity(self.questions.len());
         let mut questions = Vec::with_capacity(self.questions.len());
 
         for (question_id, question) in self.questions {
-            let question = from_value::<SystemOneQuestion>(question).map_err(|source| {
+            let question = from_str::<SystemOneQuestion>(question.get()).map_err(|source| {
                 TypeSafeTranslationError::QuestionMalformed {
                     question_id: question_id.clone(),
                     source,
@@ -136,12 +139,15 @@ impl SystemOneRequest {
             answer_layouts.push(answer_layout);
         }
 
-        let decide_params = RawDecideParams {
-            questions,
+        let mut leading_questions = questions;
+        let last_question = leading_questions
+            .pop()
+            .ok_or(TypeSafeTranslationError::DecisionWithoutQuestions)?;
+        let decide_params = DecideParams {
+            last_question,
+            leading_questions,
             state: render_json_content(&self.state, 0),
-        }
-        .validate()
-        .map_err(|source| TypeSafeTranslationError::DecisionInvalid { source })?;
+        };
 
         Ok(TranslatedSystemOneRequest {
             decide_params,

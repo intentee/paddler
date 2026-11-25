@@ -11,6 +11,9 @@ use crate::scheduler_ready::SchedulerReady;
 use crate::send_startup_signal::send_startup_signal;
 use crate::startup_outcome::StartupOutcome;
 
+/// # Errors
+///
+/// Returns the `TError` the scheduler reports when it fails to start.
 pub async fn start_scheduler_thread<TPreparation, TError, TStartScheduler>(
     cancellation_token: &CancellationToken,
     start_scheduler: TStartScheduler,

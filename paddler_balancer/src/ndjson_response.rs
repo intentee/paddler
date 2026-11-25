@@ -4,7 +4,7 @@ use actix_web::http::header;
 use futures::stream::Stream;
 use futures::stream::StreamExt as _;
 
-use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
+use crate::transform_result::TransformResult;
 
 pub fn ndjson_response<TStream>(transform_results: TStream) -> HttpResponse
 where
@@ -24,7 +24,7 @@ mod tests {
     use futures::stream::iter;
 
     use super::ndjson_response;
-    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
+    use crate::transform_result::TransformResult;
 
     #[actix_web::test]
     async fn writes_every_chunk_and_error_as_a_line_and_skips_discarded_results() {

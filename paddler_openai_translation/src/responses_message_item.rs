@@ -1,9 +1,9 @@
 use serde::Deserialize;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::constants::SYSTEM_ROLE;
+use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
-use paddler_messaging::system_role::SYSTEM_ROLE;
-use paddler_messaging::user_role::USER_ROLE;
 
 use crate::responses_assistant_message_content::ResponsesAssistantMessageContent;
 use crate::responses_message_content::ResponsesMessageContent;

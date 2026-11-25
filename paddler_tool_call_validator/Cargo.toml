@@ -8,9 +8,11 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 jsonschema = { workspace = true }
-llama-cpp-bindings-types = { workspace = true }
 paddler_messaging = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

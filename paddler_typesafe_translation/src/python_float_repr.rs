@@ -1,70 +1,84 @@
-fn exponential_notation(digits: &str, exponent: i64) -> String {
-    let exponent_sign = if exponent < 0 { '-' } else { '+' };
-    let mantissa = if digits.len() > 1 {
-        format!("{}.{}", &digits[..1], &digits[1..])
+fn exponential_notation(
+    leading_digit: &str,
+    fractional_digits: &str,
+    exponent_sign: char,
+    exponent_digits: &str,
+) -> String {
+    let mantissa = if fractional_digits.is_empty() {
+        leading_digit.to_owned()
     } else {
-        digits.to_owned()
+        format!("{leading_digit}.{fractional_digits}")
     };
 
-    format!("{mantissa}e{exponent_sign}{:02}", exponent.abs())
+    format!("{mantissa}e{exponent_sign}{exponent_digits:0>2}")
 }
 
-fn positional_notation(digits: &str, decimal_point_position: i64) -> String {
-    if decimal_point_position <= 0 {
-        return format!(
-            "0.{}{digits}",
-            "0".repeat((-decimal_point_position) as usize)
-        );
-    }
+fn fractional_notation(
+    leading_digit: &str,
+    fractional_digits: &str,
+    negative_exponent_magnitude: usize,
+) -> String {
+    format!("0.{leading_digit:0>negative_exponent_magnitude$}{fractional_digits}")
+}
 
-    let integer_digit_count = decimal_point_position as usize;
-
-    if integer_digit_count >= digits.len() {
-        format!(
-            "{digits}{}.0",
-            "0".repeat(integer_digit_count - digits.len())
-        )
-    } else {
-        format!(
-            "{}.{}",
-            &digits[..integer_digit_count],
-            &digits[integer_digit_count..]
-        )
+fn integral_notation(leading_digit: &str, fractional_digits: &str, exponent: usize) -> String {
+    match fractional_digits.split_at_checked(exponent) {
+        Some((integer_digits, decimal_digits)) if !decimal_digits.is_empty() => {
+            format!("{leading_digit}{integer_digits}.{decimal_digits}")
+        }
+        _ => format!("{leading_digit}{fractional_digits:0<exponent$}.0"),
     }
+}
+
+#[derive(Clone, Copy)]
+enum ScientificNotationPart {
+    Exponent,
+    FractionalDigits,
+    LeadingDigit,
 }
 
 struct ScientificDigits {
-    digits: String,
-    exponent: i64,
+    exponent_digits: String,
+    exponent_is_negative: bool,
+    fractional_digits: String,
+    leading_digit: String,
 }
 
 impl ScientificDigits {
     fn parse(scientific_notation: &str) -> Self {
-        let mut digits = String::new();
-        let mut exponent_magnitude = 0_i64;
+        let mut part = ScientificNotationPart::LeadingDigit;
+        let mut exponent_digits = String::new();
         let mut exponent_is_negative = false;
-        let mut reading_exponent = false;
+        let mut fractional_digits = String::new();
+        let mut leading_digit = String::new();
 
-        for character in scientific_notation.chars() {
-            match (reading_exponent, character) {
-                (false, 'e') => reading_exponent = true,
-                (false, '.') => {}
-                (false, digit) => digits.push(digit),
-                (true, '-') => exponent_is_negative = true,
-                (true, digit) => {
-                    exponent_magnitude =
-                        exponent_magnitude * 10 + i64::from(u32::from(digit) - u32::from('0'));
+        for byte in scientific_notation.bytes() {
+            match (part, byte) {
+                (
+                    ScientificNotationPart::LeadingDigit | ScientificNotationPart::FractionalDigits,
+                    b'e',
+                ) => part = ScientificNotationPart::Exponent,
+                (ScientificNotationPart::LeadingDigit, b'.') => {
+                    part = ScientificNotationPart::FractionalDigits;
+                }
+                (ScientificNotationPart::LeadingDigit, digit) => {
+                    leading_digit.push(char::from(digit));
+                }
+                (ScientificNotationPart::FractionalDigits, digit) => {
+                    fractional_digits.push(char::from(digit));
+                }
+                (ScientificNotationPart::Exponent, b'-') => exponent_is_negative = true,
+                (ScientificNotationPart::Exponent, digit) => {
+                    exponent_digits.push(char::from(digit));
                 }
             }
         }
 
         Self {
-            digits,
-            exponent: if exponent_is_negative {
-                -exponent_magnitude
-            } else {
-                exponent_magnitude
-            },
+            exponent_digits,
+            exponent_is_negative,
+            fractional_digits,
+            leading_digit,
         }
     }
 
@@ -73,7 +87,7 @@ impl ScientificDigits {
         let shortest_digits = Self::parse(&shortest);
         let ties_to_even = format!(
             "{magnitude:.precision$e}",
-            precision = shortest_digits.digits.len() - 1
+            precision = shortest_digits.fractional_digits.len()
         );
 
         if ties_to_even.parse::<f64>() == Ok(magnitude) {
@@ -86,14 +100,26 @@ impl ScientificDigits {
 
 #[must_use]
 pub fn python_float_repr(value: f64) -> String {
-    let ScientificDigits { digits, exponent } =
-        ScientificDigits::shortest_with_ties_to_even(value.abs());
-    let decimal_point_position = exponent + 1;
+    let ScientificDigits {
+        exponent_digits,
+        exponent_is_negative,
+        fractional_digits,
+        leading_digit,
+    } = ScientificDigits::shortest_with_ties_to_even(value.abs());
     let sign = if value.is_sign_negative() { "-" } else { "" };
-    let unsigned = if decimal_point_position <= -4 || decimal_point_position > 16 {
-        exponential_notation(&digits, exponent)
-    } else {
-        positional_notation(&digits, decimal_point_position)
+    let unsigned = match (exponent_is_negative, exponent_digits.parse::<usize>()) {
+        (true, Ok(exponent_magnitude @ 1..=4)) => {
+            fractional_notation(&leading_digit, &fractional_digits, exponent_magnitude)
+        }
+        (false, Ok(exponent @ 0..=15)) => {
+            integral_notation(&leading_digit, &fractional_digits, exponent)
+        }
+        (true, _) => {
+            exponential_notation(&leading_digit, &fractional_digits, '-', &exponent_digits)
+        }
+        (false, _) => {
+            exponential_notation(&leading_digit, &fractional_digits, '+', &exponent_digits)
+        }
     };
 
     format!("{sign}{unsigned}")

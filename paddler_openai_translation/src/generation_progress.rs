@@ -62,26 +62,14 @@ impl From<GeneratedTokenPartialResult> for GenerationProgress {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
-    use serde_json::json;
-
+    use paddler_generation_result_fixture::weather_call::weather_call;
     use paddler_messaging::generated_token_partial_result::GeneratedTokenPartialResult;
-    use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 
     use super::GenerationProgress;
     use crate::generated_output_part::GeneratedOutputPart;
     use crate::generation_failure::GenerationFailure;
     use crate::generation_failure_cause::GenerationFailureCause;
-
-    fn weather_call() -> GeneratedToolCall {
-        GeneratedToolCall {
-            arguments: ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
-            id: "call_x".to_owned(),
-            index: 0,
-            name: "get_weather".to_owned(),
-        }
-    }
 
     fn agent_failed(message: &str) -> GenerationProgress {
         GenerationProgress::Failed(GenerationFailure {

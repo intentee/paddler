@@ -7,7 +7,6 @@ use actix_web::http::header;
 use actix_web::rt;
 use actix_web::web;
 use actix_web::web::post;
-use anyhow::Result;
 use futures::stream::StreamExt;
 use nanoid::nanoid;
 use tokio::sync::mpsc;
@@ -15,7 +14,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
@@ -27,16 +26,15 @@ use crate::awaiting_agent_relay::AwaitingAgentRelay;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::controls_session::ControlsSession as _;
 use crate::dispatchable_request::DispatchableRequest;
 use crate::distinct_embedding_documents::DistinctEmbeddingDocuments;
 use crate::embedding_chunk_dispatch::EmbeddingChunkDispatch;
 use crate::embedding_document_duplicates::EmbeddingDocumentDuplicates;
-use crate::forward_agent_relay::forward_agent_relay;
 use crate::inference_service::app_data::AppData;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
+use crate::transform_result::TransformResult;
 
 async fn respond(
     app_data: web::Data<AppData>,
@@ -115,8 +113,7 @@ async fn respond(
             }
         };
 
-        chunk_tasks.spawn(forward_agent_relay(
-            agent_relay,
+        chunk_tasks.spawn(agent_relay.forward(
             connection_close.clone(),
             OutgoingMessageRelayReceiver {
                 request_id: request_id.clone(),
@@ -161,8 +158,6 @@ struct EmbeddingChunkBodyTransformer {
 }
 
 impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
-    type Output = TransformResult;
-
     fn transform(&self, message: OutgoingMessage) -> Vec<TransformResult> {
         if let OutgoingMessage::Response(ResponseEnvelope {
             response: OutgoingResponse::Embedding(EmbeddingResult::Done),
@@ -181,5 +176,5 @@ impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
 }
 
 pub fn post_generate_embedding_batch(cfg: &mut web::ServiceConfig) {
-    cfg.route(ApiPath::GENERATE_EMBEDDING_BATCH, post().to(respond));
+    cfg.route(API_PATH_GENERATE_EMBEDDING_BATCH, post().to(respond));
 }

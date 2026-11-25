@@ -1,4 +1,3 @@
-use std::io;
 use std::process::Stdio;
 
 use nix::errno::Errno;
@@ -8,7 +7,7 @@ use nix::unistd::Pid;
 use paddler_cli_tests::paddler_command::paddler_command;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
-use paddler_test_cluster_harness::managed_process::ManagedProcess as _;
+use paddler_cluster_harness::managed_process::ManagedProcess as _;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_exit_reaped_elsewhere_is_reported_as_unobservable() {
@@ -28,17 +27,15 @@ async fn subprocess_exit_reaped_elsewhere_is_reported_as_unobservable() {
     waitpid(rejected_invocation_pid, None)
         .expect("the rejected invocation must exit and be reaped before the harness waits");
 
-    assert_eq!(
+    assert!(matches!(
         SubprocessProcess::new(rejected_invocation)
             .exited()
             .await
             .into_result()
             .err()
             .as_ref()
-            .map(ToString::to_string),
-        Some(
-            SubprocessClusterError::ProcessExitUnobservable(io::Error::from(Errno::ECHILD))
-                .to_string()
-        )
-    );
+            .and_then(|exit_error| exit_error.downcast_ref::<SubprocessClusterError>()),
+        Some(SubprocessClusterError::ProcessExitUnobservable(exit_observation_error))
+            if exit_observation_error.raw_os_error() == Some(Errno::ECHILD as i32)
+    ));
 }

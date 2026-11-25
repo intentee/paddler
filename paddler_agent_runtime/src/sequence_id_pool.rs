@@ -19,13 +19,13 @@ impl SequenceIdPool {
         self.available_ids.borrow_mut().pop()
     }
 
-    pub fn release(&self, sequence_id: u16) {
-        self.available_ids.borrow_mut().push(sequence_id);
-    }
-
     #[must_use]
     pub fn available_count(&self) -> usize {
         self.available_ids.borrow().len()
+    }
+
+    pub fn release(&self, sequence_id: u16) {
+        self.available_ids.borrow_mut().push(sequence_id);
     }
 }
 
@@ -66,7 +66,7 @@ mod tests {
     }
 
     #[test]
-    fn available_count_tracks_pool_size() {
+    fn available_count_tracks_acquisitions_and_releases() {
         let pool = SequenceIdPool::new(3);
 
         assert_eq!(pool.available_count(), 3);

@@ -16,6 +16,19 @@ pub struct HuggingFaceModelReference {
 }
 
 impl HuggingFaceModelReference {
+    /// # Errors
+    ///
+    /// Returns [`hf_hub::HFError::LocalEntryNotFound`] or [`hf_hub::HFError::EntryNotFound`] when this revision of the file is not in the local Hugging Face cache, and another [`hf_hub::HFError`] when the cache cannot be read.
+    pub async fn cached_path(&self, repository: &HFRepository<RepoTypeModel>) -> HFResult<PathBuf> {
+        repository
+            .download_file()
+            .filename(self.filename.clone())
+            .revision(self.revision.clone())
+            .local_files_only(true)
+            .send()
+            .await
+    }
+
     #[must_use]
     pub fn model_path(&self) -> ModelPath {
         let Self {
@@ -34,22 +47,13 @@ impl HuggingFaceModelReference {
     pub fn repository(&self, client: &HFClient) -> HFRepository<RepoTypeModel> {
         client.model(self.repository_owner.clone(), self.repository_name.clone())
     }
-
-    pub async fn cached_path(&self, repository: &HFRepository<RepoTypeModel>) -> HFResult<PathBuf> {
-        repository
-            .download_file()
-            .filename(self.filename.clone())
-            .revision(self.revision.clone())
-            .local_files_only(true)
-            .send()
-            .await
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::HuggingFaceModelReference;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
+
+    use super::HuggingFaceModelReference;
 
     #[test]
     fn names_the_model_path_after_its_repository_revision_and_filename() {

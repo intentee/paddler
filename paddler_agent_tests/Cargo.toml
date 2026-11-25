@@ -1,0 +1,63 @@
+[package]
+name = "paddler_agent_tests"
+autotests = false
+authors.workspace = true
+description = "Tests of the Paddler agent"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[features]
+cuda = ["paddler_bootstrap/cuda"]
+metal = ["paddler_bootstrap/metal"]
+tests_that_use_llms = []
+
+[dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+hf-hub = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_agent_pipeline_harness = { workspace = true }
+paddler_agent_runtime = { workspace = true }
+paddler_agent_status = { workspace = true }
+paddler_agent_text_generation = { workspace = true }
+paddler_blocking_thread_fixture = { workspace = true }
+paddler_bootstrap = { workspace = true }
+paddler_cache_dir = { workspace = true }
+paddler_cluster_harness = { workspace = true }
+paddler_download_manager = { workspace = true }
+paddler_inference_parameters = { workspace = true }
+paddler_local_http_fixture = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_model_source = { workspace = true }
+paddler_request_params_fixture = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true }
+trzcina = { workspace = true }
+
+[dev-dependencies]
+http = { workspace = true }
+log = { workspace = true }
+paddler_balancer_desired_state_fixture = { workspace = true }
+paddler_capturing_logger = { workspace = true }
+paddler_file_fixture = { workspace = true }
+paddler_model_card_fixture = { workspace = true }
+paddler_tcp_buffer_limits = { workspace = true }
+
+[lints]
+workspace = true

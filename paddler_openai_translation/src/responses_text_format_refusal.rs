@@ -23,8 +23,8 @@ impl Expected for ElementsInSequence {
 
 pub enum ResponsesTextFormatRefusal {
     ElementsLeftOver {
-        consumed_elements: usize,
-        leftover_elements: usize,
+        expected_elements: usize,
+        received_elements: usize,
     },
     SchemaElementMissing,
     SchemaMissing,
@@ -39,12 +39,12 @@ impl ResponsesTextFormatRefusal {
     {
         match self {
             Self::ElementsLeftOver {
-                consumed_elements,
-                leftover_elements,
+                expected_elements,
+                received_elements,
             } => TError::invalid_length(
-                consumed_elements + leftover_elements,
+                received_elements,
                 &ElementsInSequence {
-                    count: consumed_elements,
+                    count: expected_elements,
                 },
             ),
             Self::SchemaElementMissing => TError::invalid_length(0, &JSON_SCHEMA_FORMAT_ELEMENTS),

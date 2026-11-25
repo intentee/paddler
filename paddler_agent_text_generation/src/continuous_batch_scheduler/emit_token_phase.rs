@@ -1,10 +1,10 @@
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token_piece::TokenPiece;
+use llama_cpp_model::sampled_token::SampledToken;
 use tokio::sync::mpsc;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
-use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
+use crate::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
 const fn token_to_event(sampled_token: SampledToken, text: String) -> GeneratedTokenResult {
@@ -54,16 +54,16 @@ impl EmitTokenPhase<'_> {
 mod tests {
     use std::mem::discriminant;
 
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
     use super::EmitTokenPhase;
-    use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
+    use crate::classified_token::ClassifiedToken;
     use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
     fn classified(sampled_token: SampledToken, piece: TokenPiece) -> ClassifiedToken {

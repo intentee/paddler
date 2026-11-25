@@ -23,10 +23,7 @@ pub struct ReconciliationService {
 }
 
 impl ReconciliationService {
-    async fn reconcile_desired_states_until_shutdown(
-        self: Box<Self>,
-        shutdown: CancellationToken,
-    ) -> Result<()> {
+    async fn reconcile_desired_states_until_shutdown(self: Box<Self>, shutdown: CancellationToken) {
         let Self {
             agent_applicable_state_holder,
             mut agent_desired_state_rx,
@@ -34,15 +31,15 @@ impl ReconciliationService {
         } = *self;
         let mut reconciliation_attempt = DesiredStateReconciliationAttempt::Idle;
 
-        let service_outcome = loop {
+        loop {
             select! {
                 biased;
-                () = shutdown.cancelled() => break Ok(()),
+                () = shutdown.cancelled() => break,
                 desired_state_change = agent_desired_state_rx.changed() => {
                     if desired_state_change.is_err() {
                         error!("Agent desired state channel closed, stopping reconciliation service.");
 
-                        break Ok(());
+                        break;
                     }
 
                     reconciliation_attempt.abandon().await;
@@ -73,11 +70,9 @@ impl ReconciliationService {
                     }
                 }
             }
-        };
+        }
 
         reconciliation_attempt.abandon().await;
-
-        service_outcome
     }
 }
 
@@ -88,7 +83,9 @@ impl Service for ReconciliationService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.reconcile_desired_states_until_shutdown(shutdown).await
+        self.reconcile_desired_states_until_shutdown(shutdown).await;
+
+        Ok(())
     }
 }
 
@@ -111,21 +108,14 @@ mod tests {
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::ReconciliationService;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
     use crate::desired_state_reconciler::DesiredStateReconciler;
-
-    fn desired_state_with_model(model: AgentDesiredModel) -> AgentDesiredState {
-        AgentDesiredState {
-            model,
-            ..AgentDesiredState::default()
-        }
-    }
 
     #[tokio::test(start_paused = true)]
     async fn a_desired_state_arriving_during_retries_is_reconciled_without_waiting() {
@@ -164,9 +154,10 @@ mod tests {
             .run(shutdown.clone()),
         );
 
-        agent_desired_state_tx.send_replace(desired_state_with_model(AgentDesiredModel::Uri(
-            failing_model_server.url("/model.gguf"),
-        )));
+        agent_desired_state_tx.send_replace(AgentDesiredState {
+            model: AgentDesiredModel::Uri(failing_model_server.url("/model.gguf")),
+            ..AgentDesiredState::default()
+        });
         failing_model_server.wait_for_requests(2).await.unwrap();
 
         let replaced_at = Instant::now();

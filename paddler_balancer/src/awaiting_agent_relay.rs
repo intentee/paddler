@@ -1,3 +1,4 @@
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,7 +28,7 @@ where
     pub async fn dispatch(
         self,
         settlement_guard: DropGuard,
-    ) -> Result<DispatchedAgentRelay<TParams::Response>, RelayFailure> {
+    ) -> ControlFlow<RelayFailure, DispatchedAgentRelay<TParams::Response>> {
         let Self {
             buffered_request_manager,
             dispatchable_request:
@@ -42,7 +43,7 @@ where
         let buffered_request_agent_wait_result = select! {
             biased;
 
-            () = shutdown.cancelled() => return Err(RelayFailure::BalancerShuttingDown),
+            () = shutdown.cancelled() => return ControlFlow::Break(RelayFailure::BalancerShuttingDown),
             buffered_request_agent_wait_result = buffered_request_manager.wait_for_available_agent(dispatch_requirement) => {
                 buffered_request_agent_wait_result
             }
@@ -50,7 +51,7 @@ where
 
         match buffered_request_agent_wait_result {
             BufferedRequestAgentWaitResult::Found(dispatched_agent) => {
-                Ok(DispatchedAgentRelay::start(
+                ControlFlow::Continue(DispatchedAgentRelay::start(
                     dispatched_agent,
                     params,
                     inference_item_timeout,
@@ -61,12 +62,12 @@ where
             BufferedRequestAgentWaitResult::BufferOverflow => {
                 warn!("Too many buffered requests, dropping a request");
 
-                Err(RelayFailure::BufferOverflow)
+                ControlFlow::Break(RelayFailure::BufferOverflow)
             }
             BufferedRequestAgentWaitResult::Timeout => {
                 warn!("A buffered request timed out waiting for an available slot");
 
-                Err(RelayFailure::BufferedRequestTimedOut)
+                ControlFlow::Break(RelayFailure::BufferedRequestTimedOut)
             }
         }
     }

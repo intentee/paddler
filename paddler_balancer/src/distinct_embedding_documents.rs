@@ -7,6 +7,14 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 
 use crate::embedding_document_duplicates::EmbeddingDocumentDuplicates;
 
+fn identifies_documents_unambiguously(input_batch: &[EmbeddingInputDocument]) -> bool {
+    let mut document_ids = HashSet::with_capacity(input_batch.len());
+
+    input_batch
+        .iter()
+        .all(|EmbeddingInputDocument { id, .. }| document_ids.insert(id.as_str()))
+}
+
 struct DocumentsSharingContent {
     duplicate_document_ids: Vec<String>,
     first_document_id: String,
@@ -16,14 +24,6 @@ struct DocumentsSharingContent {
 struct DistinctContent {
     content: String,
     documents_sharing_content: DocumentsSharingContent,
-}
-
-fn identifies_documents_unambiguously(input_batch: &[EmbeddingInputDocument]) -> bool {
-    let mut document_ids = HashSet::with_capacity(input_batch.len());
-
-    input_batch
-        .iter()
-        .all(|document| document_ids.insert(document.id.as_str()))
 }
 
 pub struct DistinctEmbeddingDocuments {
@@ -75,9 +75,12 @@ impl From<GenerateEmbeddingBatchParams> for DistinctEmbeddingDocuments {
             })
             .collect();
 
-        distinct_contents.sort_by_key(|distinct_content| {
-            distinct_content.documents_sharing_content.first_position
-        });
+        distinct_contents.sort_by_key(
+            |DistinctContent {
+                 documents_sharing_content: DocumentsSharingContent { first_position, .. },
+                 ..
+             }| *first_position,
+        );
 
         let mut duplicate_document_ids = HashMap::new();
         let mut distinct_documents = Vec::with_capacity(distinct_contents.len());
@@ -126,13 +129,6 @@ mod tests {
     use super::DistinctEmbeddingDocuments;
     use crate::embedding_document_duplicates::EmbeddingDocumentDuplicates;
 
-    fn document(id: &str, content: &str) -> EmbeddingInputDocument {
-        EmbeddingInputDocument {
-            content: content.to_owned(),
-            id: id.to_owned(),
-        }
-    }
-
     fn batch_of(input_batch: Vec<EmbeddingInputDocument>) -> GenerateEmbeddingBatchParams {
         GenerateEmbeddingBatchParams {
             input_batch,
@@ -144,17 +140,35 @@ mod tests {
     fn embeds_each_content_once_for_every_document_sharing_it() {
         let DistinctEmbeddingDocuments { duplicates, params } =
             DistinctEmbeddingDocuments::from(batch_of(vec![
-                document("first", "shared content"),
-                document("lone", "lone content"),
-                document("second", "shared content"),
-                document("third", "shared content"),
+                EmbeddingInputDocument {
+                    content: "shared content".to_owned(),
+                    id: "first".to_owned(),
+                },
+                EmbeddingInputDocument {
+                    content: "lone content".to_owned(),
+                    id: "lone".to_owned(),
+                },
+                EmbeddingInputDocument {
+                    content: "shared content".to_owned(),
+                    id: "second".to_owned(),
+                },
+                EmbeddingInputDocument {
+                    content: "shared content".to_owned(),
+                    id: "third".to_owned(),
+                },
             ]));
 
         assert_eq!(
             params.input_batch,
             vec![
-                document("first", "shared content"),
-                document("lone", "lone content"),
+                EmbeddingInputDocument {
+                    content: "shared content".to_owned(),
+                    id: "first".to_owned(),
+                },
+                EmbeddingInputDocument {
+                    content: "lone content".to_owned(),
+                    id: "lone".to_owned(),
+                },
             ]
         );
         assert_eq!(
@@ -171,9 +185,18 @@ mod tests {
     #[test]
     fn embeds_every_document_of_a_batch_that_reuses_a_document_id() {
         let ambiguous_batch = vec![
-            document("reused", "shared content"),
-            document("reused", "other content"),
-            document("distinct", "shared content"),
+            EmbeddingInputDocument {
+                content: "shared content".to_owned(),
+                id: "reused".to_owned(),
+            },
+            EmbeddingInputDocument {
+                content: "other content".to_owned(),
+                id: "reused".to_owned(),
+            },
+            EmbeddingInputDocument {
+                content: "shared content".to_owned(),
+                id: "distinct".to_owned(),
+            },
         ];
         let DistinctEmbeddingDocuments { duplicates, params } =
             DistinctEmbeddingDocuments::from(batch_of(ambiguous_batch.clone()));

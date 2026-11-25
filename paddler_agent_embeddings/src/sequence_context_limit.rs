@@ -1,4 +1,5 @@
-use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory as _;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SequenceContextLimit {

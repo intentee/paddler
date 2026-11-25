@@ -14,9 +14,7 @@ pub fn escape_special_token_lookalikes(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     let mut unscanned = text;
 
-    while let Some(opening_offset) = unscanned.find(LOOKALIKE_OPENING) {
-        let (before_opening, from_opening) = unscanned.split_at(opening_offset);
-        let after_opening = &from_opening[LOOKALIKE_OPENING.len()..];
+    while let Some((before_opening, after_opening)) = unscanned.split_once(LOOKALIKE_OPENING) {
         let (name, after_name) = after_opening.split_at(lookalike_name_length(after_opening));
 
         escaped.push_str(before_opening);
@@ -29,10 +27,8 @@ pub fn escape_special_token_lookalikes(text: &str) -> String {
                 unscanned = after_closing;
             }
             Some(_) | None => {
-                let (opening_bracket, after_opening_bracket) = from_opening.split_at(1);
-
-                escaped.push_str(opening_bracket);
-                unscanned = after_opening_bracket;
+                escaped.push_str(LOOKALIKE_OPENING);
+                unscanned = after_opening;
             }
         }
     }

@@ -9,11 +9,6 @@ pub struct Outbox<TMessage> {
 }
 
 impl<TMessage> Outbox<TMessage> {
-    pub fn push(&self, message: TMessage) {
-        self.messages.lock().push_back(message);
-        self.message_arrived.notify_one();
-    }
-
     pub async fn next(&self) -> TMessage {
         loop {
             let next_message = self.messages.lock().pop_front();
@@ -24,6 +19,11 @@ impl<TMessage> Outbox<TMessage> {
 
             self.message_arrived.notified().await;
         }
+    }
+
+    pub fn push(&self, message: TMessage) {
+        self.messages.lock().push_back(message);
+        self.message_arrived.notify_one();
     }
 }
 

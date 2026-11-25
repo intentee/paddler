@@ -108,20 +108,20 @@ impl AgentSocketControllerContext {
             reported_status: slot_aggregated_status_snapshot,
         }));
 
-        let registered_agent_controller_guard =
-            match self.agent_controller_pool.register_agent_controller(
-                agent_controller.clone(),
-                &self.balancer_applicable_state_holder,
-            ) {
-                AgentControllerRegistration::DuplicateAgentId => {
-                    error!("Rejecting a second registration of agent {}", self.agent_id);
+        let registered_agent_controller_guard = match AgentControllerRegistration::register(
+            &self.agent_controller_pool,
+            agent_controller.clone(),
+            &self.balancer_applicable_state_holder,
+        ) {
+            AgentControllerRegistration::DuplicateAgentId => {
+                error!("Rejecting a second registration of agent {}", self.agent_id);
 
-                    return ContinuationDecision::Stop(WebSocketCloseCause::AgentAlreadyRegistered);
-                }
-                AgentControllerRegistration::Registered(registered_agent_controller_guard) => {
-                    registered_agent_controller_guard
-                }
-            };
+                return ContinuationDecision::Stop(WebSocketCloseCause::AgentAlreadyRegistered);
+            }
+            AgentControllerRegistration::Registered(registered_agent_controller_guard) => {
+                registered_agent_controller_guard
+            }
+        };
 
         *self.registration.write() = AgentSocketRegistration::Registered(agent_controller);
 

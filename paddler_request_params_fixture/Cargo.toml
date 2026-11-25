@@ -1,0 +1,19 @@
+[package]
+name = "paddler_request_params_fixture"
+authors.workspace = true
+description = "Inference request parameters that Paddler tests send"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+paddler_messaging = { workspace = true }
+
+[lints]
+workspace = true

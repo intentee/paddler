@@ -168,7 +168,6 @@
             doCheck = false;
             nativeBuildInputs = [
               pkgs.cmake
-              pkgs.jq
               pkgs.pkg-config
               pkgs.llvmPackages.clang
             ]

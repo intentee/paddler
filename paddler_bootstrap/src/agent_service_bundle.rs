@@ -17,6 +17,7 @@ use paddler_messaging::api_path::ApiPath;
 use paddler_outbox::outbox::Outbox;
 
 use crate::agent_bootstrap_config::AgentBootstrapConfig;
+use crate::agent_runtime_config::AgentRuntimeConfig;
 use crate::registers_services::RegistersServices;
 
 pub struct AgentServiceBundle {
@@ -29,10 +30,13 @@ impl AgentServiceBundle {
     #[must_use]
     pub fn new(
         AgentBootstrapConfig {
-            agent_name,
-            desired_model_resolver,
             management_address,
-            slots,
+            runtime:
+                AgentRuntimeConfig {
+                    agent_name,
+                    desired_model_resolver,
+                    slots,
+                },
         }: AgentBootstrapConfig,
     ) -> Self {
         let (agent_desired_state_tx, mut agent_desired_state_rx) =

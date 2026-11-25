@@ -19,6 +19,18 @@ pub struct SubprocessSignals {
 }
 
 impl SubprocessSignals {
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the kill signal cannot be sent.
+    pub fn kill(&self) -> Result<(), SubprocessClusterError> {
+        self.kill_requested.store(true, Ordering::Release);
+
+        self.send(Signal::SIGKILL)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the stop signal cannot be sent, [`SubprocessClusterError::ProcessUnobservable`] when the subprocess state cannot be observed, and [`SubprocessClusterError::ProcessDidNotStop`] when the subprocess does not stop.
     pub fn pause(&self) -> Result<(), SubprocessClusterError> {
         self.send(Signal::SIGSTOP)?;
 
@@ -35,16 +47,16 @@ impl SubprocessSignals {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the continue signal cannot be sent.
     pub fn resume(&self) -> Result<(), SubprocessClusterError> {
         self.send(Signal::SIGCONT)
     }
 
-    pub fn kill(&self) -> Result<(), SubprocessClusterError> {
-        self.kill_requested.store(true, Ordering::Release);
-
-        self.send(Signal::SIGKILL)
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`SubprocessClusterError::SignalUndeliverable`] when the termination signal cannot be sent to a subprocess that still exists.
     pub fn terminate(&self) -> Result<(), SubprocessClusterError> {
         match self.send(Signal::SIGTERM) {
             Ok(())
@@ -101,15 +113,14 @@ mod tests {
             .terminate()
             .expect_err("signalling the init process must be refused");
 
-        assert_eq!(
-            terminate_error.to_string(),
+        assert!(matches!(
+            terminate_error,
             SubprocessClusterError::SignalUndeliverable {
-                pid: Pid::from_raw(1),
+                pid,
                 signal: Signal::SIGTERM,
                 source: Errno::EPERM,
-            }
-            .to_string()
-        );
+            } if pid == Pid::from_raw(1)
+        ));
         assert_eq!(
             terminate_error
                 .source()
@@ -140,14 +151,13 @@ mod tests {
         let pause_error =
             pause_result.expect_err("pausing a process this harness did not spawn must fail");
 
-        assert_eq!(
-            pause_error.to_string(),
+        assert!(matches!(
+            pause_error,
             SubprocessClusterError::ProcessUnobservable {
-                pid: grandchild,
+                pid,
                 source: Errno::ECHILD,
-            }
-            .to_string()
-        );
+            } if pid == grandchild
+        ));
         assert_eq!(
             pause_error
                 .source()

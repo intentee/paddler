@@ -6,9 +6,9 @@ use crate::chat_completion_chunk_choice::ChatCompletionChunkChoice;
 use crate::chat_completion_chunk_payload::ChatCompletionChunkPayload;
 use crate::chat_completion_finish_reason::chat_completion_finish_reason;
 use crate::chat_completion_header::ChatCompletionHeader;
+use crate::chat_completion_stream_emission::ChatCompletionStreamEmission;
 use crate::chat_completion_stream_params::ChatCompletionStreamParams;
 use crate::generated_output_part::GeneratedOutputPart;
-use crate::generation_failure::GenerationFailure;
 use crate::generation_outcome::GenerationOutcome;
 use crate::generation_progress::GenerationProgress;
 
@@ -40,32 +40,39 @@ impl ChatCompletionStream {
         &mut self,
         request_id: &str,
         generation_progress: GenerationProgress,
-    ) -> Result<Vec<ChatCompletionChunk>, GenerationFailure> {
+    ) -> ChatCompletionStreamEmission {
         match generation_progress {
             GenerationProgress::Produced(GeneratedOutputPart::Content(text)) => {
-                Ok(vec![self.chunk(
+                ChatCompletionStreamEmission::Chunks(vec![self.chunk(
                     request_id,
                     ChatCompletionChunkPayload::Choice(ChatCompletionChunkChoice::Content(text)),
                 )])
             }
             GenerationProgress::Produced(GeneratedOutputPart::Reasoning(_))
-            | GenerationProgress::ToolCallTokenProduced => Ok(Vec::new()),
-            GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(parsed_calls)) => {
-                Ok(self.tool_calls(request_id, parsed_calls))
+            | GenerationProgress::ToolCallTokenProduced => {
+                ChatCompletionStreamEmission::Chunks(Vec::new())
             }
-            GenerationProgress::Failed(generation_failure) => Err(generation_failure),
+            GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(parsed_calls)) => {
+                ChatCompletionStreamEmission::Chunks(self.tool_calls(request_id, parsed_calls))
+            }
+            GenerationProgress::Failed(generation_failure) => {
+                ChatCompletionStreamEmission::Failure(generation_failure)
+            }
         }
     }
 
+    #[must_use]
     pub fn conclude(
         &self,
         request_id: &str,
         generation_outcome: GenerationOutcome,
-    ) -> Result<Vec<ChatCompletionChunk>, GenerationFailure> {
+    ) -> ChatCompletionStreamEmission {
         match generation_outcome {
-            GenerationOutcome::Failed(generation_failure) => Err(generation_failure),
+            GenerationOutcome::Failed(generation_failure) => {
+                ChatCompletionStreamEmission::Failure(generation_failure)
+            }
             GenerationOutcome::Finished(generation_summary) => {
-                Ok(self.finish(request_id, &generation_summary))
+                ChatCompletionStreamEmission::Chunks(self.finish(request_id, &generation_summary))
             }
         }
     }
@@ -122,18 +129,18 @@ impl ChatCompletionStream {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::token_usage::TokenUsage;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
+    use paddler_generation_result_fixture::finished_generation_summary::finished_generation_summary;
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
-    use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::invalid_arguments_json::InvalidArgumentsJson;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
 
     use super::ChatCompletionStream;
-    use crate::chat_completion_chunk::ChatCompletionChunk;
     use crate::chat_completion_header::ChatCompletionHeader;
+    use crate::chat_completion_stream_emission::ChatCompletionStreamEmission;
     use crate::chat_completion_stream_params::ChatCompletionStreamParams;
     use crate::generated_output_part::GeneratedOutputPart;
     use crate::generation_failure::GenerationFailure;
@@ -152,26 +159,19 @@ mod tests {
         })
     }
 
-    fn finished(finish: GenerationFinish) -> GenerationOutcome {
-        GenerationOutcome::Finished(GenerationSummary {
-            finish,
-            usage: TokenUsage {
-                prompt_tokens: 7,
-                content_tokens: 4,
-                reasoning_tokens: 1,
-                ..TokenUsage::default()
-            },
-        })
-    }
-
     fn serialized_chunks(
-        chat_completion_chunks: Result<Vec<ChatCompletionChunk>, GenerationFailure>,
+        chat_completion_stream_emission: ChatCompletionStreamEmission,
     ) -> Vec<String> {
-        chat_completion_chunks
-            .unwrap()
-            .iter()
-            .map(|chat_completion_chunk| to_string(chat_completion_chunk).unwrap())
-            .collect()
+        match chat_completion_stream_emission {
+            ChatCompletionStreamEmission::Chunks(chat_completion_chunks) => {
+                Some(chat_completion_chunks)
+            }
+            ChatCompletionStreamEmission::Failure(_) => None,
+        }
+        .expect("the stream must emit chunks")
+        .iter()
+        .map(|chat_completion_chunk| to_string(chat_completion_chunk).unwrap())
+        .collect()
     }
 
     fn tool_call(
@@ -234,7 +234,14 @@ mod tests {
                         1,
                         "call_invalid",
                         "broken_tool",
-                        ToolCallArguments::from_string("{not valid json".to_owned()),
+                        ToolCallArguments::InvalidJson {
+                            raw: "{not valid json".to_owned(),
+                            error: InvalidArgumentsJson {
+                                message: "key must be a string at line 1 column 2".to_owned(),
+                                line: 1,
+                                column: 2,
+                            },
+                        },
                     ),
                 ])),
             )),
@@ -293,10 +300,12 @@ mod tests {
             Vec::<String>::new()
         );
         assert_eq!(
-            serialized_chunks(
-                chat_completion_stream
-                    .conclude("test-request", finished(GenerationFinish::EndOfGeneration))
-            ),
+            serialized_chunks(chat_completion_stream.conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::EndOfGeneration
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#,
             ]
@@ -318,19 +327,23 @@ mod tests {
         ));
 
         assert_eq!(
-            serialized_chunks(
-                after_tool_call
-                    .conclude("test-request", finished(GenerationFinish::EndOfGeneration))
-            ),
+            serialized_chunks(after_tool_call.conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::EndOfGeneration
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}]}"#,
             ]
         );
         assert_eq!(
-            serialized_chunks(
-                chat_completion_stream(false)
-                    .conclude("test-request", finished(GenerationFinish::MaxTokens))
-            ),
+            serialized_chunks(chat_completion_stream(false).conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::MaxTokens
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"length"}]}"#,
             ]
@@ -340,10 +353,12 @@ mod tests {
     #[test]
     fn appends_a_usage_chunk_when_the_client_asks_for_usage() {
         assert_eq!(
-            serialized_chunks(
-                chat_completion_stream(true)
-                    .conclude("test-request", finished(GenerationFinish::EndOfGeneration))
-            ),
+            serialized_chunks(chat_completion_stream(true).conclude(
+                "test-request",
+                GenerationOutcome::Finished(finished_generation_summary(
+                    GenerationFinish::EndOfGeneration
+                ))
+            )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#,
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":1}}}"#,
@@ -359,23 +374,25 @@ mod tests {
         };
         let mut chat_completion_stream = chat_completion_stream(false);
 
-        assert_eq!(
-            chat_completion_stream
-                .advance(
-                    "test-request",
-                    GenerationProgress::Failed(generation_failure())
-                )
-                .err(),
-            Some(generation_failure())
-        );
-        assert_eq!(
-            chat_completion_stream
-                .conclude(
-                    "test-request",
-                    GenerationOutcome::Failed(generation_failure())
-                )
-                .err(),
-            Some(generation_failure())
-        );
+        assert!(matches!(
+            chat_completion_stream.advance(
+                "test-request",
+                GenerationProgress::Failed(generation_failure())
+            ),
+            ChatCompletionStreamEmission::Failure(GenerationFailure {
+                cause: GenerationFailureCause::AgentFailed,
+                ..
+            })
+        ));
+        assert!(matches!(
+            chat_completion_stream.conclude(
+                "test-request",
+                GenerationOutcome::Failed(generation_failure())
+            ),
+            ChatCompletionStreamEmission::Failure(GenerationFailure {
+                cause: GenerationFailureCause::AgentFailed,
+                ..
+            })
+        ));
     }
 }

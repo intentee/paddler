@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use llama_cpp_bindings::model::params::LlamaModelParams;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 

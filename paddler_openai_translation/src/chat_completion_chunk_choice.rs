@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde::Serializer;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::chat_completion_tool_call::ChatCompletionToolCall;

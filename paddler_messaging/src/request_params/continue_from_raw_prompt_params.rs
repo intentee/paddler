@@ -22,7 +22,7 @@ mod tests {
     use super::ContinueFromRawPromptParams;
 
     #[test]
-    fn a_request_that_omits_the_grammar_field_keeps_working() {
+    fn a_request_that_omits_the_grammar_field_deserializes_without_a_grammar() {
         let request_without_grammar = json!({
             "max_tokens": 10,
             "raw_prompt": "Hello",

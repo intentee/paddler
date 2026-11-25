@@ -100,6 +100,7 @@ impl EmbeddingDocumentDuplicates {
             | EmbeddingResult::DecodeFailed(_)
             | EmbeddingResult::Done
             | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+            | EmbeddingResult::EmbeddingsNotServed(_)
             | EmbeddingResult::EmbeddingsUnavailable(_)
             | EmbeddingResult::InputTokenizationFailed(_)
             | EmbeddingResult::ModelNotLoaded(_)
@@ -150,7 +151,7 @@ mod tests {
 
     fn embedding_of(source_document_id: &str) -> EmbeddingResult {
         EmbeddingResult::Embedding(Embedding {
-            embedding: EmbeddingVector::from(vec![0.25, 0.75]),
+            vector: EmbeddingVector::from(vec![0.25, 0.75]),
             normalization_method: EmbeddingNormalizationMethod::None,
             pooling_type: PoolingType::Mean,
             source_document_id: source_document_id.to_owned(),
@@ -259,19 +260,20 @@ mod tests {
 
     #[test]
     fn passes_an_error_through_once() {
-        let error = || {
-            OutgoingMessage::Error(ErrorEnvelope {
-                request_id: "request".to_owned(),
-                error: JsonRpcError {
-                    code: 504,
-                    description: "timed out".to_owned(),
-                },
-            })
-        };
-
-        assert_eq!(
-            serialized(&duplicates_of_first_document().fan_out(error())),
-            serialized(&[error()])
-        );
+        assert!(matches!(
+            duplicates_of_first_document()
+                .fan_out(OutgoingMessage::Error(ErrorEnvelope {
+                    request_id: "request".to_owned(),
+                    error: JsonRpcError {
+                        code: 504,
+                        description: "timed out".to_owned(),
+                    },
+                }))
+                .as_slice(),
+            [OutgoingMessage::Error(ErrorEnvelope {
+                request_id,
+                error: JsonRpcError { code: 504, .. },
+            })] if request_id == "request"
+        ));
     }
 }

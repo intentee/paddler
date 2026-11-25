@@ -1,0 +1,42 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::mem::discriminant;
+
+use paddler_agent_pipeline_harness::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
+use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
+use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reapplying_the_served_state_keeps_serving_it_without_a_restart() {
+    let desired_state = qwen3_0_6b().into_desired_state();
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(1).expect("the model downloader must start");
+
+    serving_pipeline_arbiter
+        .serve(desired_state.clone())
+        .await
+        .expect("the desired state must be served");
+
+    let status_while_serving = serving_pipeline_arbiter
+        .inference_runtime_context
+        .slot_aggregated_status
+        .make_snapshot()
+        .status;
+
+    assert_eq!(
+        discriminant(&serving_pipeline_arbiter.apply(desired_state).await),
+        desired_state_reconciled_discriminant()
+    );
+
+    assert_eq!(
+        serving_pipeline_arbiter
+            .inference_runtime_context
+            .slot_aggregated_status
+            .make_snapshot()
+            .status,
+        status_while_serving
+    );
+
+    serving_pipeline_arbiter.shut_down().await;
+}

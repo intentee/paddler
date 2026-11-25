@@ -1,5 +1,7 @@
+use std::ops::ControlFlow;
 use std::time::Duration;
 
+use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_relay_conclusion::AgentRelayConclusion;
@@ -10,6 +12,7 @@ use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::awaiting_agent_relay::AwaitingAgentRelay;
 use crate::dispatched_agent::DispatchedAgent;
 use crate::dispatched_agent_relay::DispatchedAgentRelay;
+use crate::receives_agent_relay::ReceivesAgentRelay;
 
 pub struct AgentRelay<TParams>
 where
@@ -57,20 +60,31 @@ where
         }
     }
 
-    #[must_use]
-    pub fn settlement(&self) -> CancellationToken {
-        self.settlement.clone()
+    pub async fn forward<TReceiver>(self, connection_close: CancellationToken, receiver: TReceiver)
+    where
+        TReceiver: ReceivesAgentRelay<TParams::Response>,
+    {
+        let settlement = self.settlement();
+
+        select! {
+            biased;
+
+            () = connection_close.cancelled() => {}
+            () = self.relay_to(receiver) => {}
+        }
+
+        settlement.cancelled().await;
     }
 
-    pub async fn next(self) -> AgentRelayStep<TParams> {
+    pub async fn next(self) -> AgentRelayStep<TParams::Response, Self> {
         let Self { phase, settlement } = self;
         let dispatched_agent_relay = match phase {
             AgentRelayPhase::Awaiting {
                 awaiting_agent_relay,
                 settlement_guard,
             } => match awaiting_agent_relay.dispatch(settlement_guard).await {
-                Ok(dispatched_agent_relay) => dispatched_agent_relay,
-                Err(relay_failure) => {
+                ControlFlow::Continue(dispatched_agent_relay) => dispatched_agent_relay,
+                ControlFlow::Break(relay_failure) => {
                     return AgentRelayStep::Concluded(AgentRelayConclusion::Failed(relay_failure));
                 }
             },
@@ -95,6 +109,34 @@ where
                     settlement,
                 },
             },
+        }
+    }
+
+    #[must_use]
+    pub fn settlement(&self) -> CancellationToken {
+        self.settlement.clone()
+    }
+
+    async fn relay_to<TReceiver>(self, mut receiver: TReceiver)
+    where
+        TReceiver: ReceivesAgentRelay<TParams::Response>,
+    {
+        let mut agent_relay = self;
+
+        loop {
+            match agent_relay.next().await {
+                AgentRelayStep::Concluded(conclusion) => {
+                    return receiver.receive_conclusion(conclusion).await;
+                }
+                AgentRelayStep::Partial {
+                    generated_by,
+                    partial_result,
+                    relay,
+                } => {
+                    receiver.receive_partial(generated_by, partial_result).await;
+                    agent_relay = relay;
+                }
+            }
         }
     }
 }

@@ -1,13 +1,16 @@
 use anyhow::Result;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 use crate::start_subprocess_cluster::start_subprocess_cluster;
 
+/// # Errors
+///
+/// Fails when the balancer subprocess cannot be spawned, signalled or addressed, when it does not announce its addresses, when the cluster cannot connect to it, and when an agent does not register.
 pub async fn start_subprocess_cluster_with_qwen3(
     binary_path: &str,
     agents: Vec<AgentConfig>,

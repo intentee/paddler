@@ -1,0 +1,36 @@
+use std::path::PathBuf;
+
+use llama_cpp_backend::backend_error::BackendError;
+use llama_cpp_backend::llama_backend::LlamaBackend;
+
+use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
+use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
+use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
+
+#[test]
+fn loading_a_model_while_another_backend_runs_reports_that_it_cannot_be_loaded() {
+    let inference_runtime_context = agent_inference_runtime_context(1);
+    let model_path = PathBuf::from("model-that-is-never-read.gguf");
+    let _running_backend = LlamaBackend::init().expect("the first backend must initialize");
+
+    let load_error = LoadedLlamaModel::load(
+        &inference_runtime_context,
+        LlamaModelSettings {
+            model_path: model_path.clone(),
+            n_gpu_layers: 0,
+        },
+    )
+    .err()
+    .expect("a second backend must not initialize");
+
+    assert!(matches!(
+        load_error,
+        AgentRuntimeError::BackendInitializationFailed(BackendError::AlreadyInitialized)
+    ));
+    assert!(inference_runtime_context.slot_aggregated_status.has_issue(
+        &AgentIssue::ModelCannotBeLoaded(ModelPath::from(model_path.as_path()))
+    ));
+}

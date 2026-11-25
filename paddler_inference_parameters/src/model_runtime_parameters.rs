@@ -3,8 +3,8 @@ use std::num::NonZeroU32;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::all_gpu_layers::ALL_GPU_LAYERS;
 use crate::batch_size::BatchSize;
+use crate::constants::ALL_GPU_LAYERS;
 use crate::invalid_inference_parameters::InvalidInferenceParameters;
 use crate::kv_cache_dtype::KvCacheDtype;
 use crate::raw_model_runtime_parameters::RawModelRuntimeParameters;
@@ -72,6 +72,7 @@ impl TryFrom<RawModelRuntimeParameters> for ModelRuntimeParameters {
 mod tests {
     use std::num::NonZeroU32;
 
+    use serde_json::error::Category;
     use serde_json::from_value;
     use serde_json::json;
     use serde_json::to_value;
@@ -101,13 +102,15 @@ mod tests {
     fn deserialization_rejects_parameters_that_fail_validation() {
         let mut parameters = to_value(ModelRuntimeParameters::default()).unwrap();
 
-        parameters["n_gpu_layers"] = json!(-2);
+        *parameters
+            .get_mut("n_gpu_layers")
+            .expect("the serialized parameters must hold n_gpu_layers") = json!(-2);
 
         assert_eq!(
             from_value::<ModelRuntimeParameters>(parameters)
-                .unwrap_err()
-                .to_string(),
-            InvalidInferenceParameters::GpuLayersBelowAllLayers { n_gpu_layers: -2 }.to_string()
+                .err()
+                .map(|deserialization_error| deserialization_error.classify()),
+            Some(Category::Data)
         );
     }
 

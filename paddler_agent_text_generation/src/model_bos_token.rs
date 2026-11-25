@@ -1,5 +1,5 @@
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Copy)]
 pub enum ModelBosToken {
@@ -17,9 +17,9 @@ impl ModelBosToken {
     }
 
     #[must_use]
-    pub fn is_duplicated_at_start_of(&self, prompt_tokens: &[LlamaToken]) -> bool {
+    pub fn is_duplicated_at_start_of(self, prompt_tokens: &[LlamaToken]) -> bool {
         match self {
-            Self::AddedByTokenizer(token) => prompt_tokens.starts_with(&[*token, *token]),
+            Self::AddedByTokenizer(token) => prompt_tokens.starts_with(&[token, token]),
             Self::NotAddedByTokenizer => false,
         }
     }
@@ -27,7 +27,7 @@ impl ModelBosToken {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::ModelBosToken;
 

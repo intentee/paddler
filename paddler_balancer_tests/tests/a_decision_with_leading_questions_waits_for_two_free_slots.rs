@@ -1,0 +1,48 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::mem::discriminant;
+
+use tokio::spawn;
+use tokio_util::sync::CancellationToken;
+
+use paddler_balancer_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
+use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
+use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
+use paddler_request_params_fixture::sample_decision::sample_decision;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_decision_with_leading_questions_waits_for_two_free_slots() {
+    let mut cluster = DecisionClusterParams::default()
+        .start_cluster()
+        .await
+        .expect("a decision cluster must start");
+    let slot_held_by_an_unending_generation = SlotHeldByAnUnendingGeneration::hold(&mut cluster)
+        .await
+        .expect("the unending generation must hold a slot");
+    let decision = spawn(cluster.decide(CancellationToken::new(), &sample_decision()));
+
+    cluster
+        .wait_for_buffered_request_count(1)
+        .await
+        .expect("the decision must wait while only one slot is free");
+    slot_held_by_an_unending_generation
+        .release()
+        .await
+        .expect("the unending generation must release its slot");
+
+    assert_eq!(
+        discriminant(
+            &decision
+                .await
+                .expect("the decision task must not panic")
+                .expect("the decision must be answered")
+                .terminal_result
+        ),
+        decision_done_discriminant()
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

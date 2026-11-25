@@ -1,6 +1,5 @@
 [package]
 name = "paddler_download_manager"
-autotests = false
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -9,9 +8,8 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
-[[test]]
-name = "integration"
-path = "tests/main.rs"
+[lib]
+doctest = false
 
 [dependencies]
 bytes = { workspace = true }
@@ -24,8 +22,6 @@ tokio-util = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
-http = { workspace = true }
-paddler_local_http_fixture = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

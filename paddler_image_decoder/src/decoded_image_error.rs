@@ -4,11 +4,23 @@ use resvg::usvg::Error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecodedImageError {
-    #[error("Invalid base64 payload: {0}")]
+    #[error("Invalid base64 payload")]
     InvalidBase64Payload(#[source] DecodeError),
 
     #[error("Invalid data URI: missing comma separator")]
     MissingCommaSeparator,
+
+    #[error("Data URI metadata {metadata:?} does not end with the ;base64 marker")]
+    DataUriIsNotBase64Encoded { metadata: String },
+
+    #[error("Data URI media type {media_type:?} is not an image")]
+    DataUriMediaTypeIsNotAnImage { media_type: String },
+
+    #[error("Data URI image media type has no subtype")]
+    DataUriImageSubtypeIsEmpty,
+
+    #[error("Data URI media type {media_type:?} has parameters, which images do not take")]
+    DataUriMediaTypeHasParameters { media_type: String },
 
     #[error("Unrecognized image format: {raster_format_error}; it is not an SVG either")]
     UnrecognizedFormat {
@@ -20,7 +32,7 @@ pub enum DecodedImageError {
     #[error("Unsupported image format: {format}")]
     UnsupportedFormat { format: String },
 
-    #[error("Failed to decode image pixels: {0}")]
+    #[error("Failed to decode image pixels")]
     PixelDecodingFailed(#[source] ImageError),
 
     #[error("SVG dimension {dimension} is out of valid range")]

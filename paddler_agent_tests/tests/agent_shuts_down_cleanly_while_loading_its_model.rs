@@ -1,0 +1,17 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use paddler_agent_tests::shutdown_during_state_transition::ShutdownDuringStateTransition;
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_shuts_down_cleanly_while_loading_its_model() {
+    ShutdownDuringStateTransition {
+        initial_desired_state: BalancerDesiredState::default(),
+        next_desired_state: qwen3_desired_state(),
+        slot_count: 1,
+    }
+    .shut_down_while_the_agent_applies_the_next_state()
+    .await
+    .expect("the cluster must shut down while its agent applies the next state");
+}

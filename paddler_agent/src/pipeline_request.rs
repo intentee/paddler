@@ -1,5 +1,4 @@
 use paddler_agent_decision::decision_error::DecisionError;
-use paddler_agent_decision::reports_decision_outcome::ReportsDecisionOutcome as _;
 use paddler_agent_embeddings::embedding_error::EmbeddingError;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
@@ -29,13 +28,13 @@ impl PipelineRequest {
         match self {
             Self::ContinueFromConversationHistory(AgentRequest { response_tx, .. })
             | Self::ContinueFromRawPrompt(AgentRequest { response_tx, .. }) => {
-                TextGenerationError::ModelNotLoaded.report(agent_name, &response_tx);
+                TextGenerationError::report_model_not_loaded(agent_name, &response_tx);
             }
             Self::Decide(AgentRequest { response_tx, .. }) => {
-                DecisionError::ModelNotLoaded.report(agent_name, &response_tx);
+                DecisionError::report_model_not_loaded(agent_name, &response_tx);
             }
             Self::GenerateEmbeddingBatch(AgentRequest { response_tx, .. }) => {
-                EmbeddingError::ModelNotLoaded.report(agent_name, &response_tx);
+                EmbeddingError::report_model_not_loaded(agent_name, &response_tx);
             }
         }
     }

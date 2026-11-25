@@ -5,13 +5,11 @@ use paddler_agent_text_generation::text_generation_settings::TextGenerationSetti
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 
-use crate::applicable_decisions::ApplicableDecisions;
 use crate::inference_capabilities::InferenceCapabilities;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModelServingSettings {
-    pub capabilities:
-        InferenceCapabilities<ApplicableDecisions, PoolingType, TextGenerationSettings>,
+    pub capabilities: InferenceCapabilities<(), PoolingType, TextGenerationSettings>,
     pub model_path: PathBuf,
     pub model_runtime_parameters: ModelRuntimeParameters,
 }

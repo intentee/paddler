@@ -100,6 +100,7 @@ mod tests {
     use std::os::fd::AsRawFd as _;
     use std::sync::Arc;
 
+    use log::Level;
     use nix::sys::resource::Resource;
     use nix::sys::resource::getrlimit;
     use nix::sys::resource::setrlimit;
@@ -108,14 +109,16 @@ mod tests {
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_cache_dir::cache_dir::CacheDir;
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
     use paddler_download_manager::download_manager::DownloadManager;
     use paddler_local_http_fixture::fixture_response::FixtureResponse;
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
-    use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::DesiredStateReconciliationAttempt;
@@ -125,6 +128,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_reconciliation_that_cannot_create_its_runtime_stays_pending() {
+        CapturingLogger::install();
+
         let (soft_descriptor_limit, hard_descriptor_limit) =
             getrlimit(Resource::RLIMIT_NOFILE).unwrap();
         let lowest_free_descriptor = File::open("/dev/null").unwrap().as_raw_fd();
@@ -160,6 +165,11 @@ mod tests {
         assert_eq!(
             desired_state_reconciliation,
             DesiredStateReconciliation::Pending(Box::default())
+        );
+        assert!(
+            CapturingLogger::records_for("paddler_agent::desired_state_reconciliation_attempt")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 

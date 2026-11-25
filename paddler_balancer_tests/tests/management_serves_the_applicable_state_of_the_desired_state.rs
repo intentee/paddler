@@ -1,0 +1,29 @@
+use tokio_util::sync::CancellationToken;
+
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn management_serves_the_applicable_state_of_the_desired_state() {
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
+
+    let agent_desired_state = cluster
+        .client_management
+        .get_balancer_applicable_state(CancellationToken::new())
+        .await
+        .expect("the balancer must serve its applicable state");
+
+    assert_eq!(
+        agent_desired_state,
+        AgentDesiredState::from(&BalancerDesiredState::default())
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

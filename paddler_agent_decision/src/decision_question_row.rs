@@ -1,4 +1,4 @@
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionQuestionRow {
@@ -10,13 +10,14 @@ pub struct DecisionQuestionRow {
 impl DecisionQuestionRow {
     #[must_use]
     pub fn is_output(&self, row_offset: usize) -> bool {
-        row_offset + 1 == self.tokens.len() || self.option_end_offsets.contains(&row_offset)
+        self.tokens.len().checked_sub(1) == Some(row_offset)
+            || self.option_end_offsets.contains(&row_offset)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::DecisionQuestionRow;
 

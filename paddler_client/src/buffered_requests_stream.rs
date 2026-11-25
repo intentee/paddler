@@ -4,7 +4,7 @@ use futures_util::Stream;
 
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
-use crate::error::Result;
+use crate::result::Result;
 
 pub type BufferedRequestsStream =
     Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>;

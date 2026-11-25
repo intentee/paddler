@@ -1,1 +1,0 @@
-pub const MAX_WEBSOCKET_MESSAGE_SIZE: usize = 50 * 1024 * 1024;

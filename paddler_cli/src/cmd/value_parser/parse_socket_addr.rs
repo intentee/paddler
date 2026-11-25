@@ -1,12 +1,13 @@
-use anyhow::Result;
 use command_handler::value_parser::parse_socket_addr::parse_socket_addr as resolve_socket_addr;
 
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 
-pub fn parse_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
+use crate::cli_error::CliError;
+
+pub fn parse_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr, CliError> {
     Ok(ResolvedSocketAddr {
         input_addr: input_addr.to_owned(),
-        socket_addr: resolve_socket_addr(input_addr)?,
+        socket_addr: resolve_socket_addr(input_addr).map_err(CliError::SocketAddrUnresolvable)?,
     })
 }
 

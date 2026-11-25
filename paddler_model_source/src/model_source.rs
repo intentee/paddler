@@ -9,10 +9,11 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
 use crate::agent_local_model_path::AgentLocalModelPath;
+use crate::constants::AGENT_LOCAL_MODEL_PATH_SCHEME;
+use crate::constants::URL_PATH_SEGMENT_ENCODE_SET;
 use crate::download_error_agent_issue::download_error_agent_issue;
 use crate::huggingface_model_reference::HuggingFaceModelReference;
 use crate::model_source_error::ModelSourceError;
-use crate::url_path_segment_encode_set::URL_PATH_SEGMENT_ENCODE_SET;
 
 const HUGGING_FACE_BLOB: &str = "blob";
 const HUGGING_FACE_HOST: &str = "huggingface.co";
@@ -75,16 +76,17 @@ pub enum ModelSource {
 }
 
 impl ModelSource {
+    /// # Errors
+    ///
+    /// Returns [`ModelSourceError::ModelUriUnparseable`] when the URI is not a URL, [`ModelSourceError::HuggingFaceModelUriComponentNotUtf8`] or [`ModelSourceError::HuggingFaceModelUriMalformed`] when a Hugging Face URI does not name a file, [`ModelSourceError::AgentUriNotAnAbsoluteLocalPath`] or [`ModelSourceError::AgentUriNotCanonical`] when an agent URI does not name an absolute local path in its canonical form, and [`ModelSourceError::ModelUriNotDownloadable`] when any other URI is not an http or https URL.
     pub fn parse(
         uri: &str,
         slot_aggregated_status: &SlotAggregatedStatus,
     ) -> Result<Self, ModelSourceError> {
-        let model_path = || ModelPath {
-            model_path: uri.to_owned(),
-        };
         let url = Url::parse(uri).map_err(|source| {
-            slot_aggregated_status
-                .register_desired_state_issue(AgentIssue::ModelUriIsUnparseable(model_path()));
+            slot_aggregated_status.register_desired_state_issue(AgentIssue::ModelUriIsUnparseable(
+                ModelPath::from(uri),
+            ));
 
             ModelSourceError::ModelUriUnparseable {
                 source,
@@ -97,12 +99,12 @@ impl ModelSource {
                 .map(Self::HuggingFace)
                 .inspect_err(|_malformed_uri| {
                     slot_aggregated_status.register_desired_state_issue(
-                        AgentIssue::HuggingFaceModelUriIsMalformed(model_path()),
+                        AgentIssue::HuggingFaceModelUriIsMalformed(ModelPath::from(uri)),
                     );
                 });
         }
 
-        if url.scheme() == AgentLocalModelPath::SCHEME {
+        if url.scheme() == AGENT_LOCAL_MODEL_PATH_SCHEME {
             return AgentLocalModelPath::from_agent_url(uri, &url, slot_aggregated_status)
                 .map(Self::LocalToAgent);
         }
@@ -112,7 +114,7 @@ impl ModelSource {
             .map_err(|download_error| {
                 slot_aggregated_status.register_desired_state_issue(download_error_agent_issue(
                     &download_error,
-                    model_path(),
+                    ModelPath::from(uri),
                 ));
 
                 ModelSourceError::ModelUriNotDownloadable {
@@ -120,6 +122,11 @@ impl ModelSource {
                     uri: uri.to_owned(),
                 }
             })
+    }
+
+    #[must_use]
+    pub fn into_agent_desired_model(self) -> AgentDesiredModel {
+        AgentDesiredModel::Uri(self.uri())
     }
 
     #[must_use]
@@ -143,11 +150,6 @@ impl ModelSource {
             Self::Url(download_url) => download_url.as_str().to_owned(),
         }
     }
-
-    #[must_use]
-    pub fn into_agent_desired_model(self) -> AgentDesiredModel {
-        AgentDesiredModel::Uri(self.uri())
-    }
 }
 
 #[cfg(test)]
@@ -167,12 +169,6 @@ mod tests {
     use crate::agent_local_model_path::AgentLocalModelPath;
     use crate::huggingface_model_reference::HuggingFaceModelReference;
     use crate::model_source_error::ModelSourceError;
-
-    fn model_path(uri: &str) -> ModelPath {
-        ModelPath {
-            model_path: uri.to_owned(),
-        }
-    }
 
     #[test]
     fn parses_hugging_face_file_uris() {
@@ -240,21 +236,19 @@ mod tests {
         let parse_error = ModelSource::parse(uri, &slot_aggregated_status)
             .expect_err("a component that is not utf-8 must be rejected");
 
-        assert_eq!(
-            (
-                parse_error.to_string(),
-                parse_error.source().map(ToString::to_string)
-            ),
-            (
-                format!(
-                    "Hugging Face model URI '{uri}' has a path component that is not valid UTF-8 once percent-decoded: invalid utf-8 sequence of 1 bytes from index 5"
-                ),
-                Some("invalid utf-8 sequence of 1 bytes from index 5".to_owned())
-            )
-        );
+        assert!(matches!(
+            parse_error,
+            ModelSourceError::HuggingFaceModelUriComponentNotUtf8 {
+                uri: rejected_uri,
+                source: utf8_error,
+            } if rejected_uri == uri
+                && utf8_error.valid_up_to() == 5
+                && utf8_error.error_len() == Some(1)
+        ));
         assert!(
-            slot_aggregated_status
-                .has_issue(&AgentIssue::HuggingFaceModelUriIsMalformed(model_path(uri)))
+            slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelUriIsMalformed(
+                ModelPath::from(uri)
+            ))
         );
     }
 
@@ -267,21 +261,15 @@ mod tests {
         ] {
             let slot_aggregated_status = SlotAggregatedStatus::new(1);
 
-            assert_eq!(
-                ModelSource::parse(uri, &slot_aggregated_status)
-                    .err()
-                    .as_ref()
-                    .map(ToString::to_string),
-                Some(
-                    ModelSourceError::HuggingFaceModelUriMalformed {
-                        uri: uri.to_owned(),
-                    }
-                    .to_string()
-                )
-            );
+            assert!(matches!(
+                ModelSource::parse(uri, &slot_aggregated_status),
+                Err(ModelSourceError::HuggingFaceModelUriMalformed { uri: rejected_uri })
+                    if rejected_uri == uri
+            ));
             assert!(
-                slot_aggregated_status
-                    .has_issue(&AgentIssue::HuggingFaceModelUriIsMalformed(model_path(uri)))
+                slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelUriIsMalformed(
+                    ModelPath::from(uri)
+                ))
             );
         }
     }
@@ -342,14 +330,10 @@ mod tests {
         let parse_error = ModelSource::parse("not a uri", &slot_aggregated_status)
             .expect_err("a uri that is not a url must be rejected");
 
-        assert_eq!(
-            parse_error.to_string(),
-            ModelSourceError::ModelUriUnparseable {
-                source: ParseError::RelativeUrlWithoutBase,
-                uri: "not a uri".to_owned(),
-            }
-            .to_string()
-        );
+        assert!(matches!(
+            &parse_error,
+            ModelSourceError::ModelUriUnparseable { uri, .. } if uri == "not a uri"
+        ));
         assert_eq!(
             parse_error
                 .source()
@@ -357,8 +341,9 @@ mod tests {
             Some(&ParseError::RelativeUrlWithoutBase)
         );
         assert!(
-            slot_aggregated_status
-                .has_issue(&AgentIssue::ModelUriIsUnparseable(model_path("not a uri")))
+            slot_aggregated_status.has_issue(&AgentIssue::ModelUriIsUnparseable(ModelPath::from(
+                "not a uri"
+            )))
         );
     }
 
@@ -366,30 +351,24 @@ mod tests {
     fn rejects_a_uri_that_cannot_be_downloaded() {
         let slot_aggregated_status = SlotAggregatedStatus::new(1);
         let uri = "ftp://example.com/model.gguf";
-        let unsupported_scheme = || DownloadError::UnsupportedUrlScheme {
-            scheme: "ftp".to_owned(),
-            url: uri.to_owned(),
-        };
         let parse_error = ModelSource::parse(uri, &slot_aggregated_status)
             .expect_err("a uri with a scheme that cannot be downloaded must be rejected");
 
-        assert_eq!(
-            parse_error.to_string(),
-            ModelSourceError::ModelUriNotDownloadable {
-                source: unsupported_scheme(),
-                uri: uri.to_owned(),
-            }
-            .to_string()
-        );
-        assert_eq!(
+        assert!(matches!(
+            &parse_error,
+            ModelSourceError::ModelUriNotDownloadable { uri: rejected_uri, .. }
+                if rejected_uri == uri
+        ));
+        assert!(matches!(
             parse_error
                 .source()
-                .and_then(|source| source.downcast_ref::<DownloadError>())
-                .map(ToString::to_string),
-            Some(unsupported_scheme().to_string())
-        );
+                .and_then(|source| source.downcast_ref::<DownloadError>()),
+            Some(DownloadError::UnsupportedUrlScheme { scheme, url })
+                if scheme == "ftp" && url == uri
+        ));
         assert!(
-            slot_aggregated_status.has_issue(&AgentIssue::DownloadUrlIsMalformed(model_path(uri)))
+            slot_aggregated_status
+                .has_issue(&AgentIssue::DownloadUrlIsMalformed(ModelPath::from(uri)))
         );
     }
 }

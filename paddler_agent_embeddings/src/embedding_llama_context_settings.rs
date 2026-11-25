@@ -1,4 +1,3 @@
-use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::llama_context_settings::LlamaContextSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
@@ -8,6 +7,7 @@ use paddler_messaging::inference_capability::InferenceCapability;
 
 use crate::agent_pooling_type::AgentPoolingType;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType as _;
+use crate::embedding_error::EmbeddingError;
 
 pub struct EmbeddingLlamaContextSettings<'parameters> {
     pub llama_context_settings: LlamaContextSettings<'parameters>,
@@ -15,11 +15,14 @@ pub struct EmbeddingLlamaContextSettings<'parameters> {
 }
 
 impl EmbeddingLlamaContextSettings<'_> {
+    /// # Errors
+    ///
+    /// Returns [`EmbeddingError::AgentRuntime`] when an embeddings context already occupies the VRAM or llama.cpp cannot create the context.
     pub fn create_llama_context<'model>(
         self,
         loaded_llama_model: &'model LoadedLlamaModel,
         inference_runtime_context: &InferenceRuntimeContext,
-    ) -> Result<ResidentLlamaContext<'model>, AgentRuntimeError> {
+    ) -> Result<ResidentLlamaContext<'model>, EmbeddingError> {
         let Self {
             llama_context_settings,
             pooling_type,
@@ -30,14 +33,16 @@ impl EmbeddingLlamaContextSettings<'_> {
             .tokens()
             .get();
 
-        loaded_llama_model.create_llama_context(
-            inference_runtime_context,
-            InferenceCapability::Embeddings,
-            llama_context_settings
-                .into_llama_context_params()
-                .with_embeddings(true)
-                .with_n_ubatch(n_ubatch)
-                .with_pooling_type(AgentPoolingType(pooling_type).to_llama_pooling_type()),
-        )
+        loaded_llama_model
+            .create_llama_context(
+                inference_runtime_context,
+                InferenceCapability::Embeddings,
+                llama_context_settings
+                    .into_llama_context_params()
+                    .with_embeddings(true)
+                    .with_n_ubatch(n_ubatch)
+                    .with_pooling_type(AgentPoolingType(pooling_type).to_llama_pooling_type()),
+            )
+            .map_err(EmbeddingError::AgentRuntime)
     }
 }

@@ -31,6 +31,12 @@ export const AgentIssueSchema = z.union([
     }),
   }),
   z.object({
+    DecisionModelIsMalformed: AgentIssueModelPathSchema,
+  }),
+  z.object({
+    DecisionTypeIsUnsupported: AgentIssueModelPathSchema,
+  }),
+  z.object({
     DownloadServerDeniedAccess: AgentIssueModelPathSchema,
   }),
   z.object({
@@ -95,25 +101,6 @@ export const AgentIssueSchema = z.union([
   }),
   z.object({
     MultimodalProjectionCannotBeLoaded: AgentIssueModelPathSchema,
-  }),
-  z.object({
-    PointerHeadCannotBeLoaded: AgentIssueModelPathSchema,
-  }),
-  z.object({
-    PointerHeadIncompatibleWithModel: z.object({
-      incompatibility: z.union([
-        z.object({
-          DelimiterIsNotAControlToken: z.object({ delimiter: z.string() }),
-        }),
-        z.object({
-          HiddenSizeMismatch: z.object({
-            model_hidden_size: z.number(),
-            pointer_head_hidden_size: z.number(),
-          }),
-        }),
-      ]),
-      pointer_head_path: AgentIssueModelPathSchema,
-    }),
   }),
   z.object({
     SlotCannotStart: z.object({

@@ -1,0 +1,156 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use futures_util::StreamExt as _;
+use tokio_util::sync::CancellationToken;
+
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
+use paddler_client::inference_message_stream::InferenceMessageStream;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_cluster_harness::unending_generation::unending_generation;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+
+const WAITING_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(32).unwrap();
+const CANCELLED_REQUEST_COUNT: usize = 2;
+const SLOT_COUNT: u16 = 4;
+const WAITING_REQUEST_COUNT: u64 = 4;
+
+fn waiting_prompt() -> ContinueFromRawPromptParams {
+    ContinueFromRawPromptParams {
+        grammar: None,
+        max_tokens: WAITING_MAX_TOKENS,
+        raw_prompt: "The capital of France is".to_owned(),
+    }
+}
+
+async fn cancel_and_await_their_end(
+    slot_filling_tokens: &[CancellationToken],
+    slot_filling_streams: &mut [InferenceMessageStream],
+) {
+    for slot_filling_token in slot_filling_tokens {
+        slot_filling_token.cancel();
+    }
+
+    for slot_filling_stream in slot_filling_streams {
+        assert!(
+            slot_filling_stream.next().await.is_none(),
+            "a cancelled request must end its stream"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
+    let mut cluster = Cluster::start_in_process(ClusterParams {
+        agents: vec![AgentConfig::single(SLOT_COUNT)],
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
+        wait_for_slots_ready: true,
+        ..ClusterParams::default()
+    })
+    .await
+    .expect("the cluster must start");
+    let agent_id = cluster
+        .agent_ids
+        .first()
+        .expect("cluster must have one registered agent")
+        .clone();
+
+    let slot_filling_tokens: Vec<CancellationToken> = (0..SLOT_COUNT)
+        .map(|_slot_index| CancellationToken::new())
+        .collect();
+    let mut slot_filling_streams = Vec::new();
+
+    for slot_filling_token in &slot_filling_tokens {
+        slot_filling_streams.push(
+            cluster
+                .client_inference
+                .continue_from_raw_prompt(slot_filling_token.clone(), unending_generation())
+                .await
+                .expect("the inference request must be accepted"),
+        );
+    }
+
+    for slot_filling_stream in &mut slot_filling_streams {
+        slot_filling_stream
+            .next()
+            .await
+            .expect("each slot-filling request must stream a message before it is cancelled")
+            .expect("the message must be readable");
+    }
+
+    cluster
+        .wait_for_slots_processing(&agent_id, u64::from(SLOT_COUNT))
+        .await
+        .expect("the agent must reach the expected slot usage");
+
+    let mut waiting_streams = Vec::new();
+
+    for _ in 0..WAITING_REQUEST_COUNT {
+        waiting_streams.push(
+            cluster
+                .client_inference
+                .continue_from_raw_prompt(CancellationToken::new(), waiting_prompt())
+                .await
+                .expect("the inference request must be accepted"),
+        );
+    }
+
+    cluster
+        .wait_for_buffered_request_count(WAITING_REQUEST_COUNT)
+        .await
+        .expect("the balancer must reach the expected buffered request count");
+
+    let (cancelled_tokens, remaining_tokens) = slot_filling_tokens
+        .split_at_checked(CANCELLED_REQUEST_COUNT)
+        .expect("the slot-filling requests must include the cancelled ones");
+    let (cancelled_streams, remaining_streams) = slot_filling_streams
+        .split_at_mut_checked(CANCELLED_REQUEST_COUNT)
+        .expect("the slot-filling streams must include the cancelled ones");
+
+    cancel_and_await_their_end(cancelled_tokens, cancelled_streams).await;
+
+    for waiting_stream in waiting_streams {
+        let collected = collect_generated_tokens(waiting_stream)
+            .await
+            .expect("the generated tokens must be collected");
+
+        collected
+            .summary()
+            .expect("every buffered request must run to completion through the freed slots, not end with an error");
+        assert!(
+            collected
+                .token_results
+                .iter()
+                .any(|token_result_with_producer| token_result_with_producer
+                    .token_result
+                    .is_token()),
+            "every buffered request must be served, not finished without generating a single token"
+        );
+    }
+
+    cluster
+        .wait_for_slots_processing(
+            &agent_id,
+            u64::from(SLOT_COUNT)
+                - u64::try_from(CANCELLED_REQUEST_COUNT)
+                    .expect("the value must fit its target type"),
+        )
+        .await
+        .expect("the agent must reach the expected slot usage");
+
+    cancel_and_await_their_end(remaining_tokens, remaining_streams).await;
+
+    cluster
+        .wait_for_slots_processing(&agent_id, 0)
+        .await
+        .expect("the agent must reach the expected slot usage");
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

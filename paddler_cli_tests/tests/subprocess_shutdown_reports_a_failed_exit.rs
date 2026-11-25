@@ -2,11 +2,11 @@ use std::os::unix::process::ExitStatusExt as _;
 use std::process::ExitStatus;
 use std::process::Stdio;
 
-use paddler_cli_tests::clap_usage_error_exit_code::CLAP_USAGE_ERROR_EXIT_CODE;
+use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 use paddler_cli_tests::paddler_command::paddler_command;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
-use paddler_test_cluster_harness::managed_process::ManagedProcess;
+use paddler_cluster_harness::managed_process::ManagedProcess;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_shutdown_reports_a_failed_exit() {
@@ -26,15 +26,9 @@ async fn subprocess_shutdown_reports_a_failed_exit() {
             .await
             .expect_err("a failed exit must be reported at shutdown");
 
-    assert_eq!(
-        shutdown_error
-            .downcast_ref::<SubprocessClusterError>()
-            .map(ToString::to_string),
-        Some(
-            SubprocessClusterError::ProcessExitedWithFailure {
-                exit_status: ExitStatus::from_raw(CLAP_USAGE_ERROR_EXIT_CODE << 8),
-            }
-            .to_string()
-        )
-    );
+    assert!(matches!(
+        shutdown_error.downcast_ref::<SubprocessClusterError>(),
+        Some(SubprocessClusterError::ProcessExitedWithFailure { exit_status })
+            if *exit_status == ExitStatus::from_raw(CLAP_USAGE_ERROR_EXIT_CODE << 8)
+    ));
 }

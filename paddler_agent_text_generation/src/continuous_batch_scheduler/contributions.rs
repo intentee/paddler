@@ -1,5 +1,5 @@
-use crate::continuous_batch_scheduler::generating_contribution::GeneratingContribution;
-use crate::continuous_batch_scheduler::ingesting_contribution::IngestingContribution;
+use crate::generating_contribution::GeneratingContribution;
+use crate::ingesting_contribution::IngestingContribution;
 
 #[derive(Default)]
 pub struct Contributions {
@@ -33,6 +33,7 @@ mod tests {
         contributions.generating.push(GeneratingContribution {
             request_index: 0,
             batch_position: 1,
+            next_token_position: 2,
         });
 
         assert!(!contributions.is_empty());

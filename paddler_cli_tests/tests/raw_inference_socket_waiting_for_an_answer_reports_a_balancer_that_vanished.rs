@@ -6,9 +6,9 @@ use tokio_tungstenite::tungstenite::error::ProtocolError;
 
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
-use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
+use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::raw_inference_socket::RawInferenceSocket;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn raw_inference_socket_waiting_for_an_answer_reports_a_balancer_that_vanished() {

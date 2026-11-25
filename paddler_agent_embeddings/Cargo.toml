@@ -8,8 +8,14 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
-llama-cpp-bindings = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-context-memory = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-params = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -21,9 +27,9 @@ paddler_messaging = { workspace = true }
 
 [features]
 default = []
-cuda = ["llama-cpp-bindings/cuda", "paddler_agent_runtime/cuda"]
-metal = ["llama-cpp-bindings/metal", "paddler_agent_runtime/metal"]
-vulkan = ["llama-cpp-bindings/vulkan", "paddler_agent_runtime/vulkan"]
+cuda = ["paddler_agent_runtime/cuda"]
+metal = ["paddler_agent_runtime/metal"]
+vulkan = ["paddler_agent_runtime/vulkan"]
 
 [lints]
 workspace = true

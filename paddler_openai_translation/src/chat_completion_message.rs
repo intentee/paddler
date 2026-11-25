@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::constants::SYSTEM_ROLE;
+use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::system_role::SYSTEM_ROLE;
-use paddler_messaging::user_role::USER_ROLE;
 
 use crate::chat_completion_message_role::ChatCompletionMessageRole;
 use crate::chat_completion_requested_tool_call::ChatCompletionRequestedToolCall;
@@ -20,6 +20,9 @@ pub struct ChatCompletionMessage {
 }
 
 impl ChatCompletionMessage {
+    /// # Errors
+    ///
+    /// Returns [`OpenAITranslationError::ReasoningOnNonAssistantMessage`] when a message other than an assistant message carries reasoning, [`OpenAITranslationError::ToolCallsOnNonAssistantMessage`] when a message other than an assistant message requests tool calls, [`OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject`] when the arguments of a requested tool call are not a JSON object, [`OpenAITranslationError::MessageWithoutContent`] when a message without tool calls has no content, and [`OpenAITranslationError::ToolResultWithoutToolCallId`] when a tool message does not name the tool call it answers.
     pub fn append_to(
         self,
         messages: &mut Vec<ConversationMessage>,
@@ -212,49 +215,36 @@ mod tests {
 
     #[test]
     fn a_message_without_content_or_tool_calls_is_refused_naming_its_role() {
-        assert_eq!(
-            converted(json!({"role": "assistant", "content": null}))
-                .err()
-                .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::MessageWithoutContent {
-                    role: ChatCompletionMessageRole::Assistant
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            converted(json!({"role": "assistant", "content": null})),
+            Err(OpenAITranslationError::MessageWithoutContent {
+                role: ChatCompletionMessageRole::Assistant
+            })
+        ));
     }
 
     #[test]
     fn tool_calls_on_a_message_that_is_not_an_assistant_message_are_refused() {
-        assert_eq!(
+        assert!(matches!(
             converted(json!({
                 "role": "user",
                 "content": "hi",
                 "tool_calls": [
                     {"id": "call_0", "type": "function", "function": {"name": "read", "arguments": "{}"}}
                 ]
-            }))
-            .err()
-            .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::ToolCallsOnNonAssistantMessage {
-                    role: ChatCompletionMessageRole::User
-                }
-                .to_string()
-            )
-        );
+            })),
+            Err(OpenAITranslationError::ToolCallsOnNonAssistantMessage {
+                role: ChatCompletionMessageRole::User
+            })
+        ));
     }
 
     #[test]
     fn a_tool_message_without_a_tool_call_id_is_refused() {
-        assert_eq!(
-            converted(json!({"role": "tool", "content": "file contents"}))
-                .err()
-                .as_ref()
-                .map(ToString::to_string),
-            Some(OpenAITranslationError::ToolResultWithoutToolCallId.to_string())
-        );
+        assert!(matches!(
+            converted(json!({"role": "tool", "content": "file contents"})),
+            Err(OpenAITranslationError::ToolResultWithoutToolCallId)
+        ));
     }
 
     #[test]
@@ -314,20 +304,15 @@ mod tests {
 
     #[test]
     fn reasoning_on_a_message_that_is_not_an_assistant_message_is_refused() {
-        assert_eq!(
+        assert!(matches!(
             appended(json!({
                 "role": "user",
                 "content": "hi",
                 "reasoning_content": "I am thinking"
-            }))
-            .err()
-            .map(|translation_error| translation_error.to_string()),
-            Some(
-                OpenAITranslationError::ReasoningOnNonAssistantMessage {
-                    role: ChatCompletionMessageRole::User
-                }
-                .to_string()
-            )
-        );
+            })),
+            Err(OpenAITranslationError::ReasoningOnNonAssistantMessage {
+                role: ChatCompletionMessageRole::User
+            })
+        ));
     }
 }

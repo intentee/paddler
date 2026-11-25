@@ -1,0 +1,59 @@
+use serde_json::json;
+use serde_json::to_string;
+use serde_json::to_value;
+use tokio::fs::write;
+
+use paddler_balancer::balancer_error::BalancerError;
+use paddler_balancer_state_database::state_database_error::StateDatabaseError;
+use paddler_bootstrap::bootstrap_error::BootstrapError;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn balancer_refuses_a_stored_desired_state_with_a_zero_image_resize() {
+    let database =
+        TemporaryStateDatabaseFile::new().expect("the state database file must be created");
+    let mut stored_desired_state =
+        to_value(BalancerDesiredState::default()).expect("the value must serialize");
+
+    *stored_desired_state
+        .pointer_mut("/text_generation/multimodal/image_resize_to_fit")
+        .expect("the stored desired state must hold the image resize parameter") = json!(0);
+
+    write(
+        &database.path,
+        to_string(&json!({
+            "balancer_desired_state": stored_desired_state,
+            "version": "2",
+        }))
+        .expect("the value must serialize"),
+    )
+    .await
+    .expect("the file must be written");
+
+    let start_error = Cluster::start_in_process(ClusterParams {
+        state_database_url: database.url.clone(),
+        desired_state: ClusterDesiredState::KeepStored,
+        ..ClusterParams::without_agents()
+    })
+    .await
+    .err();
+
+    assert!(
+        matches!(
+            start_error
+                .as_ref()
+                .and_then(|error| error.downcast_ref::<BootstrapError>()),
+            Some(BootstrapError::StateDatabaseReadFailed {
+                source: BalancerError::StateDatabase(StateDatabaseError::FileContentsInvalid {
+                    path,
+                    ..
+                })
+            }) if *path == database.path
+        ),
+        "{start_error:?}"
+    );
+}

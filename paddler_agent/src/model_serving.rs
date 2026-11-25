@@ -1,8 +1,6 @@
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_agent_runtime::shuts_down::ShutsDown;
 
-use crate::agent_applicable_state::AgentApplicableState;
-use crate::applicable_decisions::ApplicableDecisions;
 use crate::loaded_model_serving_plan::LoadedModelServingPlan;
 use crate::model_serving_settings::ModelServingSettings;
 use crate::pipeline_request::PipelineRequest;
@@ -16,27 +14,6 @@ pub enum ModelServing {
 }
 
 impl ModelServing {
-    #[must_use]
-    pub fn decisions_to_prepare(
-        &self,
-        agent_applicable_state: &AgentApplicableState,
-    ) -> ApplicableDecisions {
-        match (self, agent_applicable_state) {
-            (Self::Serving(served_model), AgentApplicableState::WithModel(desired_settings))
-                if served_model.keeps_decisions_of(desired_settings) =>
-            {
-                ApplicableDecisions::Disabled
-            }
-            (_, AgentApplicableState::WithModel(desired_settings)) => {
-                desired_settings.capabilities.decisions.clone()
-            }
-            (
-                _,
-                AgentApplicableState::NotConfigured | AgentApplicableState::WithoutModel { .. },
-            ) => ApplicableDecisions::Disabled,
-        }
-    }
-
     pub fn forward(&self, agent_name: Option<&str>, request: PipelineRequest) {
         match self {
             Self::Holding(_) | Self::Idle => request.reject_because_no_model_is_loaded(agent_name),

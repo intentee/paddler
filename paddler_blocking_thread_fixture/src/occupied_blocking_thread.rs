@@ -24,6 +24,9 @@ impl OccupiedBlockingThread {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns the [`JoinError`] of the occupying blocking task when it panicked or was cancelled before it finished.
     pub async fn release(mut self) -> Result<(), JoinError> {
         self.release.notify_one();
 

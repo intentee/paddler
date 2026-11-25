@@ -1,6 +1,6 @@
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::send_cors_preflight::send_cors_preflight;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::send_cors_preflight::send_cors_preflight;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 

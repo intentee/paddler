@@ -10,5 +10,6 @@ pub mod http_client;
 pub mod inference_message_stream;
 pub mod inference_socket;
 pub mod reports_health;
+pub mod result;
 mod send_checked_request;
 mod stream;

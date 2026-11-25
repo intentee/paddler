@@ -6,7 +6,7 @@ use paddler_messaging::inference_server::notification::Notification as Inference
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 use crate::error::Error;
-use crate::error::Result;
+use crate::result::Result;
 
 pub struct OutboundRequest {
     pub request_frame: String,
@@ -15,6 +15,9 @@ pub struct OutboundRequest {
 }
 
 impl OutboundRequest {
+    /// # Errors
+    ///
+    /// Returns [`Error::Json`] when the message or its stop notification cannot be serialized.
     pub fn serialize<TMessage: Serialize>(request_id: String, message: &TMessage) -> Result<Self> {
         to_string(message)
             .and_then(|request_frame| {

@@ -1,0 +1,73 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use tokio_util::sync::CancellationToken;
+
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn qwen3_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens() {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
+
+    let collected = cluster
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "What is two plus two? Think step by step.".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
+                enable_thinking: true,
+                grammar: None,
+                max_tokens: NonZeroU32::new(600).unwrap(),
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
+        .await
+        .expect("the inference request must be accepted");
+
+    let reasoning_count = collected
+        .token_results
+        .iter()
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+        })
+        .count();
+
+    assert!(
+        reasoning_count > 0,
+        "expected at least one reasoning token when thinking is enabled (got {reasoning_count})"
+    );
+
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
+
+    assert!(summary.usage.prompt > 0);
+    assert!(summary.usage.reasoning > 0);
+    assert_eq!(
+        summary.usage.completion_tokens(),
+        summary.usage.content + summary.usage.reasoning + summary.usage.undeterminable
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

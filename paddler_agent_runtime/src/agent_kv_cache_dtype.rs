@@ -1,4 +1,4 @@
-use llama_cpp_bindings::context::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
+use llama_cpp_params::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
 
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 
@@ -24,7 +24,7 @@ impl ConvertsToLlamaKvCacheDtype for AgentKvCacheDtype {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::context::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
+    use llama_cpp_params::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
 
     use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 

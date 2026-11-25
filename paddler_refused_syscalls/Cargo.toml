@@ -1,0 +1,20 @@
+[package]
+name = "paddler_refused_syscalls"
+authors.workspace = true
+description = "Refuses chosen system calls of a test process to inject operating system failures into Paddler"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[target.'cfg(target_os = "linux")'.dependencies]
+anyhow = { workspace = true }
+seccompiler = { workspace = true }
+
+[lints]
+workspace = true

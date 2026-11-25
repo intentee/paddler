@@ -1,10 +1,10 @@
 use std::io;
 use std::net::SocketAddr;
 
-use anyhow::Error as AnyhowError;
 use thiserror::Error;
+use trzcina::ServiceShutdownError;
 
-use paddler_state_database::state_database_error::StateDatabaseError;
+use paddler_balancer::balancer_error::BalancerError;
 
 #[derive(Debug, Error)]
 pub enum BootstrapError {
@@ -35,7 +35,7 @@ pub enum BootstrapError {
     #[error("A Paddler service stopped with an error")]
     ServiceRunFailed {
         #[source]
-        source: AnyhowError,
+        source: ServiceShutdownError,
     },
     #[error("A Paddler service thread panicked")]
     ServiceThreadPanicked,
@@ -44,7 +44,7 @@ pub enum BootstrapError {
     #[error("Unable to read the balancer desired state from the state database")]
     StateDatabaseReadFailed {
         #[source]
-        source: StateDatabaseError,
+        source: BalancerError,
     },
     #[cfg(feature = "web_admin_panel")]
     #[error("Unable to bind the web admin panel service to {addr}")]

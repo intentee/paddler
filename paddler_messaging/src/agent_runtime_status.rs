@@ -17,14 +17,6 @@ pub enum AgentRuntimeStatus {
 
 impl AgentRuntimeStatus {
     #[must_use]
-    pub const fn slots_total(&self) -> u64 {
-        match self {
-            Self::Idle => 0,
-            Self::Serving { slots_total, .. } => *slots_total,
-        }
-    }
-
-    #[must_use]
     pub const fn serves(&self, inference_capability: InferenceCapability) -> bool {
         match self {
             Self::Idle => false,
@@ -38,6 +30,14 @@ impl AgentRuntimeStatus {
             self.slots_total()
         } else {
             0
+        }
+    }
+
+    #[must_use]
+    pub const fn slots_total(&self) -> u64 {
+        match self {
+            Self::Idle => 0,
+            Self::Serving { slots_total, .. } => *slots_total,
         }
     }
 }

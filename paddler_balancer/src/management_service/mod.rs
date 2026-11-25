@@ -15,11 +15,13 @@ use trzcina::Service;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::balancer_desired_state_store::BalancerDesiredStateStore;
+use crate::balancer_error::BalancerError;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cors_allowed_hosts_with_web_admin_panel::cors_allowed_hosts_with_web_admin_panel;
 use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_listener::HttpListener;
 use crate::http_route::get_health::get_health;
+use crate::http_service_runner::HttpServiceRunner;
 use crate::management_service::app_data::AppData;
 use crate::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use crate::management_service::http_route::api::get_agents::get_agents;
@@ -33,8 +35,6 @@ use crate::management_service::http_route::api::get_model_metadata::get_model_me
 use crate::management_service::http_route::api::put_balancer_desired_state::put_balancer_desired_state;
 use crate::management_service::http_route::api::ws_agent_socket::ws_agent_socket;
 use crate::management_service::http_route::get_metrics::get_metrics;
-use crate::run_http_service::run_http_service;
-use crate::run_http_service_parameters::RunHttpServiceParameters;
 
 pub struct ManagementService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -48,7 +48,10 @@ pub struct ManagementService {
 }
 
 impl ManagementService {
-    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn serve_until_shutdown(
+        self: Box<Self>,
+        shutdown: CancellationToken,
+    ) -> Result<(), BalancerError> {
         let service_name = self.name();
         let cors_allowed_hosts_arc = cors_allowed_hosts_with_web_admin_panel(
             &self.configuration.cors_allowed_hosts,
@@ -64,31 +67,29 @@ impl ManagementService {
             statsd_prefix: self.statsd_prefix.clone(),
         });
 
-        run_http_service(
-            shutdown,
-            RunHttpServiceParameters {
-                app_factory: move || {
-                    App::new()
-                        .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
-                        .app_data(app_data.clone())
-                        .configure(get_health)
-                        .configure(get_agents)
-                        .configure(get_agents_stream)
-                        .configure(get_balancer_applicable_state)
-                        .configure(get_balancer_desired_state)
-                        .configure(get_buffered_requests)
-                        .configure(get_buffered_requests_stream)
-                        .configure(get_chat_template_override)
-                        .configure(get_model_metadata)
-                        .configure(put_balancer_desired_state)
-                        .configure(ws_agent_socket)
-                        .configure(get_metrics)
-                },
-                http_listener: self.http_listener,
-                service_name,
-                worker_count: 2,
+        HttpServiceRunner {
+            app_factory: move || {
+                App::new()
+                    .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
+                    .app_data(app_data.clone())
+                    .configure(get_health)
+                    .configure(get_agents)
+                    .configure(get_agents_stream)
+                    .configure(get_balancer_applicable_state)
+                    .configure(get_balancer_desired_state)
+                    .configure(get_buffered_requests)
+                    .configure(get_buffered_requests_stream)
+                    .configure(get_chat_template_override)
+                    .configure(get_model_metadata)
+                    .configure(put_balancer_desired_state)
+                    .configure(ws_agent_socket)
+                    .configure(get_metrics)
             },
-        )
+            http_listener: self.http_listener,
+            service_name,
+            worker_count: 2,
+        }
+        .run(shutdown)
         .await
     }
 }
@@ -100,6 +101,6 @@ impl Service for ManagementService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.serve_until_shutdown(shutdown).await
+        Ok(self.serve_until_shutdown(shutdown).await?)
     }
 }

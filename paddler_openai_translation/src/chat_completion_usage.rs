@@ -1,6 +1,7 @@
-use llama_cpp_bindings_types::token_usage::TokenUsage;
 use serde::Serialize;
 use serde::Serializer;
+
+use paddler_messaging::token_usage::TokenUsage;
 
 #[derive(Serialize)]
 struct PromptTokensDetails {
@@ -36,15 +37,15 @@ impl Serialize for ChatCompletionUsage {
         let Self(usage) = self;
 
         SerializedUsage {
-            prompt_tokens: usage.prompt_tokens,
+            prompt_tokens: usage.prompt,
             completion_tokens: usage.completion_tokens(),
             total_tokens: usage.total_tokens(),
             prompt_tokens_details: PromptTokensDetails {
-                cached_tokens: usage.cached_prompt_tokens,
-                audio_tokens: usage.input_audio_tokens,
+                cached_tokens: usage.cached_prompt,
+                audio_tokens: usage.input_audio,
             },
             completion_tokens_details: CompletionTokensDetails {
-                reasoning_tokens: usage.reasoning_tokens,
+                reasoning_tokens: usage.reasoning,
             },
         }
         .serialize(serializer)

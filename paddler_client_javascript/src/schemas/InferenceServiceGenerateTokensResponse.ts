@@ -62,7 +62,6 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ PromptExceedsContextSize: OversizedPromptDetailsSchema }),
   z.object({ BatchAssemblyFailed: z.string() }),
   z.object({ KvCacheClearFailed: z.string() }),
-  z.object({ MediaMicroBatchCheckFailed: z.string() }),
   z.object({ MultimodalIngestionFailed: z.string() }),
   z.object({ MultimodalTokenizationFailed: z.string() }),
   z.object({ NoSequenceSlotAvailable: z.string() }),
@@ -383,15 +382,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         500,
         variant.KvCacheClearFailed,
-      );
-    }
-
-    if ("MediaMicroBatchCheckFailed" in variant) {
-      return terminalError(
-        request_id,
-        generated_by,
-        500,
-        variant.MediaMicroBatchCheckFailed,
       );
     }
 

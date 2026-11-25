@@ -12,6 +12,9 @@ pub enum ConversationSupport {
 }
 
 impl ConversationSupport {
+    /// # Errors
+    ///
+    /// Returns [`TextGenerationError::ConversationRequiresChatTemplate`] when the model serves no chat template.
     pub fn prompt_support(&self) -> Result<&ConversationPromptSupport, TextGenerationError> {
         match self {
             Self::Available(conversation_prompt_support) => Ok(conversation_prompt_support),

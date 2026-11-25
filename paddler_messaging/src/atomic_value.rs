@@ -31,30 +31,32 @@ impl AtomicValue<AtomicU64> {
         }
     }
 
+    pub fn add(&self, amount: u64) {
+        self.value.fetch_add(amount, Ordering::SeqCst);
+    }
+
     pub fn compare_and_swap(&self, current: u64, new: u64) -> bool {
         self.value
             .compare_exchange(current, new, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
     }
 
-    pub fn subtract(&self, amount: u64) {
-        self.value.fetch_sub(amount, Ordering::SeqCst);
-    }
-
     pub fn get(&self) -> u64 {
         self.value.load(Ordering::SeqCst)
-    }
-
-    pub fn increment(&self) {
-        self.value.fetch_add(1, Ordering::SeqCst);
     }
 
     pub fn increment_below(&self, limit: u64) -> bool {
         self.value
             .try_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
-                (current < limit).then_some(current + 1)
+                current
+                    .checked_add(1)
+                    .filter(|incremented| *incremented <= limit)
             })
             .is_ok()
+    }
+
+    pub fn subtract(&self, amount: u64) {
+        self.value.fetch_sub(amount, Ordering::SeqCst);
     }
 }
 

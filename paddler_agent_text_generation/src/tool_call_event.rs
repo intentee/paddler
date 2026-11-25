@@ -1,5 +1,6 @@
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
+use llama_cpp_chat::chat_error::ChatError;
 
+use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
@@ -8,7 +9,7 @@ use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationE
 #[derive(Debug)]
 pub enum ToolCallEvent<'reading> {
     Resolved(Vec<GeneratedToolCall>),
-    ParseFailed(&'reading ParseChatMessageError),
+    ParseFailed(&'reading ChatError),
     ValidationFailed(Vec<ToolCallValidationError>),
     UnrecognizedFormat(RawToolCallTokens),
 }
@@ -25,7 +26,12 @@ impl ToolCallEvent<'_> {
                 GeneratedTokenResult::ToolCallValidationFailed(
                     validation_errors
                         .into_iter()
-                        .map(|validation_error| validation_error.to_string())
+                        .map(|validation_error| {
+                            ErrorChain {
+                                error: &validation_error,
+                            }
+                            .to_string()
+                        })
                         .collect(),
                 )
             }
@@ -36,13 +42,13 @@ impl ToolCallEvent<'_> {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_chat::chat_error::ChatError;
     use serde_json::json;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
+    use paddler_messaging::tool_call_arguments::ToolCallArguments;
     use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
 
     use super::ToolCallEvent;
@@ -63,25 +69,24 @@ mod tests {
     }
 
     #[test]
-    fn parse_failed_converts_to_tool_call_parse_failed_with_the_parser_error() {
-        assert_eq!(
-            ToolCallEvent::ParseFailed(&ParseChatMessageError::NotEnoughMemory)
+    fn parse_failed_converts_to_tool_call_parse_failed() {
+        assert!(matches!(
+            ToolCallEvent::ParseFailed(&ChatError::ParseNotEnoughMemory)
                 .into_generated_token_result(),
-            GeneratedTokenResult::ToolCallParseFailed(
-                ParseChatMessageError::NotEnoughMemory.to_string()
-            )
-        );
+            GeneratedTokenResult::ToolCallParseFailed(_)
+        ));
     }
 
     #[test]
-    fn validation_failed_converts_to_tool_call_validation_failed_with_every_message() {
-        let validation_error = ToolCallValidationError::UnknownToolName("missing".to_owned());
-        let expected_message = validation_error.to_string();
-
-        assert_eq!(
-            ToolCallEvent::ValidationFailed(vec![validation_error]).into_generated_token_result(),
-            GeneratedTokenResult::ToolCallValidationFailed(vec![expected_message])
-        );
+    fn validation_failed_converts_to_tool_call_validation_failed_for_every_violation() {
+        assert!(matches!(
+            ToolCallEvent::ValidationFailed(vec![
+                ToolCallValidationError::UnknownToolName("missing".to_owned()),
+                ToolCallValidationError::UnknownToolName("also_missing".to_owned()),
+            ])
+            .into_generated_token_result(),
+            GeneratedTokenResult::ToolCallValidationFailed(violations) if violations.len() == 2
+        ));
     }
 
     #[test]

@@ -15,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
+use crate::balancer_error::BalancerError;
 use crate::balancer_metrics::BalancerMetrics;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
@@ -31,9 +32,9 @@ impl StatsdService {
     async fn report_metrics_until_shutdown(
         self: Box<Self>,
         shutdown: CancellationToken,
-    ) -> Result<()> {
+    ) -> Result<(), BalancerError> {
         let statsd_sink = StatsdUdpSink {
-            socket: UdpSocket::bind("0.0.0.0:0")?,
+            socket: UdpSocket::bind("0.0.0.0:0").map_err(BalancerError::StatsdSocketUnbindable)?,
             statsd_addr: self.configuration.statsd_addr.socket_addr,
         };
         let client = StatsdClient::builder(&self.statsd_prefix, statsd_sink).build();
@@ -67,6 +68,6 @@ impl Service for StatsdService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.report_metrics_until_shutdown(shutdown).await
+        Ok(self.report_metrics_until_shutdown(shutdown).await?)
     }
 }

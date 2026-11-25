@@ -1,0 +1,18 @@
+[package]
+name = "paddler_error_chain"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dev-dependencies]
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -132,11 +132,6 @@ mod tests {
     const BUFFER_CAPACITY: u64 = 1;
     const RACE_ROUNDS: usize = 64;
 
-    struct RaceOutcome {
-        admitted_callers: u64,
-        overflowed_callers: usize,
-    }
-
     fn raw_prompt_requirement() -> DispatchRequirement {
         ContinueFromRawPromptParams {
             grammar: None,
@@ -202,15 +197,22 @@ mod tests {
             start_line.set(true);
 
             let overflowed_callers = observer_runtime.block_on(async {
-                let mut overflowed_callers = 0;
+                let mut overflowed_callers: usize = 0;
 
                 while overflowed_callers
-                    + usize::try_from(buffered_request_manager.buffered_request_counter.get())
-                        .expect("the buffered request count must not be negative")
+                    .checked_add(
+                        usize::try_from(buffered_request_manager.buffered_request_counter.get())
+                            .expect("the buffered request count must not be negative"),
+                    )
+                    .expect("the resolved caller count must fit in usize")
                     < racing_callers
                 {
                     select! {
-                        Some(()) = overflow_rx.recv() => overflowed_callers += 1,
+                        Some(()) = overflow_rx.recv() => {
+                            overflowed_callers = overflowed_callers
+                                .checked_add(1)
+                                .expect("the overflowed caller count must fit in usize");
+                        }
                         buffered_request_update = buffered_request_updates.changed() => {
                             buffered_request_update
                                 .expect("the buffered request manager must keep announcing updates");
@@ -235,6 +237,11 @@ mod tests {
                 overflowed_callers,
             }
         })
+    }
+
+    struct RaceOutcome {
+        admitted_callers: u64,
+        overflowed_callers: usize,
     }
 
     #[test]

@@ -1,0 +1,125 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use tokio_util::sync::CancellationToken;
+
+use paddler_agent_text_generation_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+
+fn count_tokens(
+    token_results: &[TokenResultWithProducer],
+    is_counted: fn(&GeneratedTokenResult) -> bool,
+) -> usize {
+    token_results
+        .iter()
+        .filter(|TokenResultWithProducer { token_result, .. }| is_counted(token_result))
+        .count()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_tokens() {
+    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false)
+        .await
+        .expect("the cluster must start");
+
+    let collected = cluster
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "What is two plus two?".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: NonZeroU32::new(200).unwrap(),
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
+        .await
+        .expect("the inference request must be accepted");
+
+    let reasoning_count = count_tokens(&collected.token_results, |token_result| {
+        matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+    });
+    let content_count = count_tokens(&collected.token_results, |token_result| {
+        matches!(token_result, GeneratedTokenResult::ContentToken(_))
+    });
+    let undeterminable_count = count_tokens(&collected.token_results, |token_result| {
+        matches!(token_result, GeneratedTokenResult::UndeterminableToken(_))
+    });
+
+    assert_eq!(
+        reasoning_count, 0,
+        "Qwen3.5 thinking-disabled: classifier must not stream any reasoning tokens \
+         (got reasoning_count={reasoning_count}, content_count={content_count}, \
+         undeterminable_count={undeterminable_count})"
+    );
+    assert_eq!(
+        undeterminable_count, 0,
+        "Qwen3.5 thinking-disabled: prompt-token replay must move section to Content \
+         before generation, so no UndeterminableToken may stream; \
+         (got reasoning_count={reasoning_count}, content_count={content_count}, \
+         undeterminable_count={undeterminable_count})"
+    );
+    assert!(
+        content_count > 0,
+        "Qwen3.5 thinking-disabled: classifier must stream at least one content token"
+    );
+
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
+
+    assert!(summary.usage.prompt > 0);
+    assert_eq!(
+        summary.usage.reasoning, 0,
+        "Qwen3.5 thinking-disabled: usage.reasoning_tokens must be zero; usage={:?}",
+        summary.usage
+    );
+    assert_eq!(
+        summary.usage.undeterminable, 0,
+        "Qwen3.5 thinking-disabled: usage.undeterminable_tokens must be zero; usage={:?}",
+        summary.usage
+    );
+    assert_eq!(
+        summary.usage.completion_tokens(),
+        summary.usage.content,
+        "Qwen3.5 thinking-disabled: completion tokens equal content tokens since \
+         reasoning and undeterminable are zero"
+    );
+
+    let reasoning_stream = collected.reasoning_text();
+    let content_stream = collected.content_text();
+
+    for forbidden in ["<think>", "</think>"] {
+        assert!(
+            !reasoning_stream.contains(forbidden),
+            "Qwen3.5 thinking-disabled: reasoning stream leaked marker {forbidden:?}; \
+             reasoning_stream={reasoning_stream:?}"
+        );
+        assert!(
+            !content_stream.contains(forbidden),
+            "Qwen3.5 thinking-disabled: content stream leaked marker {forbidden:?}; \
+             content_stream={content_stream:?}"
+        );
+    }
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

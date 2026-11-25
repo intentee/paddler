@@ -11,7 +11,6 @@ use crate::streamable_result::StreamableResult;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum DecisionResult {
-    AgentRuntimeFailed(String),
     BatchAssemblyFailed(String),
     DecisionsNotServed(String),
     DecodeFailed(String),
@@ -36,7 +35,6 @@ impl From<DecisionAnswer> for DecisionResult {
 impl From<DecisionFinalResult> for DecisionResult {
     fn from(final_result: DecisionFinalResult) -> Self {
         match final_result {
-            DecisionFinalResult::AgentRuntimeFailed(detail) => Self::AgentRuntimeFailed(detail),
             DecisionFinalResult::BatchAssemblyFailed(detail) => Self::BatchAssemblyFailed(detail),
             DecisionFinalResult::DecisionsNotServed(detail) => Self::DecisionsNotServed(detail),
             DecisionFinalResult::DecodeFailed(detail) => Self::DecodeFailed(detail),
@@ -65,9 +63,6 @@ impl StreamableResult for DecisionResult {
 
     fn into_step(self) -> ResultStep<DecisionAnswer, DecisionFinalResult> {
         match self {
-            Self::AgentRuntimeFailed(detail) => {
-                ResultStep::Final(DecisionFinalResult::AgentRuntimeFailed(detail))
-            }
             Self::BatchAssemblyFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::BatchAssemblyFailed(detail))
             }
@@ -107,6 +102,8 @@ impl StreamableResult for DecisionResult {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use super::DecisionResult;
     use crate::decision_answer::DecisionAnswer;
     use crate::decision_final_result::DecisionFinalResult;
@@ -140,24 +137,60 @@ mod tests {
     }
 
     #[test]
-    fn every_other_result_ends_the_stream_as_its_final_result() {
+    fn every_described_failure_ends_the_stream_as_the_same_final_failure() {
         for (decision_result, expected_final_result) in [
             (
-                DecisionResult::AgentRuntimeFailed("runtime".to_owned()),
-                DecisionFinalResult::AgentRuntimeFailed("runtime".to_owned()),
+                DecisionResult::BatchAssemblyFailed(String::new()),
+                DecisionFinalResult::BatchAssemblyFailed(String::new()),
             ),
             (
-                DecisionResult::BatchAssemblyFailed("batch".to_owned()),
-                DecisionFinalResult::BatchAssemblyFailed("batch".to_owned()),
+                DecisionResult::DecisionsNotServed(String::new()),
+                DecisionFinalResult::DecisionsNotServed(String::new()),
             ),
             (
-                DecisionResult::DecisionsNotServed("no pointer head".to_owned()),
-                DecisionFinalResult::DecisionsNotServed("no pointer head".to_owned()),
+                DecisionResult::DecodeFailed(String::new()),
+                DecisionFinalResult::DecodeFailed(String::new()),
             ),
             (
-                DecisionResult::DecodeFailed("decode".to_owned()),
-                DecisionFinalResult::DecodeFailed("decode".to_owned()),
+                DecisionResult::HiddenStateUnavailable(String::new()),
+                DecisionFinalResult::HiddenStateUnavailable(String::new()),
             ),
+            (
+                DecisionResult::InputTokenizationFailed(String::new()),
+                DecisionFinalResult::InputTokenizationFailed(String::new()),
+            ),
+            (
+                DecisionResult::KvCacheCopyFailed(String::new()),
+                DecisionFinalResult::KvCacheCopyFailed(String::new()),
+            ),
+            (
+                DecisionResult::KvCacheRemovalFailed(String::new()),
+                DecisionFinalResult::KvCacheRemovalFailed(String::new()),
+            ),
+            (
+                DecisionResult::ModelNotLoaded(String::new()),
+                DecisionFinalResult::ModelNotLoaded(String::new()),
+            ),
+            (
+                DecisionResult::SchedulerUnavailable(String::new()),
+                DecisionFinalResult::SchedulerUnavailable(String::new()),
+            ),
+        ] {
+            assert_eq!(
+                discriminant(&step_round_trip(decision_result.clone())),
+                discriminant(&decision_result)
+            );
+            assert!(matches!(
+                decision_result.into_step(),
+                ResultStep::Final(final_result)
+                    if discriminant(&final_result) == discriminant(&expected_final_result)
+            ));
+        }
+    }
+
+    #[test]
+    fn every_other_result_ends_the_stream_as_its_final_result() {
+        for (decision_result, expected_final_result) in [
             (
                 DecisionResult::Done(DecisionSummary {
                     input_tokens: 3,
@@ -169,26 +202,6 @@ mod tests {
                 }),
             ),
             (
-                DecisionResult::HiddenStateUnavailable("hidden".to_owned()),
-                DecisionFinalResult::HiddenStateUnavailable("hidden".to_owned()),
-            ),
-            (
-                DecisionResult::InputTokenizationFailed("tokenization".to_owned()),
-                DecisionFinalResult::InputTokenizationFailed("tokenization".to_owned()),
-            ),
-            (
-                DecisionResult::KvCacheCopyFailed("copy".to_owned()),
-                DecisionFinalResult::KvCacheCopyFailed("copy".to_owned()),
-            ),
-            (
-                DecisionResult::KvCacheRemovalFailed("removal".to_owned()),
-                DecisionFinalResult::KvCacheRemovalFailed("removal".to_owned()),
-            ),
-            (
-                DecisionResult::ModelNotLoaded("no model".to_owned()),
-                DecisionFinalResult::ModelNotLoaded("no model".to_owned()),
-            ),
-            (
                 DecisionResult::RequestExceedsContext(OversizedDecisionDetails {
                     context_size: 128,
                     required_tokens: 410,
@@ -197,10 +210,6 @@ mod tests {
                     context_size: 128,
                     required_tokens: 410,
                 }),
-            ),
-            (
-                DecisionResult::SchedulerUnavailable("stopped".to_owned()),
-                DecisionFinalResult::SchedulerUnavailable("stopped".to_owned()),
             ),
             (
                 DecisionResult::StopRequested,

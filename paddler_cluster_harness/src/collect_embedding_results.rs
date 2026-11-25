@@ -1,0 +1,159 @@
+use std::collections::BTreeSet;
+
+use anyhow::Result;
+use futures_util::StreamExt as _;
+
+use paddler_client::inference_message_stream::InferenceMessageStream;
+use paddler_messaging::embedding_result::EmbeddingResult;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::response::Response as InferenceResponse;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+use crate::cluster_harness_error::ClusterHarnessError;
+use crate::collected_embedding_results::CollectedEmbeddingResults;
+use crate::embedding_with_producer::EmbeddingWithProducer;
+
+/// # Errors
+///
+/// Returns [`ClusterHarnessError::EmbeddingStreamFailed`] when the stream yields an error, and [`ClusterHarnessError::EmbeddingStreamMessageUnexpected`] when it carries a response that is not an embedding result.
+pub async fn collect_embedding_results(
+    mut stream: InferenceMessageStream,
+) -> Result<CollectedEmbeddingResults> {
+    let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
+    let mut failures: Vec<EmbeddingResult> = Vec::new();
+    let mut no_embeddings_produced_by = Vec::new();
+    let mut documents_exceeding_sequence_context = Vec::new();
+    let mut documents_tokenized_to_nothing = Vec::new();
+    let mut oversized_documents = Vec::new();
+    let mut request_ids = BTreeSet::new();
+    let mut saw_done = false;
+    let mut wire_errors = Vec::new();
+
+    while let Some(item) = stream.next().await {
+        match item.map_err(ClusterHarnessError::EmbeddingStreamFailed)? {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by,
+                request_id,
+                response: InferenceResponse::Embedding(embedding_result),
+            }) => {
+                request_ids.insert(request_id);
+
+                match embedding_result {
+                    EmbeddingResult::Done => {
+                        saw_done = true;
+
+                        break;
+                    }
+                    EmbeddingResult::Embedding(embedding) => {
+                        embeddings.push(EmbeddingWithProducer {
+                            embedding,
+                            generated_by,
+                        });
+                    }
+                    EmbeddingResult::DocumentExceedsBatchSize(details) => {
+                        oversized_documents.push(details);
+                    }
+                    EmbeddingResult::DocumentExceedsSequenceContext(details) => {
+                        documents_exceeding_sequence_context.push(details);
+                    }
+                    EmbeddingResult::DocumentTokenizedToNothing(details) => {
+                        documents_tokenized_to_nothing.push(details);
+                    }
+                    failure @ (EmbeddingResult::AgentRuntimeFailed(_)
+                    | EmbeddingResult::BatchAssemblyFailed(_)
+                    | EmbeddingResult::DecodeFailed(_)
+                    | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+                    | EmbeddingResult::EmbeddingsNotServed(_)
+                    | EmbeddingResult::EmbeddingsUnavailable(_)
+                    | EmbeddingResult::InputTokenizationFailed(_)
+                    | EmbeddingResult::ModelNotLoaded(_)
+                    | EmbeddingResult::SchedulerUnavailable(_)) => {
+                        failures.push(failure);
+                    }
+                    EmbeddingResult::NoEmbeddingsProduced => {
+                        no_embeddings_produced_by.push(generated_by);
+                    }
+                }
+            }
+            InferenceMessage::Error(ErrorEnvelope { error, request_id }) => {
+                request_ids.insert(request_id);
+                wire_errors.push(error);
+            }
+            unexpected_message @ InferenceMessage::Response(_) => {
+                return Err(ClusterHarnessError::EmbeddingStreamMessageUnexpected {
+                    message: Box::new(unexpected_message),
+                }
+                .into());
+            }
+        }
+    }
+
+    Ok(CollectedEmbeddingResults {
+        documents_exceeding_sequence_context,
+        documents_tokenized_to_nothing,
+        embeddings,
+        failures,
+        no_embeddings_produced_by,
+        oversized_documents,
+        request_ids,
+        saw_done,
+        wire_errors,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::stream::iter;
+
+    use paddler_client::error::Error as ClientError;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::response::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+    use super::collect_embedding_results;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[tokio::test]
+    async fn refuses_a_message_that_is_not_an_embedding_result() {
+        let generated_content_token = || {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "generation-request".to_owned(),
+                response: InferenceResponse::GeneratedToken(GeneratedTokenResult::ContentToken(
+                    "piece".to_owned(),
+                )),
+            })
+        };
+        let collection_error =
+            collect_embedding_results(Box::pin(iter([Ok(generated_content_token())])))
+                .await
+                .err()
+                .expect("a stream of another kind of message must be refused");
+
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::EmbeddingStreamMessageUnexpected { message })
+                if **message == generated_content_token()
+        ));
+    }
+
+    #[tokio::test]
+    async fn an_embedding_stream_yielding_an_error_is_an_error() {
+        let collection_error =
+            collect_embedding_results(Box::pin(iter([Err(ClientError::ConnectionDropped {
+                request_id: "request-1".to_owned(),
+            })])))
+            .await
+            .err()
+            .expect("a stream yielding an error must not be collected");
+
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::EmbeddingStreamFailed(ClientError::ConnectionDropped {
+                request_id
+            })) if request_id == "request-1"
+        ));
+    }
+}

@@ -1,8 +1,14 @@
 use std::sync::Arc;
 
+use futures_util::Stream;
+use futures_util::StreamExt;
 use log::error;
 use log::warn;
 use serde_json::from_str;
+use tokio::spawn;
+use tokio::task::JoinHandle;
+use tokio_tungstenite::tungstenite::Error as WebSocketError;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use paddler_messaging::inference_client::identified_message::IdentifiedMessage;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -64,6 +70,40 @@ impl InboundMessageRouter {
         }
     }
 
+    #[must_use]
+    pub fn spawn_read_task<TWebSocketReadStream>(
+        self,
+        ws_read: TWebSocketReadStream,
+    ) -> JoinHandle<()>
+    where
+        TWebSocketReadStream:
+            Stream<Item = Result<WsMessage, WebSocketError>> + Send + Unpin + 'static,
+    {
+        spawn(async move {
+            let mut ws_read = ws_read;
+
+            while let Some(msg_result) = ws_read.next().await {
+                match msg_result {
+                    Ok(WsMessage::Text(text)) => self.route_text(&text),
+                    Ok(WsMessage::Close(_)) => break,
+                    Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => {}
+                    Ok(WsMessage::Binary(_) | WsMessage::Frame(_)) => {
+                        error!(
+                            "Closing the inference socket after a binary message it cannot interpret"
+                        );
+                        break;
+                    }
+                    Err(err) => {
+                        error!("WebSocket read error: {err}");
+                        break;
+                    }
+                }
+            }
+
+            self.exchange.close();
+        })
+    }
+
     fn route(&self, message: InferenceMessage) {
         let request_scoped_message = match message {
             InferenceMessage::Error(envelope) => RequestScopedMessage {
@@ -112,9 +152,18 @@ impl InboundMessageRouter {
 mod tests {
     use std::sync::Arc;
 
+    use futures_util::StreamExt as _;
+    use futures_util::stream::iter;
+    use futures_util::stream::pending;
+    use log::Level;
     use serde_json::json;
     use tokio::sync::mpsc::error::TryRecvError;
+    use tokio_tungstenite::tungstenite::Bytes;
+    use tokio_tungstenite::tungstenite::Error as WebSocketError;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+    use paddler_capturing_logger::captured_record::CapturedRecord;
+    use paddler_capturing_logger::capturing_logger::CapturingLogger;
     use paddler_messaging::decision_result::DecisionResult;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -134,6 +183,8 @@ mod tests {
 
     #[test]
     fn fails_the_request_whose_message_cannot_be_decoded() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -142,25 +193,34 @@ mod tests {
             )
             .expect("an open exchange must accept a request");
 
-        router_for(&exchange).route_text(
-            &json!({
-                "Response": {
-                    "generated_by": null,
-                    "request_id": "request-1",
-                    "response": { "GeneratedToken": { "NoSuchResult": "piece" } }
-                }
-            })
-            .to_string(),
-        );
+        let undecodable_message = json!({
+            "Response": {
+                "generated_by": null,
+                "request_id": "request-1",
+                "response": { "GeneratedToken": { "NoSuchResult": "piece" } }
+            }
+        })
+        .to_string();
+
+        router_for(&exchange).route_text(&undecodable_message);
 
         assert!(matches!(
             response_rx.try_recv(),
             Ok(Err(Error::UndecodableInferenceMessage { request_id, .. })) if request_id == "request-1"
         ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+        );
     }
 
     #[test]
     fn leaves_other_requests_pending_when_an_undecodable_message_names_an_unknown_request() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -179,10 +239,19 @@ mod tests {
                 .try_recv()
                 .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
         );
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Warn)
+        );
     }
 
     #[test]
     fn leaves_requests_pending_when_an_undecodable_message_names_no_request() {
+        CapturingLogger::install();
+
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
             .register(
@@ -197,6 +266,13 @@ mod tests {
             response_rx
                 .try_recv()
                 .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
+        );
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 
@@ -245,5 +321,103 @@ mod tests {
                     .is_err_and(|receive_error| receive_error == TryRecvError::Disconnected)
             );
         }
+    }
+
+    #[tokio::test]
+    async fn a_binary_frame_drops_every_pending_request_without_waiting_for_more_frames() {
+        CapturingLogger::install();
+
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open connection must accept a request");
+
+        InboundMessageRouter { exchange }
+            .spawn_read_task(iter([Ok(WsMessage::Binary(vec![0].into()))]).chain(pending()))
+            .await
+            .expect("the read task must not panic");
+
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_read_error_drops_every_pending_request_without_waiting_for_more_frames() {
+        CapturingLogger::install();
+
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open connection must accept a request");
+
+        InboundMessageRouter { exchange }
+            .spawn_read_task(iter([Err(WebSocketError::ConnectionClosed)]).chain(pending()))
+            .await
+            .expect("the read task must not panic");
+
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
+        assert!(
+            CapturingLogger::records_for(
+                "paddler_client::inference_socket::inbound_message_router"
+            )
+            .iter()
+            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_ping_between_frames_leaves_the_following_response_for_its_request() {
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open connection must accept a request");
+
+        InboundMessageRouter { exchange }
+            .spawn_read_task(iter([
+                Ok(WsMessage::Ping(Bytes::new())),
+                Ok(WsMessage::Text(
+                    json!({
+                        "Response": {
+                            "generated_by": null,
+                            "request_id": "request-1",
+                            "response": { "Embedding": "Done" }
+                        }
+                    })
+                    .to_string()
+                    .into(),
+                )),
+            ]))
+            .await
+            .expect("the read task must not panic");
+
+        assert_eq!(
+            response_rx.recv().await.and_then(Result::ok),
+            Some(InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "request-1".to_owned(),
+                response: Response::Embedding(EmbeddingResult::Done),
+            }))
+        );
     }
 }

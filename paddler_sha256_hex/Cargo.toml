@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 sha2 = { workspace = true }
 

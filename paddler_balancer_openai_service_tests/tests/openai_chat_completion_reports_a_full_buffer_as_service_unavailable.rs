@@ -1,0 +1,44 @@
+use reqwest::StatusCode;
+use serde_json::Value;
+
+use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::minimal_openai_chat_completion::minimal_openai_chat_completion;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn openai_chat_completion_reports_a_full_buffer_as_service_unavailable() {
+    let cluster = Cluster::start_in_process(ClusterParams {
+        max_buffered_requests: 0,
+        ..ClusterParams::without_agents()
+    })
+    .await
+    .expect("a balancer without agents must start");
+
+    let response = minimal_openai_chat_completion(
+        cluster
+            .balancer
+            .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)
+            .expect("the balancer must serve the OpenAI compatibility service"),
+    )
+    .await
+    .expect("the balancer must answer the chat completion");
+
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    OpenAIValidator::new()
+        .expect("the OpenAI specification must load")
+        .validate_error_response(
+            &response
+                .json::<Value>()
+                .await
+                .expect("the error body must be JSON"),
+        )
+        .expect("the error body must be an OpenAI error");
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

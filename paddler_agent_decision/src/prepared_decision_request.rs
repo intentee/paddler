@@ -31,7 +31,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Instant;
 
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
     use tokio::sync::mpsc;
 
     use paddler_agent_runtime::scheduler_command::SchedulerCommand as _;

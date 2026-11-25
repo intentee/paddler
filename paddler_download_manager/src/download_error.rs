@@ -8,7 +8,7 @@ use url::ParseError;
 
 #[derive(Debug, Error)]
 pub enum DownloadError {
-    #[error("URL '{url}' is malformed: {source}")]
+    #[error("URL '{url}' is malformed")]
     InvalidUrl {
         url: String,
         #[source]
@@ -33,7 +33,7 @@ pub enum DownloadError {
     #[error("'{final_path_display}' does not name a file to download into", final_path_display = final_path.display())]
     FinalPathHasNoFileName { final_path: PathBuf },
 
-    #[error("server unreachable for URL '{url}': {source}")]
+    #[error("server unreachable for URL '{url}'")]
     DownloadServerIsUnreachable {
         url: String,
         #[source]
@@ -46,28 +46,46 @@ pub enum DownloadError {
     #[error("server rejected request to URL '{url}' with status {status}")]
     DownloadServerRejectedRequest { url: String, status: StatusCode },
 
-    #[error("download interrupted while downloading URL '{url}': {source}")]
+    #[error(
+        "URL '{url}' declared a content length of {content_length} bytes, which overflows the total size when added to the {already_downloaded_bytes} bytes already downloaded"
+    )]
+    DeclaredContentLengthOverflowsTotalSize {
+        url: String,
+        already_downloaded_bytes: u64,
+        content_length: u64,
+    },
+
+    #[error(
+        "URL '{url}' sent a chunk of {chunk_byte_count} bytes, which overflows the largest file size after the {downloaded_bytes} bytes already downloaded"
+    )]
+    DownloadedBytesOverflowTheLargestFileSize {
+        url: String,
+        downloaded_bytes: u64,
+        chunk_byte_count: u64,
+    },
+
+    #[error("download interrupted while downloading URL '{url}'")]
     DownloadInterrupted {
         url: String,
         #[source]
         source: ReqwestError,
     },
 
-    #[error("I/O on '{path_display}': {source}", path_display = path.display())]
+    #[error("I/O on '{path_display}'", path_display = path.display())]
     Io {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
 
-    #[error("cache write denied at '{path_display}': {source}", path_display = path.display())]
+    #[error("cache write denied at '{path_display}'", path_display = path.display())]
     CachePermissionDenied {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
 
-    #[error("cache disk full at '{path_display}': {source}", path_display = path.display())]
+    #[error("cache disk full at '{path_display}'", path_display = path.display())]
     CacheDiskFull {
         path: PathBuf,
         #[source]

@@ -47,11 +47,26 @@ impl TryFrom<RawEmbeddingParameters> for EmbeddingParameters {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::error::Category;
     use serde_json::from_value;
     use serde_json::json;
 
     use super::EmbeddingParameters;
     use crate::invalid_inference_parameters::InvalidInferenceParameters;
+    use crate::pooling_type::PoolingType;
+    use crate::raw_embedding_parameters::RawEmbeddingParameters;
+
+    #[test]
+    fn rejects_pooling_that_produces_no_embeddings() {
+        assert_eq!(
+            EmbeddingParameters::try_from(RawEmbeddingParameters {
+                embedding_batch_size: EmbeddingParameters::default().embedding_batch_size,
+                pooling_type: PoolingType::None,
+            })
+            .err(),
+            Some(InvalidInferenceParameters::PoolingProducesNoEmbeddings)
+        );
+    }
 
     #[test]
     fn deserialization_rejects_pooling_that_produces_no_embeddings() {
@@ -61,9 +76,8 @@ mod tests {
                 "pooling_type": "None",
             }))
             .err()
-            .as_ref()
-            .map(ToString::to_string),
-            Some(InvalidInferenceParameters::PoolingProducesNoEmbeddings.to_string())
+            .map(|deserialization_error| deserialization_error.classify()),
+            Some(Category::Data)
         );
     }
 }

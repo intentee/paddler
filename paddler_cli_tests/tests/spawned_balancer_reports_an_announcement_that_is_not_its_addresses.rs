@@ -11,7 +11,7 @@ use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 async fn spawned_balancer_reports_an_announcement_that_is_not_its_addresses() {
     let spawn_error = spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
-        ["--help"],
+        ["balancer", "--help"],
         SignalledSubprocess::new,
     )
     .await

@@ -1,7 +1,7 @@
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 
-use super::transform_result::TransformResult;
 use super::transforms_outgoing_message::TransformsOutgoingMessage;
+use crate::transform_result::TransformResult;
 
 #[derive(Default)]
 pub struct IdentityTransformer;
@@ -14,8 +14,6 @@ impl IdentityTransformer {
 }
 
 impl TransformsOutgoingMessage for IdentityTransformer {
-    type Output = TransformResult;
-
     fn transform(&self, message: OutgoingMessage) -> Vec<TransformResult> {
         vec![TransformResult::serialized_from(&message)]
     }

@@ -1,0 +1,41 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use serde_json::Value;
+use serde_json::json;
+
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn openai_chat_completion_non_streaming_reports_length_finish_reason_at_max_tokens() {
+    let validator = OpenAIValidator::new().expect("the OpenAI schemas must load");
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
+
+    let response = cluster
+        .openai_chat_completion_non_streaming(&json!({
+            "model": "qwen3-test",
+            "messages": [{"role": "user", "content": "Count from one to one hundred."}],
+            "max_completion_tokens": 5
+        }))
+        .await
+        .expect("the OpenAI chat completion must succeed");
+
+    validator
+        .validate_chat_completion_response(&response)
+        .expect("the payload must conform to the OpenAI schema");
+
+    assert_eq!(
+        response
+            .pointer("/choices/0/finish_reason")
+            .and_then(Value::as_str),
+        Some("length")
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

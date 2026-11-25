@@ -16,3 +16,11 @@ impl From<&Path> for ModelPath {
         }
     }
 }
+
+impl From<&str> for ModelPath {
+    fn from(model_path: &str) -> Self {
+        Self {
+            model_path: model_path.to_owned(),
+        }
+    }
+}

@@ -15,6 +15,9 @@ pub struct SystemOneResponseLayout {
 }
 
 impl SystemOneResponseLayout {
+    /// # Errors
+    ///
+    /// Returns [`TypeSafeTranslationError::AnswerMissing`] when the agent answered fewer questions than were asked, [`TypeSafeTranslationError::AnswerOutOfOrder`] when an answer belongs to a question other than the one due, and [`TypeSafeTranslationError::AnswerProbabilitiesMismatch`] when an answer carries a different number of probabilities than its question has options.
     pub fn respond(
         &self,
         decision_answers: &[DecisionAnswer],

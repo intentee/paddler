@@ -1,14 +1,17 @@
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
 
 use paddler_image_decoder::decoded_image::DecodedImage;
 
 pub trait ConvertsToMtmdBitmap {
-    fn to_mtmd_bitmap(&self) -> Result<MtmdBitmap, MtmdBitmapError>;
+    /// # Errors
+    ///
+    /// Returns the [`MtmdError`] llama.cpp reports when it cannot build a bitmap from the image.
+    fn to_mtmd_bitmap(&self) -> Result<MtmdBitmap, MtmdError>;
 }
 
 impl ConvertsToMtmdBitmap for DecodedImage {
-    fn to_mtmd_bitmap(&self) -> Result<MtmdBitmap, MtmdBitmapError> {
+    fn to_mtmd_bitmap(&self) -> Result<MtmdBitmap, MtmdError> {
         MtmdBitmap::from_image_data(self.width, self.height, &self.rgb_pixels)
     }
 }

@@ -21,6 +21,9 @@ pub struct PartialFile {
 }
 
 impl PartialFile {
+    /// # Errors
+    ///
+    /// Returns [`DownloadError::FinalPathHasNoFileName`] when the final path does not end in a file name.
     pub fn new(final_path: PathBuf) -> Result<Self, DownloadError> {
         let mut components = final_path.components();
 
@@ -40,11 +43,9 @@ impl PartialFile {
         }
     }
 
-    #[must_use]
-    pub fn partial_path(&self) -> &Path {
-        &self.partial_path
-    }
-
+    /// # Errors
+    ///
+    /// Returns [`DownloadError::PartialPathIsADirectory`] when a directory occupies the partial file path, and [`DownloadError::CachePermissionDenied`], [`DownloadError::CacheDiskFull`] or [`DownloadError::Io`] when reading the partial file metadata fails for any reason other than the file being absent.
     pub async fn current_size(&self) -> Result<u64, DownloadError> {
         match metadata(&self.partial_path).await {
             Ok(metadata) if metadata.is_dir() => Err(DownloadError::PartialPathIsADirectory {
@@ -59,6 +60,16 @@ impl PartialFile {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an I/O error when the partial file cannot be renamed to the final path.
+    pub async fn finalize(&self) -> Result<(), io::Error> {
+        rename(&self.partial_path, &self.final_path).await
+    }
+
+    /// # Errors
+    ///
+    /// Returns an I/O error when the destination directory cannot be created or the partial file cannot be opened for appending.
     pub async fn open_for_append(&self) -> Result<File, io::Error> {
         self.ensure_directory_exists().await?;
 
@@ -69,6 +80,25 @@ impl PartialFile {
             .await
     }
 
+    #[must_use]
+    pub fn partial_path(&self) -> &Path {
+        &self.partial_path
+    }
+
+    /// # Errors
+    ///
+    /// Returns an I/O error when the partial file exists but cannot be removed.
+    pub async fn remove(&self) -> Result<(), io::Error> {
+        match remove_file(&self.partial_path).await {
+            Ok(()) => Ok(()),
+            Err(remove_error) if remove_error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(remove_error) => Err(remove_error),
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an I/O error when the destination directory cannot be created or the partial file cannot be opened and truncated.
     pub async fn truncate(&self) -> Result<(), io::Error> {
         self.ensure_directory_exists().await?;
 
@@ -80,18 +110,6 @@ impl PartialFile {
             .await?;
 
         Ok(())
-    }
-
-    pub async fn finalize(&self) -> Result<(), io::Error> {
-        rename(&self.partial_path, &self.final_path).await
-    }
-
-    pub async fn remove(&self) -> Result<(), io::Error> {
-        match remove_file(&self.partial_path).await {
-            Ok(()) => Ok(()),
-            Err(remove_error) if remove_error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(remove_error) => Err(remove_error),
-        }
     }
 
     async fn ensure_directory_exists(&self) -> Result<(), io::Error> {

@@ -1,9 +1,7 @@
-use std::pin::pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::select;
-use tokio::time::Instant;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tokio_util::sync::DropGuard;
@@ -53,13 +51,8 @@ where
         let agent_controller = &dispatched_agent.agent_controller;
         let agent_connection_close = agent_controller.connection_close.clone();
         let mut forwarding_mode = AgentResponseForwardingMode::ForwardingToRelay;
-        let mut item_timeout = pin!(sleep(inference_item_timeout));
 
         loop {
-            item_timeout
-                .as_mut()
-                .reset(Instant::now() + inference_item_timeout);
-
             let is_forwarding_to_relay = matches!(
                 forwarding_mode,
                 AgentResponseForwardingMode::ForwardingToRelay
@@ -73,7 +66,7 @@ where
                 () = relay_abandonment.cancelled(), if is_forwarding_to_relay => {
                     ForwardingEvent::RelayAbandoned
                 }
-                () = &mut item_timeout => ForwardingEvent::ItemTimedOut,
+                () = sleep(inference_item_timeout) => ForwardingEvent::ItemTimedOut,
                 Some(response) = response_rx.recv() => {
                     ForwardingEvent::ResponseReceived(response.into_step())
                 }

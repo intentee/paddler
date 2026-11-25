@@ -10,6 +10,7 @@ use trzcina::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::balancer_error::BalancerError;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::attach_request_id::attach_request_id;
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
@@ -17,9 +18,8 @@ use crate::compatibility::create_compatibility_cors_middleware::create_compatibi
 use crate::compatibility::serves_compatibility_layer::ServesCompatibilityLayer;
 use crate::http_listener::HttpListener;
 use crate::http_route::get_health::get_health;
+use crate::http_service_runner::HttpServiceRunner;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use crate::run_http_service::run_http_service;
-use crate::run_http_service_parameters::RunHttpServiceParameters;
 
 pub struct CompatibilityService<TCompatibilityLayer> {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -31,7 +31,10 @@ pub struct CompatibilityService<TCompatibilityLayer> {
 }
 
 impl<TCompatibilityLayer: ServesCompatibilityLayer> CompatibilityService<TCompatibilityLayer> {
-    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn serve_until_shutdown(
+        self: Box<Self>,
+        shutdown: CancellationToken,
+    ) -> Result<(), BalancerError> {
         let service_name = self.name();
         let cors_allowed_hosts_arc = Arc::new(
             self.inference_service_configuration
@@ -46,24 +49,22 @@ impl<TCompatibilityLayer: ServesCompatibilityLayer> CompatibilityService<TCompat
             shutdown: shutdown.clone(),
         });
 
-        run_http_service(
-            shutdown,
-            RunHttpServiceParameters {
-                app_factory: move || {
-                    App::new()
-                        .wrap(from_fn(attach_request_id::<TCompatibilityLayer>))
-                        .wrap(create_compatibility_cors_middleware::<TCompatibilityLayer>(
-                            &cors_allowed_hosts_arc,
-                        ))
-                        .app_data(app_data.clone())
-                        .configure(get_health)
-                        .configure(TCompatibilityLayer::configure)
-                },
-                http_listener: self.http_listener,
-                service_name,
-                worker_count: 16,
+        HttpServiceRunner {
+            app_factory: move || {
+                App::new()
+                    .wrap(from_fn(attach_request_id::<TCompatibilityLayer>))
+                    .wrap(create_compatibility_cors_middleware::<TCompatibilityLayer>(
+                        &cors_allowed_hosts_arc,
+                    ))
+                    .app_data(app_data.clone())
+                    .configure(get_health)
+                    .configure(TCompatibilityLayer::configure)
             },
-        )
+            http_listener: self.http_listener,
+            service_name,
+            worker_count: 16,
+        }
+        .run(shutdown)
         .await
     }
 }
@@ -77,6 +78,6 @@ impl<TCompatibilityLayer: ServesCompatibilityLayer> Service
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        self.serve_until_shutdown(shutdown).await
+        Ok(self.serve_until_shutdown(shutdown).await?)
     }
 }

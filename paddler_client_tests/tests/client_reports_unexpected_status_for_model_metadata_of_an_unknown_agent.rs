@@ -1,0 +1,29 @@
+use reqwest::StatusCode;
+use tokio_util::sync::CancellationToken;
+
+use paddler_client::error::Error;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn client_reports_unexpected_status_for_model_metadata_of_an_unknown_agent() {
+    let cluster = Cluster::start_in_process(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
+
+    let rejection = cluster
+        .client_management
+        .get_model_metadata(CancellationToken::new(), "unknown-agent")
+        .await
+        .expect_err("the balancer must reject a request about an agent it does not know");
+
+    assert!(matches!(
+        rejection,
+        Error::UnexpectedResponseStatus { status, .. } if status == StatusCode::NOT_FOUND
+    ));
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

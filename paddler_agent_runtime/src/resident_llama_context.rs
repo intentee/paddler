@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_context::llama_context::LlamaContext;
 
 use crate::vram_occupancy::VramOccupancy;
 

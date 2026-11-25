@@ -63,18 +63,15 @@ mod tests {
                 .unwrap()
         });
 
-        assert_eq!(
-            inference_capabilities.map(|inference_capability| agent_vram_residencies
-                .llama_context(inference_capability)
-                .try_occupy()
-                .err()
-                .map(|error| error.to_string())),
-            inference_capabilities.map(|inference_capability| Some(
-                AgentRuntimeError::LlamaContextAlreadyResident {
-                    inference_capability
-                }
-                .to_string()
-            ))
-        );
+        for inference_capability in inference_capabilities {
+            assert!(matches!(
+                agent_vram_residencies
+                    .llama_context(inference_capability)
+                    .try_occupy(),
+                Err(AgentRuntimeError::LlamaContextAlreadyResident {
+                    inference_capability: resident_inference_capability,
+                }) if resident_inference_capability == inference_capability
+            ));
+        }
     }
 }

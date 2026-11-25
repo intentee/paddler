@@ -1,0 +1,15 @@
+use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
+
+use crate::model_card::ModelCard;
+
+#[must_use]
+pub fn gemma_3_4b_it_mmproj() -> ModelCard {
+    ModelCard {
+        reference: HuggingFaceModelReference {
+            filename: "mmproj-F16.gguf".to_owned(),
+            repository_name: "gemma-3-4b-it-GGUF".to_owned(),
+            repository_owner: "unsloth".to_owned(),
+            revision: "5a3566e716d80f709ed7b79817eaf7733d2a1fce".to_owned(),
+        },
+    }
+}

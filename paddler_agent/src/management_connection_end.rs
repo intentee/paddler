@@ -56,6 +56,7 @@ impl ManagementConnectionEnd {
 
 #[cfg(test)]
 mod tests {
+    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
     use super::ManagementConnectionEnd;
@@ -72,7 +73,7 @@ mod tests {
         .map(|connection_end| {
             connection_end
                 .close_frame()
-                .map(|close_frame| close_frame.code)
+                .map(|CloseFrame { code, .. }| code)
         })
         .collect();
 

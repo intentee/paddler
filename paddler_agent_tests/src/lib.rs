@@ -1,0 +1,17 @@
+pub mod agent_answer_after_a_notification;
+pub mod agent_connected_to_an_untrusted_balancer;
+pub mod agent_hang_up_on_a_frame;
+pub mod agent_runner_connected_to;
+pub mod agent_tests_error;
+pub mod arbiter_under_test;
+pub mod constants;
+pub mod desired_state_with_halved_image_resize;
+pub mod reconciliation_after_replacement;
+pub mod reconciliation_replaced_before_its_worker_runs;
+pub mod settings_whose_model_cannot_load;
+pub mod shutdown_during_state_transition;
+pub mod start_decision_cluster_that_answered_a_decision;
+pub mod startup_superseded_while_its_blocking_work_waits;
+pub mod state_overriding_the_chat_template;
+pub mod state_whose_model_cannot_load;
+pub mod swappable_model_file;

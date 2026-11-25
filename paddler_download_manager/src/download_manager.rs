@@ -15,12 +15,12 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::sync::CancellationToken;
 
+use crate::constants::READ_TIMEOUT;
 use crate::download_error::DownloadError;
 use crate::download_outcome::DownloadOutcome;
 use crate::download_progress::DownloadProgress;
 use crate::download_url::DownloadUrl;
 use crate::partial_file::PartialFile;
-use crate::read_timeout::READ_TIMEOUT;
 use crate::response_classification::ResponseClassification;
 
 struct PartialFileDownload<'download, TProgressHandler> {
@@ -36,6 +36,43 @@ where
 {
     fn cache_failure(&self, source: io::Error) -> DownloadError {
         DownloadError::cache_failure(self.partial.partial_path().to_path_buf(), source)
+    }
+
+    fn declared_total_bytes(
+        &self,
+        already_downloaded_bytes: u64,
+        response: &Response,
+    ) -> Result<Option<u64>, DownloadError> {
+        response
+            .content_length()
+            .map(|content_length| {
+                already_downloaded_bytes
+                    .checked_add(content_length)
+                    .ok_or_else(|| DownloadError::DeclaredContentLengthOverflowsTotalSize {
+                        url: self.url.as_str().to_owned(),
+                        already_downloaded_bytes,
+                        content_length,
+                    })
+            })
+            .transpose()
+    }
+
+    fn downloaded_bytes_after_chunk(
+        &self,
+        downloaded_bytes: u64,
+        chunk: &Bytes,
+    ) -> Result<u64, DownloadError> {
+        let chunk_byte_count = chunk.len() as u64;
+
+        downloaded_bytes
+            .checked_add(chunk_byte_count)
+            .ok_or_else(
+                || DownloadError::DownloadedBytesOverflowTheLargestFileSize {
+                    url: self.url.as_str().to_owned(),
+                    downloaded_bytes,
+                    chunk_byte_count,
+                },
+            )
     }
 
     async fn remove_stale_partial(&self) -> Result<DownloadOutcome, DownloadError> {
@@ -125,11 +162,11 @@ where
         response: Response,
         offset: u64,
     ) -> Result<DownloadOutcome, DownloadError> {
+        let total_bytes = self.declared_total_bytes(offset, &response)?;
+
         (self.on_progress)(DownloadProgress::Started {
             already_downloaded_bytes: offset,
-            total_bytes: response
-                .content_length()
-                .map(|content_length| offset + content_length),
+            total_bytes,
         });
 
         let mut file = self
@@ -138,7 +175,7 @@ where
             .await
             .map_err(|source| self.cache_failure(source))?;
         let stream_outcome = self
-            .write_body_stream(response.bytes_stream(), &mut file)
+            .write_body_stream(response.bytes_stream(), &mut file, offset)
             .await?;
 
         drop(file);
@@ -161,10 +198,12 @@ where
         &self,
         mut body_stream: TStream,
         file: &mut File,
+        already_downloaded_bytes: u64,
     ) -> Result<DownloadOutcome, DownloadError>
     where
         TStream: Stream<Item = Result<Bytes, ReqwestError>> + Unpin,
     {
+        let mut downloaded_bytes = already_downloaded_bytes;
         let outcome = loop {
             match self
                 .cancellation_token
@@ -180,12 +219,12 @@ where
                             source,
                         })?;
 
+                    downloaded_bytes =
+                        self.downloaded_bytes_after_chunk(downloaded_bytes, &chunk)?;
                     file.write_all(&chunk)
                         .await
                         .map_err(|source| self.cache_failure(source))?;
-                    (self.on_progress)(DownloadProgress::ChunkWritten {
-                        byte_count: chunk.len() as u64,
-                    });
+                    (self.on_progress)(DownloadProgress::ChunkWritten { downloaded_bytes });
                 }
             }
         };
@@ -204,6 +243,9 @@ pub struct DownloadManager {
 }
 
 impl DownloadManager {
+    /// # Errors
+    ///
+    /// Returns a [`ReqwestError`] when the HTTP client cannot be built, for example because the TLS backend fails to initialize.
     pub fn new() -> Result<Self, ReqwestError> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(10))
@@ -213,6 +255,9 @@ impl DownloadManager {
         Ok(Self { client })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`DownloadError::FinalPathHasNoFileName`] when the final path does not name a file, [`DownloadError::PartialPathIsADirectory`] when a directory occupies the partial file path, [`DownloadError::DownloadServerIsUnreachable`] when the request cannot be sent, [`DownloadError::NotFound`], [`DownloadError::PermissionDenied`], [`DownloadError::DownloadServerRejectedRequest`] or [`DownloadError::DownloadServerErrored`] when the server answers with a 404, a 401 or 403, another client error, or a server error, [`DownloadError::PartialFileStale`] when the server cannot satisfy the range of the partial file or answers with a different range, [`DownloadError::DeclaredContentLengthOverflowsTotalSize`] when the declared content length added to the already downloaded bytes does not fit in a `u64`, [`DownloadError::DownloadInterrupted`] when the body stream fails, and [`DownloadError::CachePermissionDenied`], [`DownloadError::CacheDiskFull`] or [`DownloadError::Io`] when the partial or final file cannot be read, written, removed or renamed.
     pub async fn download<TProgressHandler>(
         &self,
         cancellation_token: &CancellationToken,
@@ -231,5 +276,56 @@ impl DownloadManager {
         }
         .run(&self.client)
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use futures_util::stream::iter;
+    use reqwest::Error as ReqwestError;
+    use tempfile::tempdir;
+    use tokio::fs::File;
+    use tokio::fs::read;
+    use tokio_util::sync::CancellationToken;
+
+    use super::PartialFileDownload;
+    use crate::download_error::DownloadError;
+    use crate::download_progress::DownloadProgress;
+    use crate::download_url::DownloadUrl;
+    use crate::partial_file::PartialFile;
+
+    const DOWNLOADED_URL: &str = "https://example.com/model.gguf";
+
+    #[tokio::test]
+    async fn a_chunk_overflowing_the_largest_file_size_fails_before_it_is_written() {
+        let cache_directory = tempdir().unwrap();
+        let partial = PartialFile::new(cache_directory.path().join("model.gguf")).unwrap();
+        let partial_path = partial.partial_path().to_path_buf();
+        let mut partial_file = File::create(&partial_path).await.unwrap();
+        let url = DownloadUrl::parse(DOWNLOADED_URL).unwrap();
+
+        let write_result = PartialFileDownload {
+            cancellation_token: &CancellationToken::new(),
+            on_progress: &drop::<DownloadProgress>,
+            partial,
+            url: &url,
+        }
+        .write_body_stream(
+            iter([Ok::<Bytes, ReqwestError>(Bytes::from_static(b"x"))]),
+            &mut partial_file,
+            u64::MAX,
+        )
+        .await;
+
+        assert!(matches!(
+            write_result,
+            Err(DownloadError::DownloadedBytesOverflowTheLargestFileSize {
+                url,
+                downloaded_bytes: u64::MAX,
+                chunk_byte_count: 1,
+            }) if url == DOWNLOADED_URL
+        ));
+        assert_eq!(read(&partial_path).await.unwrap(), Vec::<u8>::new());
     }
 }

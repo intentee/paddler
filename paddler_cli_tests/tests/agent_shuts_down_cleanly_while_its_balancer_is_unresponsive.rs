@@ -1,7 +1,7 @@
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster_params::ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_shuts_down_cleanly_while_its_balancer_is_unresponsive() {

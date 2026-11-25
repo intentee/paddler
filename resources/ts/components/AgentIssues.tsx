@@ -615,39 +615,45 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("PointerHeadCannotBeLoaded" in issue) {
+        if ("DecisionModelIsMalformed" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Pointer head cannot be loaded:{" "}
-                {issue.PointerHeadCannotBeLoaded.model_path}
+                Decision model is malformed:{" "}
+                {issue.DecisionModelIsMalformed.model_path}
               </strong>
+              <strong>What is the cause?</strong>{" "}
+              <p>
+                The model declares itself a kev decision model, but it lacks
+                its decision temperatures, or its vocabulary does not hold the
+                kev delimiters as control tokens.
+              </p>
               <strong>What can you do?</strong>{" "}
               <p>
-                Either ensure that the file is a pointer head available to the
-                agent, or <Link href="/model">change the pointer head</Link>.
+                <Link href="/model">Use a kev decision model</Link> converted
+                by llama.cpp.
               </p>
             </li>
           );
         }
 
-        if ("PointerHeadIncompatibleWithModel" in issue) {
-          const { incompatibility, pointer_head_path } =
-            issue.PointerHeadIncompatibleWithModel;
-
+        if ("DecisionTypeIsUnsupported" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Pointer head {pointer_head_path.model_path} does not fit the
-                model:{" "}
-                {"HiddenSizeMismatch" in incompatibility
-                  ? `it reads ${incompatibility.HiddenSizeMismatch.pointer_head_hidden_size}-dimensional hidden states, the model produces ${incompatibility.HiddenSizeMismatch.model_hidden_size}`
-                  : `its delimiter ${incompatibility.DelimiterIsNotAControlToken.delimiter} is not a control token of the model`}
+                Decision type is not supported:{" "}
+                {issue.DecisionTypeIsUnsupported.model_path}
               </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler serves completions with the model, but neither
+                decisions nor embeddings, because it serves decisions only of
+                kev decision models.
+              </p>
               <strong>What can you do?</strong>{" "}
               <p>
-                <Link href="/model">Use the pointer head</Link> that was
-                converted together with the model.
+                <Link href="/model">Use a kev decision model</Link> to serve
+                decisions.
               </p>
             </li>
           );

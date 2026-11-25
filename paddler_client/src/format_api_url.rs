@@ -9,7 +9,7 @@ pub fn format_api_url(base_url: &Url, path: &str) -> String {
 mod tests {
     use url::Url;
 
-    use paddler_messaging::api_path::ApiPath;
+    use paddler_messaging::constants::API_PATH_AGENTS;
 
     use super::format_api_url;
 
@@ -18,8 +18,8 @@ mod tests {
         let base_url = Url::parse("http://localhost:8080/").unwrap();
 
         assert_eq!(
-            format_api_url(&base_url, ApiPath::AGENTS),
-            format!("http://localhost:8080{}", ApiPath::AGENTS)
+            format_api_url(&base_url, API_PATH_AGENTS),
+            format!("http://localhost:8080{API_PATH_AGENTS}")
         );
     }
 }

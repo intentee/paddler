@@ -37,20 +37,9 @@ impl ServedModel {
                 self.capabilities.decisions.forward(agent_name, request);
             }
             PipelineRequest::GenerateEmbeddingBatch(request) => {
-                self.capabilities
-                    .embeddings
-                    .request_preparer
-                    .prepare(request);
+                self.capabilities.embeddings.forward(agent_name, request);
             }
         }
-    }
-
-    #[must_use]
-    pub fn keeps_decisions_of(&self, desired_settings: &ModelServingSettings) -> bool {
-        self.serves_the_model_of(desired_settings)
-            && self.runs_the_runtime_parameters_of(desired_settings)
-            && self.model_serving_settings.capabilities.decisions
-                == desired_settings.capabilities.decisions
     }
 
     pub async fn retain_for(self, desired_settings: ModelServingSettings) -> RetainedServing {
@@ -87,12 +76,7 @@ impl ServedModel {
             text_generation,
         } = capabilities;
 
-        let (decisions_plan, embeddings_plan, text_generation_plan) = join!(
-            CapabilityPlan::retaining(
-                decisions,
-                &served_settings.capabilities.decisions,
-                &desired_settings.capabilities.decisions,
-            ),
+        let (embeddings_plan, text_generation_plan) = join!(
             CapabilityPlan::retaining(
                 embeddings,
                 &served_settings.capabilities.embeddings,
@@ -107,7 +91,7 @@ impl ServedModel {
 
         RetainedServing::LoadedModel(LoadedModelServingPlan {
             capability_plans: InferenceCapabilities {
-                decisions: decisions_plan,
+                decisions: CapabilityPlan::Keep(decisions),
                 embeddings: embeddings_plan,
                 text_generation: text_generation_plan,
             },
@@ -116,19 +100,10 @@ impl ServedModel {
         })
     }
 
-    fn serves_the_model_of(&self, desired_settings: &ModelServingSettings) -> bool {
-        self.loaded_llama_model.llama_model_settings == desired_settings.llama_model_settings()
-    }
-
-    fn runs_the_runtime_parameters_of(&self, desired_settings: &ModelServingSettings) -> bool {
-        self.model_serving_settings.model_runtime_parameters
-            == desired_settings.model_runtime_parameters
-    }
-
     #[must_use]
     pub fn serving_report(&self, uses_chat_template_override: bool) -> ServingReport {
         ServingReport {
-            decisions: self.model_serving_settings.capabilities.decisions.serving(),
+            decisions: self.capabilities.decisions.serving(),
             model_path: self
                 .loaded_llama_model
                 .llama_model_settings
@@ -143,6 +118,20 @@ impl ServedModel {
                 .serving_issues(),
             uses_chat_template_override,
         }
+    }
+
+    fn runs_the_runtime_parameters_of(
+        &self,
+        ModelServingSettings {
+            model_runtime_parameters,
+            ..
+        }: &ModelServingSettings,
+    ) -> bool {
+        self.model_serving_settings.model_runtime_parameters == *model_runtime_parameters
+    }
+
+    fn serves_the_model_of(&self, desired_settings: &ModelServingSettings) -> bool {
+        self.loaded_llama_model.llama_model_settings == desired_settings.llama_model_settings()
     }
 }
 

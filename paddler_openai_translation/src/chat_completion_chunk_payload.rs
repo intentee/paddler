@@ -1,4 +1,4 @@
-use llama_cpp_bindings_types::token_usage::TokenUsage;
+use paddler_messaging::token_usage::TokenUsage;
 
 use crate::chat_completion_chunk_choice::ChatCompletionChunkChoice;
 

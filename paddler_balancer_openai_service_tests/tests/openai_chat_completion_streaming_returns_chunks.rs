@@ -1,0 +1,38 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use serde_json::Value;
+use serde_json::json;
+
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn openai_chat_completion_streaming_returns_chunks() {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
+        .await
+        .expect("the cluster must start");
+
+    let chunks = cluster
+        .openai_chat_completion_streaming(&json!({
+            "model": "test",
+            "messages": [{"role": "user", "content": "Say hello"}],
+            "max_completion_tokens": 10,
+            "stream": true,
+        }))
+        .await
+        .expect("the OpenAI chat completion stream must succeed");
+
+    assert!(!chunks.is_empty(), "should have received streaming chunks");
+    assert_eq!(
+        chunks
+            .first()
+            .and_then(|first_chunk| first_chunk.pointer("/object"))
+            .and_then(Value::as_str),
+        Some("chat.completion.chunk")
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

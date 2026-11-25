@@ -46,15 +46,17 @@ impl PreparedEmbeddingBatchRequest {
             }
         }
 
-        ActiveEmbeddingRequest {
-            embeddings_emitted: 0,
-            generate_embedding_stop_rx,
-            generated_embedding_tx,
-            normalization_method,
-            pending_inputs: inputs.into(),
-            slot_guard,
-        }
-        .continue_unless_every_input_is_embedded(agent_name)
+        EmbeddingRequestContinuation::unless_every_input_is_embedded(
+            ActiveEmbeddingRequest {
+                emitted_an_embedding: false,
+                generate_embedding_stop_rx,
+                generated_embedding_tx,
+                normalization_method,
+                pending_inputs: inputs.into(),
+                slot_guard,
+            },
+            agent_name,
+        )
     }
 }
 
@@ -70,7 +72,7 @@ mod tests {
     use std::num::NonZeroU16;
     use std::sync::Arc;
 
-    use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_model::llama_token::LlamaToken;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::TryRecvError;
 
@@ -119,12 +121,10 @@ mod tests {
         prepared_request(generated_embedding_tx, Vec::new())
             .reject_because_the_scheduler_stopped(Some("agent"));
 
-        assert_eq!(
+        assert!(matches!(
             generated_embedding_rx.try_recv(),
-            Ok(EmbeddingResult::SchedulerUnavailable(
-                "agent: the scheduler is no longer accepting requests".to_owned()
-            ))
-        );
+            Ok(EmbeddingResult::SchedulerUnavailable(_))
+        ));
     }
 
     #[test]

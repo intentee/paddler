@@ -1,0 +1,89 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use tokio_util::sync::CancellationToken;
+
+use paddler_cluster_harness::ministral3_cluster_params::Ministral3ClusterParams;
+use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mistral3_internal_endpoint_emits_reasoning_tokens() {
+    let cluster = Ministral3ClusterParams::default()
+        .start_cluster()
+        .await
+        .expect("the cluster must start");
+
+    let collected = cluster
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "What is two plus two? Think step by step.".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
+                enable_thinking: true,
+                grammar: None,
+                max_tokens: NonZeroU32::new(200).unwrap(),
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
+        .await
+        .expect("the inference request must be accepted");
+
+    let reasoning_count = collected
+        .token_results
+        .iter()
+        .filter(|TokenResultWithProducer { token_result, .. }| {
+            matches!(token_result, GeneratedTokenResult::ReasoningToken(_))
+        })
+        .count();
+
+    assert!(
+        reasoning_count > 0,
+        "Mistral 3: expected at least one reasoning token from a [THINK]-emitting model (got {reasoning_count})"
+    );
+
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
+
+    assert!(summary.usage.prompt > 0);
+    assert!(summary.usage.reasoning > 0);
+    assert_eq!(
+        summary.usage.completion_tokens(),
+        summary.usage.content + summary.usage.reasoning + summary.usage.undeterminable
+    );
+
+    let reasoning_stream = collected.reasoning_text();
+    let content_stream = collected.content_text();
+
+    for forbidden in ["[THINK]", "[/THINK]"] {
+        assert!(
+            !reasoning_stream.contains(forbidden),
+            "Mistral 3: reasoning stream leaked marker {forbidden:?}; \
+             reasoning_stream={reasoning_stream:?}"
+        );
+        assert!(
+            !content_stream.contains(forbidden),
+            "Mistral 3: content stream leaked marker {forbidden:?}; \
+             content_stream={content_stream:?}"
+        );
+    }
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

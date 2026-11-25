@@ -1,6 +1,6 @@
-use llama_cpp_bindings::json_schema_to_grammar::json_schema_to_grammar;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_gbnf::json_schema_to_grammar::json_schema_to_grammar;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 
@@ -9,6 +9,9 @@ use crate::text_generation_error::TextGenerationError;
 
 const JSON_SCHEMA_GRAMMAR_ROOT: &str = "root";
 
+/// # Errors
+///
+/// Returns [`TextGenerationError::GrammarInvalid`] or [`TextGenerationError::GrammarSamplerInitializationFailed`] when a GBNF grammar is invalid or its sampler cannot start, [`TextGenerationError::GrammarConversionFailed`] when a JSON schema cannot be converted to a grammar, and [`TextGenerationError::GrammarSamplerInitializationFailed`] when the sampler of the converted grammar cannot start.
 pub fn resolve_grammar(
     grammar: Option<GrammarConstraint>,
     model: &LlamaModel,
