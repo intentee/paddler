@@ -94,6 +94,10 @@ async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabili
         Some(GeneratedTokenResult::SchedulerUnavailable(_))
     ));
 
+    kept_text_generation_request_preparer
+        .preparation_tasks
+        .wait()
+        .await;
     drop(kept_text_generation_request_preparer);
 
     let model_weights = &inference_runtime_context.vram_residencies.model_weights;
