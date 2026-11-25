@@ -4,9 +4,10 @@ use std::time::SystemTime;
 use nanoid::nanoid;
 use serde::Deserialize;
 
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::validates::Validates;
+use paddler_messaging::request_params::validates::Validates;
 
 use crate::chat_completion_delivery::ChatCompletionDelivery;
 use crate::chat_completion_header::ChatCompletionHeader;
@@ -27,6 +28,7 @@ pub struct ChatCompletionRequest {
     pub max_tokens: Option<NonZeroU32>,
     pub messages: Vec<ChatCompletionMessage>,
     pub model: String,
+    pub parallel_tool_calls: Option<bool>,
     pub reasoning_effort: Option<ReasoningEffort>,
     pub stream: Option<bool>,
     pub stream_options: Option<ChatCompletionStreamOptions>,
@@ -36,14 +38,14 @@ pub struct ChatCompletionRequest {
 
 impl ChatCompletionRequest {
     #[must_use]
-    pub fn enables_thinking(&self) -> bool {
-        self.reasoning_effort
-            .is_none_or(ReasoningEffort::enables_thinking)
+    pub fn requested_max_tokens(&self) -> Option<NonZeroU32> {
+        self.max_completion_tokens.or(self.max_tokens)
     }
 
     #[must_use]
-    pub fn requested_max_tokens(&self) -> Option<NonZeroU32> {
-        self.max_completion_tokens.or(self.max_tokens)
+    pub fn thinking(&self) -> ModelDefaultOr<bool> {
+        self.reasoning_effort
+            .map_or(ModelDefaultOr::ModelDefault, ReasoningEffort::thinking)
     }
 
     /// # Errors
@@ -53,11 +55,12 @@ impl ChatCompletionRequest {
         self,
         now: SystemTime,
     ) -> Result<TranslatedChatCompletionRequest, OpenAITranslationError> {
-        let enable_thinking = self.enables_thinking();
+        let enable_thinking = self.thinking();
         let max_tokens = self.requested_max_tokens().unwrap_or(DEFAULT_MAX_TOKENS);
         let Self {
             messages,
             model,
+            parallel_tool_calls,
             stream,
             stream_options,
             tools,
@@ -86,6 +89,7 @@ impl ChatCompletionRequest {
                 enable_thinking,
                 grammar: None,
                 max_tokens,
+                parallel_tool_calls: ModelDefaultOr::from(parallel_tool_calls),
                 parse_tool_calls: !validated_tools.is_empty(),
                 tools: validated_tools,
             },
@@ -115,6 +119,7 @@ mod tests {
     use serde_json::from_value;
     use serde_json::json;
 
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::conversation_message::ConversationMessage;
     use paddler_messaging::conversation_message_content::ConversationMessageContent;
     use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
@@ -170,6 +175,48 @@ mod tests {
         let params = request_with_token_limits(&json!({}));
 
         assert_eq!(params.requested_max_tokens(), None);
+    }
+
+    #[test]
+    fn unspecified_thinking_and_parallel_tool_calls_defer_to_the_model() {
+        let translated = from_value::<ChatCompletionRequest>(json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}]
+        }))
+        .unwrap()
+        .translate(UNIX_EPOCH)
+        .unwrap();
+
+        assert_eq!(
+            translated.conversation_history_params.enable_thinking,
+            ModelDefaultOr::ModelDefault
+        );
+        assert_eq!(
+            translated.conversation_history_params.parallel_tool_calls,
+            ModelDefaultOr::ModelDefault
+        );
+    }
+
+    #[test]
+    fn requested_parallel_tool_calls_and_no_reasoning_are_kept() {
+        let translated = from_value::<ChatCompletionRequest>(json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}],
+            "parallel_tool_calls": false,
+            "reasoning_effort": "none"
+        }))
+        .unwrap()
+        .translate(UNIX_EPOCH)
+        .unwrap();
+
+        assert_eq!(
+            translated.conversation_history_params.enable_thinking,
+            ModelDefaultOr::Explicit(false)
+        );
+        assert_eq!(
+            translated.conversation_history_params.parallel_tool_calls,
+            ModelDefaultOr::Explicit(false)
+        );
     }
 
     #[test]

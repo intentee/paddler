@@ -1,10 +1,4 @@
-use std::cmp::Ordering;
-
-use serde::Deserialize;
-use serde::Serialize;
-
 use crate::invalid_inference_parameters::InvalidInferenceParameters;
-use crate::raw_sampling_parameters::RawSamplingParameters;
 
 const NEUTRAL_PENALTY_REPEAT: f32 = 1.0;
 
@@ -12,18 +6,7 @@ fn is_probability(value: f32) -> bool {
     (0.0..=1.0).contains(&value)
 }
 
-fn penalties_are_neutral(
-    penalty_repeat: f32,
-    penalty_frequency: f32,
-    penalty_presence: f32,
-) -> bool {
-    penalty_repeat.total_cmp(&NEUTRAL_PENALTY_REPEAT) == Ordering::Equal
-        && penalty_frequency == 0.0
-        && penalty_presence == 0.0
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(try_from = "RawSamplingParameters")]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SamplingParameters {
     /// The minimum probability for a token to be considered, relative to the probability of the most likely token
     pub min_p: f32,
@@ -74,28 +57,12 @@ impl SamplingParameters {
 
         Ok(())
     }
-}
 
-impl Default for SamplingParameters {
-    fn default() -> Self {
-        Self {
-            min_p: 0.05,
-            penalty_frequency: 0.0,
-            penalty_last_n: 0,
-            penalty_presence: 0.0,
-            penalty_repeat: NEUTRAL_PENALTY_REPEAT,
-            temperature: 0.8,
-            top_k: 80,
-            top_p: 0.8,
-        }
-    }
-}
-
-impl TryFrom<RawSamplingParameters> for SamplingParameters {
-    type Error = InvalidInferenceParameters;
-
-    fn try_from(
-        RawSamplingParameters {
+    /// # Errors
+    ///
+    /// Returns [`InvalidInferenceParameters::MinPOutOfRange`], [`InvalidInferenceParameters::TopPOutOfRange`], [`InvalidInferenceParameters::TemperatureNegative`], [`InvalidInferenceParameters::TopKNegative`], [`InvalidInferenceParameters::PenaltyLastNNegative`], [`InvalidInferenceParameters::PenaltyRepeatNotPositive`], [`InvalidInferenceParameters::PenaltyFrequencyNotFinite`] or [`InvalidInferenceParameters::PenaltyPresenceNotFinite`] for the first parameter llama.cpp cannot sample with.
+    pub fn validate(&self) -> Result<(), InvalidInferenceParameters> {
+        let Self {
             min_p,
             penalty_frequency,
             penalty_last_n,
@@ -104,8 +71,8 @@ impl TryFrom<RawSamplingParameters> for SamplingParameters {
             temperature,
             top_k,
             top_p,
-        }: RawSamplingParameters,
-    ) -> Result<Self, Self::Error> {
+        } = *self;
+
         if !is_probability(min_p) {
             return Err(InvalidInferenceParameters::MinPOutOfRange { min_p });
         }
@@ -140,49 +107,17 @@ impl TryFrom<RawSamplingParameters> for SamplingParameters {
             return Err(InvalidInferenceParameters::PenaltyPresenceNotFinite { penalty_presence });
         }
 
-        let penalties_are_neutral =
-            penalties_are_neutral(penalty_repeat, penalty_frequency, penalty_presence);
-
-        if penalty_last_n == 0 && !penalties_are_neutral {
-            return Err(InvalidInferenceParameters::PenaltiesWithoutWindow {
-                penalty_frequency,
-                penalty_presence,
-                penalty_repeat,
-            });
-        }
-
-        if penalty_last_n > 0 && penalties_are_neutral {
-            return Err(InvalidInferenceParameters::PenaltyWindowWithoutPenalties {
-                penalty_last_n,
-            });
-        }
-
-        Ok(Self {
-            min_p,
-            penalty_frequency,
-            penalty_last_n,
-            penalty_presence,
-            penalty_repeat,
-            temperature,
-            top_k,
-            top_p,
-        })
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_json::error::Category;
-    use serde_json::from_value;
-    use serde_json::json;
-    use serde_json::to_value;
-
     use super::SamplingParameters;
     use crate::invalid_inference_parameters::InvalidInferenceParameters;
-    use crate::raw_sampling_parameters::RawSamplingParameters;
 
-    fn valid_raw() -> RawSamplingParameters {
-        RawSamplingParameters {
+    const fn valid() -> SamplingParameters {
+        SamplingParameters {
             min_p: 0.05,
             penalty_frequency: 0.5,
             penalty_last_n: 64,
@@ -194,26 +129,19 @@ mod tests {
         }
     }
 
-    fn rejection(raw: RawSamplingParameters) -> Option<InvalidInferenceParameters> {
-        SamplingParameters::try_from(raw).err()
+    fn rejection(sampling_parameters: SamplingParameters) -> Option<InvalidInferenceParameters> {
+        sampling_parameters.validate().err()
     }
 
     #[test]
     fn accepts_a_penalty_window_as_long_as_the_sequence_context() {
-        assert_eq!(
-            SamplingParameters::try_from(valid_raw())
-                .unwrap()
-                .ensure_penalty_window_fits(64),
-            Ok(())
-        );
+        assert_eq!(valid().ensure_penalty_window_fits(64), Ok(()));
     }
 
     #[test]
     fn rejects_a_penalty_window_longer_than_the_sequence_context() {
         assert_eq!(
-            SamplingParameters::try_from(valid_raw())
-                .unwrap()
-                .ensure_penalty_window_fits(63),
+            valid().ensure_penalty_window_fits(63),
             Err(
                 InvalidInferenceParameters::PenaltyWindowExceedsSequenceContext {
                     penalty_last_n: 64,
@@ -225,31 +153,15 @@ mod tests {
 
     #[test]
     fn accepts_parameters_that_satisfy_every_rule() {
-        assert!(SamplingParameters::try_from(valid_raw()).is_ok());
-    }
-
-    #[test]
-    fn deserialization_rejects_parameters_that_fail_validation() {
-        let mut parameters = to_value(SamplingParameters::default()).unwrap();
-
-        *parameters
-            .get_mut("top_k")
-            .expect("the serialized parameters must hold top_k") = json!(-1);
-
-        assert_eq!(
-            from_value::<SamplingParameters>(parameters)
-                .err()
-                .map(|deserialization_error| deserialization_error.classify()),
-            Some(Category::Data)
-        );
+        assert!(valid().validate().is_ok());
     }
 
     #[test]
     fn rejects_min_p_outside_zero_to_one() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 min_p: 1.5,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::MinPOutOfRange { min_p: 1.5 })
         );
@@ -258,9 +170,9 @@ mod tests {
     #[test]
     fn rejects_top_p_outside_zero_to_one() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 top_p: -0.1,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::TopPOutOfRange { top_p: -0.1 })
         );
@@ -269,9 +181,9 @@ mod tests {
     #[test]
     fn rejects_a_negative_temperature() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 temperature: -0.5,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::TemperatureNegative { temperature: -0.5 })
         );
@@ -280,9 +192,9 @@ mod tests {
     #[test]
     fn rejects_a_negative_top_k() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 top_k: -1,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::TopKNegative { top_k: -1 })
         );
@@ -291,9 +203,9 @@ mod tests {
     #[test]
     fn rejects_a_negative_penalty_window() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 penalty_last_n: -1,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::PenaltyLastNNegative { penalty_last_n: -1 })
         );
@@ -302,9 +214,9 @@ mod tests {
     #[test]
     fn rejects_a_repeat_penalty_that_is_not_positive() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 penalty_repeat: 0.0,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::PenaltyRepeatNotPositive {
                 penalty_repeat: 0.0
@@ -315,9 +227,9 @@ mod tests {
     #[test]
     fn rejects_an_infinite_frequency_penalty() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 penalty_frequency: f32::INFINITY,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::PenaltyFrequencyNotFinite {
                 penalty_frequency: f32::INFINITY,
@@ -328,40 +240,13 @@ mod tests {
     #[test]
     fn rejects_an_infinite_presence_penalty() {
         assert_eq!(
-            rejection(RawSamplingParameters {
+            rejection(SamplingParameters {
                 penalty_presence: f32::NEG_INFINITY,
-                ..valid_raw()
+                ..valid()
             }),
             Some(InvalidInferenceParameters::PenaltyPresenceNotFinite {
                 penalty_presence: f32::NEG_INFINITY,
             })
-        );
-    }
-
-    #[test]
-    fn rejects_penalty_strengths_without_a_penalty_window() {
-        assert_eq!(
-            rejection(RawSamplingParameters {
-                penalty_last_n: 0,
-                ..valid_raw()
-            }),
-            Some(InvalidInferenceParameters::PenaltiesWithoutWindow {
-                penalty_frequency: 0.5,
-                penalty_presence: 0.0,
-                penalty_repeat: 1.1,
-            })
-        );
-    }
-
-    #[test]
-    fn rejects_a_penalty_window_without_penalty_strengths() {
-        assert_eq!(
-            rejection(RawSamplingParameters {
-                penalty_frequency: 0.0,
-                penalty_repeat: 1.0,
-                ..valid_raw()
-            }),
-            Some(InvalidInferenceParameters::PenaltyWindowWithoutPenalties { penalty_last_n: 64 })
         );
     }
 }

@@ -13,6 +13,7 @@ export function idleAgent({
     slots_processing: 0,
     status: {
       desired_slots_total: 1,
+      desired_state_version: { Version: 0 },
       download_status: "NotDownloading",
       issues: [],
       model_path: null,

@@ -103,6 +103,8 @@ mod tests {
     use serde_json::json;
     use serde_json::to_value;
 
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
+
     use super::SequencedResponsesStreamEvent;
     use crate::response_snapshot_event::ResponseSnapshotEvent;
     use crate::responses_response_header::ResponsesResponseHeader;
@@ -118,8 +120,8 @@ mod tests {
                     id: "resp_0".to_owned(),
                     instructions: None,
                     model: "test-model".to_owned(),
-                    temperature: 1.0,
-                    top_p: 1.0,
+                    temperature: ModelDefaultOr::Explicit(1.0),
+                    top_p: ModelDefaultOr::Explicit(1.0),
                 }
                 .in_progress(),
             }),

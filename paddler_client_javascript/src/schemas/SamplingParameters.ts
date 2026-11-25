@@ -2,14 +2,14 @@ import { z } from "zod";
 
 export const SamplingParametersSchema = z
   .object({
-    min_p: z.number(),
-    penalty_frequency: z.number(),
-    penalty_last_n: z.number().int(),
-    penalty_presence: z.number(),
-    penalty_repeat: z.number(),
-    temperature: z.number(),
-    top_k: z.number().int(),
-    top_p: z.number(),
+    min_p: z.number().nullable(),
+    penalty_frequency: z.number().nullable(),
+    penalty_last_n: z.number().int().nullable(),
+    penalty_presence: z.number().nullable(),
+    penalty_repeat: z.number().nullable(),
+    temperature: z.number().nullable(),
+    top_k: z.number().int().nullable(),
+    top_p: z.number().nullable(),
   })
   .strict();
 

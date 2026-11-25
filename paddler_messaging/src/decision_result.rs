@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::decision_answer::DecisionAnswer;
+use crate::answered_decision_question::AnsweredDecisionQuestion;
 use crate::decision_final_result::DecisionFinalResult;
 use crate::decision_summary::DecisionSummary;
 use crate::oversized_decision_details::OversizedDecisionDetails;
@@ -11,46 +11,46 @@ use crate::streamable_result::StreamableResult;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum DecisionResult {
+    AnswersUnreadable(String),
     BatchAssemblyFailed(String),
     DecisionsNotServed(String),
     DecodeFailed(String),
     Done(DecisionSummary),
-    HiddenStateUnavailable(String),
-    InputTokenizationFailed(String),
     KvCacheCopyFailed(String),
     KvCacheRemovalFailed(String),
+    MediaEvaluationFailed(String),
     ModelNotLoaded(String),
-    QuestionAnswered(DecisionAnswer),
+    QuestionAnswered(AnsweredDecisionQuestion),
     RequestExceedsContext(OversizedDecisionDetails),
+    RequestRejected(String),
     SchedulerUnavailable(String),
     StopRequested,
 }
 
-impl From<DecisionAnswer> for DecisionResult {
-    fn from(answer: DecisionAnswer) -> Self {
-        Self::QuestionAnswered(answer)
+impl From<AnsweredDecisionQuestion> for DecisionResult {
+    fn from(answered_question: AnsweredDecisionQuestion) -> Self {
+        Self::QuestionAnswered(answered_question)
     }
 }
 
 impl From<DecisionFinalResult> for DecisionResult {
     fn from(final_result: DecisionFinalResult) -> Self {
         match final_result {
+            DecisionFinalResult::AnswersUnreadable(detail) => Self::AnswersUnreadable(detail),
             DecisionFinalResult::BatchAssemblyFailed(detail) => Self::BatchAssemblyFailed(detail),
             DecisionFinalResult::DecisionsNotServed(detail) => Self::DecisionsNotServed(detail),
             DecisionFinalResult::DecodeFailed(detail) => Self::DecodeFailed(detail),
             DecisionFinalResult::Done(summary) => Self::Done(summary),
-            DecisionFinalResult::HiddenStateUnavailable(detail) => {
-                Self::HiddenStateUnavailable(detail)
-            }
-            DecisionFinalResult::InputTokenizationFailed(detail) => {
-                Self::InputTokenizationFailed(detail)
-            }
             DecisionFinalResult::KvCacheCopyFailed(detail) => Self::KvCacheCopyFailed(detail),
             DecisionFinalResult::KvCacheRemovalFailed(detail) => Self::KvCacheRemovalFailed(detail),
+            DecisionFinalResult::MediaEvaluationFailed(detail) => {
+                Self::MediaEvaluationFailed(detail)
+            }
             DecisionFinalResult::ModelNotLoaded(detail) => Self::ModelNotLoaded(detail),
             DecisionFinalResult::RequestExceedsContext(details) => {
                 Self::RequestExceedsContext(details)
             }
+            DecisionFinalResult::RequestRejected(detail) => Self::RequestRejected(detail),
             DecisionFinalResult::SchedulerUnavailable(detail) => Self::SchedulerUnavailable(detail),
             DecisionFinalResult::StopRequested => Self::StopRequested,
         }
@@ -59,10 +59,13 @@ impl From<DecisionFinalResult> for DecisionResult {
 
 impl StreamableResult for DecisionResult {
     type Final = DecisionFinalResult;
-    type Partial = DecisionAnswer;
+    type Partial = AnsweredDecisionQuestion;
 
-    fn into_step(self) -> ResultStep<DecisionAnswer, DecisionFinalResult> {
+    fn into_step(self) -> ResultStep<AnsweredDecisionQuestion, DecisionFinalResult> {
         match self {
+            Self::AnswersUnreadable(detail) => {
+                ResultStep::Final(DecisionFinalResult::AnswersUnreadable(detail))
+            }
             Self::BatchAssemblyFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::BatchAssemblyFailed(detail))
             }
@@ -73,28 +76,28 @@ impl StreamableResult for DecisionResult {
                 ResultStep::Final(DecisionFinalResult::DecodeFailed(detail))
             }
             Self::Done(summary) => ResultStep::Final(DecisionFinalResult::Done(summary)),
-            Self::HiddenStateUnavailable(detail) => {
-                ResultStep::Final(DecisionFinalResult::HiddenStateUnavailable(detail))
-            }
-            Self::InputTokenizationFailed(detail) => {
-                ResultStep::Final(DecisionFinalResult::InputTokenizationFailed(detail))
-            }
             Self::KvCacheCopyFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::KvCacheCopyFailed(detail))
             }
             Self::KvCacheRemovalFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::KvCacheRemovalFailed(detail))
             }
+            Self::MediaEvaluationFailed(detail) => {
+                ResultStep::Final(DecisionFinalResult::MediaEvaluationFailed(detail))
+            }
             Self::ModelNotLoaded(detail) => {
                 ResultStep::Final(DecisionFinalResult::ModelNotLoaded(detail))
             }
+            Self::QuestionAnswered(answered_question) => ResultStep::Partial(answered_question),
             Self::RequestExceedsContext(details) => {
                 ResultStep::Final(DecisionFinalResult::RequestExceedsContext(details))
+            }
+            Self::RequestRejected(detail) => {
+                ResultStep::Final(DecisionFinalResult::RequestRejected(detail))
             }
             Self::SchedulerUnavailable(detail) => {
                 ResultStep::Final(DecisionFinalResult::SchedulerUnavailable(detail))
             }
-            Self::QuestionAnswered(answer) => ResultStep::Partial(answer),
             Self::StopRequested => ResultStep::Final(DecisionFinalResult::StopRequested),
         }
     }
@@ -104,8 +107,10 @@ impl StreamableResult for DecisionResult {
 mod tests {
     use std::mem::discriminant;
 
+    use llama_cpp_bindings_types::decision_answer::DecisionAnswer;
+
     use super::DecisionResult;
-    use crate::decision_answer::DecisionAnswer;
+    use crate::answered_decision_question::AnsweredDecisionQuestion;
     use crate::decision_final_result::DecisionFinalResult;
     use crate::decision_summary::DecisionSummary;
     use crate::oversized_decision_details::OversizedDecisionDetails;
@@ -115,30 +120,34 @@ mod tests {
     fn step_round_trip(decision_result: DecisionResult) -> DecisionResult {
         match decision_result.into_step() {
             ResultStep::Final(final_result) => final_result.into(),
-            ResultStep::Partial(answer) => answer.into(),
+            ResultStep::Partial(answered_question) => answered_question.into(),
         }
     }
 
     #[test]
     fn answering_a_question_keeps_the_stream_open() {
-        let answer = DecisionAnswer {
+        let answered_question = AnsweredDecisionQuestion {
+            answer: DecisionAnswer::Noul { noul: 0.75 },
             id: "question".to_owned(),
-            probabilities: vec![1.0],
         };
 
         assert_eq!(
-            step_round_trip(DecisionResult::QuestionAnswered(answer.clone())),
-            DecisionResult::QuestionAnswered(answer.clone())
+            step_round_trip(DecisionResult::QuestionAnswered(answered_question.clone())),
+            DecisionResult::QuestionAnswered(answered_question.clone())
         );
         assert_eq!(
-            DecisionResult::QuestionAnswered(answer.clone()).into_step(),
-            ResultStep::Partial(answer)
+            DecisionResult::QuestionAnswered(answered_question.clone()).into_step(),
+            ResultStep::Partial(answered_question)
         );
     }
 
     #[test]
     fn every_described_failure_ends_the_stream_as_the_same_final_failure() {
         for (decision_result, expected_final_result) in [
+            (
+                DecisionResult::AnswersUnreadable(String::new()),
+                DecisionFinalResult::AnswersUnreadable(String::new()),
+            ),
             (
                 DecisionResult::BatchAssemblyFailed(String::new()),
                 DecisionFinalResult::BatchAssemblyFailed(String::new()),
@@ -152,14 +161,6 @@ mod tests {
                 DecisionFinalResult::DecodeFailed(String::new()),
             ),
             (
-                DecisionResult::HiddenStateUnavailable(String::new()),
-                DecisionFinalResult::HiddenStateUnavailable(String::new()),
-            ),
-            (
-                DecisionResult::InputTokenizationFailed(String::new()),
-                DecisionFinalResult::InputTokenizationFailed(String::new()),
-            ),
-            (
                 DecisionResult::KvCacheCopyFailed(String::new()),
                 DecisionFinalResult::KvCacheCopyFailed(String::new()),
             ),
@@ -168,8 +169,16 @@ mod tests {
                 DecisionFinalResult::KvCacheRemovalFailed(String::new()),
             ),
             (
+                DecisionResult::MediaEvaluationFailed(String::new()),
+                DecisionFinalResult::MediaEvaluationFailed(String::new()),
+            ),
+            (
                 DecisionResult::ModelNotLoaded(String::new()),
                 DecisionFinalResult::ModelNotLoaded(String::new()),
+            ),
+            (
+                DecisionResult::RequestRejected(String::new()),
+                DecisionFinalResult::RequestRejected(String::new()),
             ),
             (
                 DecisionResult::SchedulerUnavailable(String::new()),

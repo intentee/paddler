@@ -97,12 +97,13 @@ impl ManagementSocketClientService {
             SelectAll::<BoxStream<'static, ManagementJsonRpcMessage>>::new();
         let mut ping_ticker = ping_ticker();
         let mut ping_liveness = PingLiveness::default();
-        let mut step = ManagementConnectionStep::Write(ManagementJsonRpcMessage::Notification(
-            ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
-                name: self.name.clone(),
-                slot_aggregated_status_snapshot: registration_snapshot,
-            }),
-        ));
+        let mut step =
+            ManagementConnectionStep::Write(Box::new(ManagementJsonRpcMessage::Notification(
+                ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
+                    name: self.name.clone(),
+                    slot_aggregated_status_snapshot: registration_snapshot,
+                }),
+            )));
 
         let connection_end = loop {
             step = match step {
@@ -133,7 +134,7 @@ impl ManagementSocketClientService {
                     Ok(()) = update_rx.changed() => last_announced_agent_status
                         .announce_if_changed(slot_aggregated_status.make_snapshot()),
                     Some(pipeline_response) = pipeline_responses.next() => {
-                        ManagementConnectionStep::Write(pipeline_response)
+                        ManagementConnectionStep::Write(Box::new(pipeline_response))
                     }
                 },
                 ManagementConnectionStep::Deregister => {

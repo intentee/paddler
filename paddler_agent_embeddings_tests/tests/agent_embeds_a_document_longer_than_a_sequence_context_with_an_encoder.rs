@@ -8,7 +8,8 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -23,10 +24,10 @@ async fn agent_embeds_a_document_longer_than_a_sequence_context_with_an_encoder(
     let cluster = Cluster::start_in_process(
         EmbeddingClusterParams {
             agents: AgentConfig::uniform(1, SLOTS),
-            model_runtime_parameters: ModelRuntimeParameters {
-                context_size,
-                n_batch: BatchSize::default().at_most(context_size),
-                ..ModelRuntimeParameters::default()
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                context_size: ModelDefaultOr::Explicit(context_size),
+                n_batch: ModelDefaultOr::Explicit(BatchSize::default().at_most(context_size)),
+                ..DesiredModelRuntimeParameters::default()
             },
             ..EmbeddingClusterParams::default()
         }

@@ -1,0 +1,37 @@
+[package]
+name = "paddler_agent_model_capabilities"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-types = { workspace = true }
+llama-cpp-decision = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-model-capabilities = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
+llama-cpp-params = { workspace = true }
+log = { workspace = true }
+paddler_agent_runtime = { workspace = true }
+paddler_agent_status = { workspace = true }
+paddler_error_chain = { workspace = true }
+paddler_inference_parameters = { workspace = true }
+paddler_messaging = { workspace = true }
+parking_lot = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+cuda = ["paddler_agent_runtime/cuda"]
+metal = ["paddler_agent_runtime/metal"]
+vulkan = ["paddler_agent_runtime/vulkan"]
+
+[lints]
+workspace = true

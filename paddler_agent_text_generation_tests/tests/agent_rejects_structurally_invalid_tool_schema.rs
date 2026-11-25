@@ -6,6 +6,11 @@ use serde_json::Map;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -16,11 +21,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
-use paddler_cluster_harness::cluster::Cluster;
-use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_structurally_invalid_tool_schema() {
@@ -52,9 +53,10 @@ async fn agent_rejects_structurally_invalid_tool_schema() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(64).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: true,
                 tools: vec![Tool::Function(FunctionCall {
                     function: Function {

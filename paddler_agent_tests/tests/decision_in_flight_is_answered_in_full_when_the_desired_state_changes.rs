@@ -9,7 +9,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_cluster_harness::collect_decision_results::collect_decision_results;
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_request_params_fixture::many_question_decision::many_question_decision;
 
@@ -48,9 +49,11 @@ async fn decision_in_flight_is_answered_in_full_when_the_desired_state_changes()
         .put_balancer_desired_state(
             CancellationToken::new(),
             &BalancerDesiredState {
-                model_runtime_parameters: ModelRuntimeParameters {
-                    context_size: NonZeroU32::new(CHANGED_CONTEXT_SIZE)
-                        .expect("the changed context size is not zero"),
+                model_runtime_parameters: DesiredModelRuntimeParameters {
+                    context_size: ModelDefaultOr::Explicit(
+                        NonZeroU32::new(CHANGED_CONTEXT_SIZE)
+                            .expect("the changed context size is not zero"),
+                    ),
                     ..desired_state.model_runtime_parameters
                 },
                 ..desired_state

@@ -4,8 +4,8 @@ use serde_json::Map;
 use serde_json::Value;
 
 use super::validated_parameters_schema::ValidatedParametersSchema;
+use crate::request_params::validates::Validates;
 use crate::request_params_validation_error::RequestParamsValidationError;
-use crate::validates::Validates;
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -45,8 +45,8 @@ mod tests {
     use serde_json::json;
 
     use super::RawParametersSchema;
+    use crate::request_params::validates::Validates;
     use crate::request_params_validation_error::RequestParamsValidationError;
-    use crate::validates::Validates;
 
     #[test]
     fn validate_passes_when_every_required_field_is_present() {

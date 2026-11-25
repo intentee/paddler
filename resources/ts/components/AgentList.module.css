@@ -38,7 +38,8 @@
   display: grid;
   grid-template-areas:
     "issues model status"
-    "issues metadata metadata";
+    "issues metadata metadata"
+    "capabilities capabilities capabilities";
   grid-template-columns: 2fr 3fr 3fr;
   height: var(--height-agent);
   padding: 0 var(--spacing-base);
@@ -80,6 +81,10 @@
 
 .agentList__agent.agentList__agentHasIssues {
   border-color: crimson;
+}
+
+.agentList__agent__capabilities {
+  grid-area: capabilities;
 }
 
 .agentList__agent__download {

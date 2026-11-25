@@ -10,6 +10,7 @@ use paddler_agent_text_generation_tests::image_description_conversation::image_d
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -35,9 +36,10 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() {
     let multimodal_params = ContinueFromConversationHistoryParams {
         add_generation_prompt: true,
         conversation_history: multimodal_conversation,
-        enable_thinking: false,
+        enable_thinking: ModelDefaultOr::Explicit(false),
         grammar: Some(gbnf_literal(MULTIMODAL_ANSWER)),
         max_tokens: NonZeroU32::new(32).unwrap(),
+        parallel_tool_calls: ModelDefaultOr::ModelDefault,
         parse_tool_calls: false,
         tools: vec![],
     };

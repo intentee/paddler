@@ -7,12 +7,13 @@ use std::task::Waker;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent::inference_capabilities::InferenceCapabilities;
 use paddler_agent::model_serving_settings::ModelServingSettings;
+use paddler_agent_model_capabilities::model_capabilities_settings::ModelCapabilitiesSettings;
 use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
 use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 
@@ -26,39 +27,30 @@ fn retaining_a_served_model_restarts_its_changed_capabilities_at_once() {
                 .expect("the model must load")
                 .expect("text generation and embeddings must start");
             let embeddings_preparations = serving
-                .embeddings_preparation_tasks()
-                .expect("a model that makes no decisions must serve embeddings");
+                .embeddings_request_preparer()
+                .expect("a model that makes no decisions must serve embeddings")
+                .preparation_tasks
+                .clone();
+            let text_generation_preparations = serving
+                .text_generation_request_preparer()
+                .expect("the chat model must serve text generation")
+                .preparation_tasks
+                .clone();
             let ModelServingTextGenerationAndEmbeddings {
                 model_serving_settings,
                 served_model,
                 ..
             } = serving;
-            let text_generation_preparations = served_model
-                .capabilities
-                .text_generation
-                .request_preparer
-                .preparation_tasks
-                .clone();
             let desired_settings = ModelServingSettings {
-                capabilities: InferenceCapabilities {
-                    embeddings: PoolingType::Mean,
-                    text_generation: TextGenerationSettings {
-                        sampling_parameters: SamplingParameters {
-                            temperature: model_serving_settings
-                                .capabilities
-                                .text_generation
-                                .sampling_parameters
-                                .temperature
-                                / 2.0,
-                            ..model_serving_settings
-                                .capabilities
-                                .text_generation
-                                .sampling_parameters
-                                .clone()
-                        },
-                        ..model_serving_settings.capabilities.text_generation.clone()
-                    },
-                    ..model_serving_settings.capabilities.clone()
+                model_capabilities: ModelCapabilitiesSettings {
+                    embedding_pooling: PoolingType::Mean,
+                    ..model_serving_settings.model_capabilities.clone()
+                },
+                text_generation: TextGenerationSettings {
+                    sampling_parameters: DesiredSamplingParameters::from(
+                        SamplingParameters::deterministic(),
+                    ),
+                    ..model_serving_settings.text_generation.clone()
                 },
                 ..model_serving_settings
             };

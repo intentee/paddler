@@ -3,6 +3,7 @@ pub mod chat_template_does_not_compile_params;
 pub mod hugging_face_download_failed_params;
 pub mod hugging_face_download_failure;
 pub mod hugging_face_download_lock;
+pub mod model_capability_failure_params;
 pub mod model_path;
 pub mod slot_cannot_start_params;
 pub mod slots_insufficient_for_decisions_params;

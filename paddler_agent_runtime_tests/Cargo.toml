@@ -38,6 +38,7 @@ llama-cpp-backend = { workspace = true }
 llama-cpp-context = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
 llama-cpp-model = { workspace = true }
+llama-cpp-params = { workspace = true }
 log = { workspace = true }
 paddler_agent_decision = { workspace = true }
 paddler_balancer_desired_state_fixture = { workspace = true }

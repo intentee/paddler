@@ -1,6 +1,6 @@
 .dashboardPage {
   --color-arrow: var(--color-border);
-  --height-agent: 92px;
+  --height-agent: 128px;
   --thickness-arrow: 2px;
   --width-border-dashboard-box: 2px;
 

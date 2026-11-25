@@ -1,21 +1,26 @@
 use std::num::NonZeroU32;
+use std::sync::Arc;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use llama_cpp_bindings_types::chat_tool::ChatTool;
 use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_chat::chat_session::ChatSession;
 use llama_cpp_chat::chat_session_options::ChatSessionOptions;
 use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_model_capabilities::conversation_templates::ConversationTemplates;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use rand::RngExt as _;
 use rand::rng;
 use serde_json::Value;
 
+use paddler_agent_model_capabilities::established_model_capabilities::EstablishedModelCapabilities;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
 use paddler_image_decoder::decoded_image::DecodedImage;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::image_url::ImageUrl;
+use paddler_messaging::input_audio::InputAudio;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -24,16 +29,18 @@ use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
 use crate::chat_template_conversation::ChatTemplateConversation;
 use crate::chat_template_tool::ChatTemplateTool;
-use crate::conversation_prompt_support::ConversationPromptSupport;
-use crate::conversation_support::ConversationSupport;
+use crate::conversation_features::ConversationFeatures;
+use crate::conversation_media::ConversationMedia;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
 use crate::grammar_sampling::GrammarSampling;
+use crate::image_input::ImageInput;
 use crate::media_marker::MediaMarker;
 use crate::multimodal_prompt::MultimodalPrompt;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::prompt_modality::PromptModality;
 use crate::prompt_tokenizer::PromptTokenizer;
+use crate::requested_conversation_features::RequestedConversationFeatures;
 use crate::require_grammar_compatible_with_thinking::require_grammar_compatible_with_thinking;
 use crate::resolve_grammar::resolve_grammar;
 use crate::sampler_chain_factory::SamplerChainFactory;
@@ -61,9 +68,9 @@ const fn tool_choice_of(chat_tools: &[ChatTool]) -> ChatToolChoice {
 }
 
 pub struct GenerationRequestPreparer {
-    pub conversation_support: ConversationSupport,
     pub image_resize_to_fit: NonZeroU32,
     pub loaded_llama_model: LoadedLlamaModel,
+    pub model_capabilities: Arc<EstablishedModelCapabilities>,
     pub prompt_tokenizer: PromptTokenizer,
     pub sampler_chain_factory: SamplerChainFactory,
 }
@@ -71,7 +78,7 @@ pub struct GenerationRequestPreparer {
 impl GenerationRequestPreparer {
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::ConversationRequiresChatTemplate`] when the model serves no chat template, [`TextGenerationError::GrammarIncompatibleWithThinking`] when a grammar is requested with thinking, [`TextGenerationError::ToolSchemaInvalid`] when a tool schema cannot be compiled, [`TextGenerationError::MultimodalNotSupported`] when images are sent without a multimodal projection, [`TextGenerationError::ChatSessionCreationFailed`] when the chat session cannot be created, [`TextGenerationError::ImageDecodingFailed`] or [`TextGenerationError::ImageBitmapCreationFailed`] when an image cannot be decoded, [`TextGenerationError::ChatPromptUnreadable`], [`TextGenerationError::ChatPromptTokenizationFailed`], [`TextGenerationError::PromptTokenizedToNothing`] or [`TextGenerationError::PromptExceedsContextSize`] when the prompt cannot be served, [`TextGenerationError::GrammarInvalid`], [`TextGenerationError::GrammarConversionFailed`], [`TextGenerationError::GrammarSamplerInitializationFailed`] or [`TextGenerationError::ChatSessionGrammarUnavailable`] when the grammar cannot be resolved, and [`TextGenerationError::SamplerChainCreationFailed`] when the sampler chain cannot be created.
+    /// Returns [`TextGenerationError::ChatTemplateDoesNotCompile`] when the chat templates cannot be prepared, [`TextGenerationError::ConversationUnsupported`] when the model serves no chat template, [`TextGenerationError::ThinkingUnsupported`] or [`TextGenerationError::ToolCallingUnsupported`] when the request asks for a feature its chat template lacks, [`TextGenerationError::GrammarIncompatibleWithThinking`] when a grammar is requested with thinking, [`TextGenerationError::ToolSchemaInvalid`] when a tool schema cannot be compiled, [`TextGenerationError::MultimodalNotSupported`] when images are sent without a multimodal projection, [`TextGenerationError::ChatSessionCreationFailed`] when the chat session cannot be created, [`TextGenerationError::ImageDecodingFailed`] or [`TextGenerationError::ImageBitmapCreationFailed`] when an image cannot be decoded, [`TextGenerationError::ChatPromptUnreadable`], [`TextGenerationError::ChatPromptTokenizationFailed`], [`TextGenerationError::PromptTokenizedToNothing`] or [`TextGenerationError::PromptExceedsContextSize`] when the prompt cannot be served, [`TextGenerationError::GrammarInvalid`], [`TextGenerationError::GrammarConversionFailed`], [`TextGenerationError::GrammarSamplerInitializationFailed`] or [`TextGenerationError::ChatSessionGrammarUnavailable`] when the grammar cannot be resolved, and [`TextGenerationError::SamplerChainCreationFailed`] when the sampler chain cannot be created.
     pub fn prepare_conversation_history(
         &self,
         AgentRequest {
@@ -84,6 +91,7 @@ impl GenerationRequestPreparer {
                     enable_thinking,
                     grammar,
                     max_tokens,
+                    parallel_tool_calls,
                     parse_tool_calls,
                     tools,
                 },
@@ -93,14 +101,27 @@ impl GenerationRequestPreparer {
             GeneratedTokenResult,
         >,
     ) -> Result<PreparedGenerationRequest, TextGenerationError> {
-        let ConversationPromptSupport {
-            chat_templates,
-            image_input,
-        } = self.conversation_support.prompt_support()?;
+        let model = &self.loaded_llama_model.model;
+        let ConversationTemplates::Present(chat_templates) = self
+            .model_capabilities
+            .chat_templates
+            .of_model(model)
+            .map_err(TextGenerationError::ChatTemplateDoesNotCompile)?
+        else {
+            return Err(TextGenerationError::ConversationUnsupported);
+        };
+        let ConversationFeatures {
+            enable_thinking,
+            parallel_tool_calls,
+        } = RequestedConversationFeatures {
+            enable_thinking,
+            offers_tools: !tools.is_empty(),
+            parallel_tool_calls,
+        }
+        .resolve(self.model_capabilities.detected.conversation)?;
 
         require_grammar_compatible_with_thinking(grammar.as_ref(), enable_thinking)?;
 
-        let model = &self.loaded_llama_model.model;
         let tools_with_schema_documents: Vec<Tool<Value>> =
             tools.into_iter().map(Tool::from).collect();
         let tool_call_handling = if parse_tool_calls {
@@ -116,38 +137,32 @@ impl GenerationRequestPreparer {
             .map(|tool| ChatTemplateTool(tool).into_chat_tool())
             .collect();
         let media_marker = MediaMarker::unpredictable();
-        let ChatTemplateConversation {
-            image_urls,
-            messages,
-        } = ChatTemplateConversation::from_conversation_history(
-            conversation_history,
-            &media_marker,
-        );
-        let prompt_modality = image_input.prompt_modality_for(&image_urls)?;
-        let chat_session = chat_templates
-            .of_model(model)
-            .map_err(TextGenerationError::ChatTemplateDoesNotCompile)
-            .and_then(|prepared_chat_templates| {
-                ChatSession::new(
-                    model,
-                    prepared_chat_templates,
-                    &messages,
-                    &chat_tools,
-                    &ChatSessionOptions {
-                        assistant_turn: assistant_turn_of(add_generation_prompt),
-                        enable_thinking,
-                        parallel_tool_calls: true,
-                        tool_choice: tool_choice_of(&chat_tools),
-                    },
-                )
-                .map_err(TextGenerationError::ChatSessionCreationFailed)
-            })?;
+        let ChatTemplateConversation { media, messages } =
+            ChatTemplateConversation::from_conversation_history(
+                conversation_history,
+                &media_marker,
+            );
+        let prompt_modality = ImageInput::from(self.model_capabilities.detected.input_media)
+            .prompt_modality_for(&media)?;
+        let chat_session = ChatSession::new(
+            model,
+            chat_templates,
+            &messages,
+            &chat_tools,
+            &ChatSessionOptions {
+                assistant_turn: assistant_turn_of(add_generation_prompt),
+                enable_thinking,
+                parallel_tool_calls,
+                tool_choice: tool_choice_of(&chat_tools),
+            },
+        )
+        .map_err(TextGenerationError::ChatSessionCreationFailed)?;
 
         let prompt = match prompt_modality {
             PromptModality::Multimodal => PreparedPrompt::Multimodal(MultimodalPrompt {
-                bitmaps: image_urls
+                bitmaps: media
                     .iter()
-                    .map(|image_url| self.decode_image_bitmap(image_url))
+                    .map(|conversation_media| self.decode_media_bitmap(conversation_media))
                     .collect::<Result<Vec<MtmdBitmap>, TextGenerationError>>()?,
                 media_marker,
                 prompt_parts: chat_session
@@ -225,11 +240,35 @@ impl GenerationRequestPreparer {
         Ok(TokenSampling { chain, grammar })
     }
 
-    fn decode_image_bitmap(&self, image_url: &ImageUrl) -> Result<MtmdBitmap, TextGenerationError> {
-        DecodedImage::from_data_uri(image_url, self.image_resize_to_fit)
-            .map_err(TextGenerationError::ImageDecodingFailed)?
-            .to_mtmd_bitmap()
-            .map_err(TextGenerationError::ImageBitmapCreationFailed)
+    fn decode_media_bitmap(
+        &self,
+        conversation_media: &ConversationMedia,
+    ) -> Result<MtmdBitmap, TextGenerationError> {
+        match conversation_media {
+            ConversationMedia::Audio(InputAudio { data, .. }) => {
+                let audio = BASE64_STANDARD
+                    .decode(data)
+                    .map_err(TextGenerationError::AudioDataNotBase64)?;
+
+                self.model_capabilities
+                    .projector
+                    .with_multimodal_context(|multimodal_context| match multimodal_context {
+                        Some(multimodal_context)
+                            if self.model_capabilities.detected.input_media.audio =>
+                        {
+                            MtmdBitmap::from_buffer(multimodal_context, &audio)
+                                .map_err(TextGenerationError::AudioBitmapCreationFailed)
+                        }
+                        Some(_) | None => Err(TextGenerationError::AudioInputUnsupported),
+                    })
+            }
+            ConversationMedia::Image(image_url) => {
+                DecodedImage::from_data_uri(image_url, self.image_resize_to_fit)
+                    .map_err(TextGenerationError::ImageDecodingFailed)?
+                    .to_mtmd_bitmap()
+                    .map_err(TextGenerationError::ImageBitmapCreationFailed)
+            }
+        }
     }
 
     fn generation_command<TParams>(

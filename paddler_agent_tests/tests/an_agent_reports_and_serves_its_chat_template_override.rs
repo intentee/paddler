@@ -11,7 +11,8 @@ use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -36,9 +37,9 @@ async fn an_agent_reports_and_serves_its_chat_template_override() {
         desired_state: ClusterDesiredState::Apply(Box::new(
             desired_state_with_chat_template_override(
                 BalancerDesiredState {
-                    model_runtime_parameters: ModelRuntimeParameters {
-                        n_gpu_layers: ALL_GPU_LAYERS,
-                        ..ModelRuntimeParameters::default()
+                    model_runtime_parameters: DesiredModelRuntimeParameters {
+                        n_gpu_layers: ModelDefaultOr::Explicit(ALL_GPU_LAYERS),
+                        ..DesiredModelRuntimeParameters::default()
                     },
                     model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
                     ..BalancerDesiredState::default()
@@ -78,9 +79,10 @@ async fn an_agent_reports_and_serves_its_chat_template_override() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(10).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

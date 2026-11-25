@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -32,9 +33,10 @@ async fn qwen3_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens() 
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: true,
+                enable_thinking: ModelDefaultOr::Explicit(true),
                 grammar: None,
                 max_tokens: NonZeroU32::new(600).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

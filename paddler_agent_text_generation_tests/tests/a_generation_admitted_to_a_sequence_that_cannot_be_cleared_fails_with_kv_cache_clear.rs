@@ -14,7 +14,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u32 = 1;
 const SEQUENCES_THE_SCHEDULER_HANDS_OUT: u16 = 2;
@@ -22,12 +22,12 @@ const SEQUENCES_THE_SCHEDULER_HANDS_OUT: u16 = 2;
 #[test]
 fn a_generation_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_clear() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b()
+        &qwen3_5_0_8b()
             .cached_path()
-            .expect("the kev model must be in the Hugging Face cache"),
+            .expect("the Qwen3.5 model must be in the Hugging Face cache"),
         agent_inference_runtime_context(SEQUENCES_THE_SCHEDULER_HANDS_OUT),
     )
-    .expect("the kev model must load");
+    .expect("the Qwen3.5 model must load");
     let llama_context = runtime
         .create_text_generation_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the context must be created");
@@ -38,6 +38,10 @@ fn a_generation_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cach
     }
     .into_generation_request_preparer()
     .expect("the first message content chat template must be prepared");
+    let multimodal_ingestion = MultimodalIngestion::for_context(
+        &llama_context,
+        request_preparer.model_capabilities.clone(),
+    );
     let raw_prompt_generation = || {
         RawPromptGeneration::new(
             "Paddler",
@@ -83,7 +87,7 @@ fn a_generation_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cach
             agent_name: None,
             desired_slots_total: SEQUENCES_THE_SCHEDULER_HANDS_OUT,
             model: &runtime.loaded_llama_model.model,
-            multimodal_ingestion: MultimodalIngestion::Unsupported,
+            multimodal_ingestion,
             sequence_context_size,
         },
         scheduler_message_rx,

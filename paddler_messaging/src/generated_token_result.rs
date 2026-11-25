@@ -10,6 +10,8 @@ use crate::oversized_prompt_details::OversizedPromptDetails;
 use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::result_step::ResultStep;
 use crate::streamable_result::StreamableResult;
+use crate::undecodable_media::UndecodableMedia;
+use crate::unsupported_conversation_feature::UnsupportedConversationFeature;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -18,6 +20,7 @@ pub enum GeneratedTokenResult {
     BatchAssemblyFailed(String),
     ChatTemplateError(String),
     ContentToken(String),
+    ConversationFeatureNotSupported(UnsupportedConversationFeature),
     DecodeFailed(String),
     DetokenizationFailed(String),
     Done(GenerationSummary),
@@ -25,8 +28,8 @@ pub enum GeneratedTokenResult {
     GrammarInitializationFailed(String),
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
-    ImageDecodingFailed(String),
     KvCacheClearFailed(String),
+    MediaDecodingFailed(UndecodableMedia),
     MediaExceedsMicroBatch(OversizedMediaDetails),
     ModelNotLoaded(String),
     MultimodalIngestionFailed(String),
@@ -41,6 +44,7 @@ pub enum GeneratedTokenResult {
     SamplerError(String),
     SamplingCandidatesExhausted(String),
     SchedulerUnavailable(String),
+    TextGenerationNotServed(String),
     ToolCallParseFailed(String),
     ToolCallParsed(Vec<GeneratedToolCall>),
     ToolCallToken(String),
@@ -97,6 +101,9 @@ impl From<GeneratedTokenFinalResult> for GeneratedTokenResult {
                 Self::AnswerClassificationFailed(detail)
             }
             GeneratedTokenFinalResult::ChatTemplateError(detail) => Self::ChatTemplateError(detail),
+            GeneratedTokenFinalResult::ConversationFeatureNotSupported(unsupported_feature) => {
+                Self::ConversationFeatureNotSupported(unsupported_feature)
+            }
             GeneratedTokenFinalResult::DecodeFailed(detail) => Self::DecodeFailed(detail),
             GeneratedTokenFinalResult::DetokenizationFailed(detail) => {
                 Self::DetokenizationFailed(detail)
@@ -114,11 +121,11 @@ impl From<GeneratedTokenFinalResult> for GeneratedTokenResult {
             GeneratedTokenFinalResult::GrammarSyntaxError(detail) => {
                 Self::GrammarSyntaxError(detail)
             }
-            GeneratedTokenFinalResult::ImageDecodingFailed(detail) => {
-                Self::ImageDecodingFailed(detail)
-            }
             GeneratedTokenFinalResult::KvCacheClearFailed(detail) => {
                 Self::KvCacheClearFailed(detail)
+            }
+            GeneratedTokenFinalResult::MediaDecodingFailed(undecodable_media) => {
+                Self::MediaDecodingFailed(undecodable_media)
             }
             GeneratedTokenFinalResult::MediaExceedsMicroBatch(details) => {
                 Self::MediaExceedsMicroBatch(details)
@@ -154,6 +161,9 @@ impl From<GeneratedTokenFinalResult> for GeneratedTokenResult {
             }
             GeneratedTokenFinalResult::SchedulerUnavailable(detail) => {
                 Self::SchedulerUnavailable(detail)
+            }
+            GeneratedTokenFinalResult::TextGenerationNotServed(detail) => {
+                Self::TextGenerationNotServed(detail)
             }
             GeneratedTokenFinalResult::ToolSchemaInvalid(detail) => Self::ToolSchemaInvalid(detail),
         }
@@ -201,6 +211,10 @@ impl StreamableResult for GeneratedTokenResult {
                 GeneratedTokenFinalResult::ChatTemplateError(detail).into()
             }
             Self::ContentToken(text) => GeneratedTokenPartialResult::ContentToken(text).into(),
+            Self::ConversationFeatureNotSupported(unsupported_feature) => {
+                GeneratedTokenFinalResult::ConversationFeatureNotSupported(unsupported_feature)
+                    .into()
+            }
             Self::DecodeFailed(detail) => GeneratedTokenFinalResult::DecodeFailed(detail).into(),
             Self::DetokenizationFailed(detail) => {
                 GeneratedTokenFinalResult::DetokenizationFailed(detail).into()
@@ -218,11 +232,11 @@ impl StreamableResult for GeneratedTokenResult {
             Self::GrammarSyntaxError(detail) => {
                 GeneratedTokenFinalResult::GrammarSyntaxError(detail).into()
             }
-            Self::ImageDecodingFailed(detail) => {
-                GeneratedTokenFinalResult::ImageDecodingFailed(detail).into()
-            }
             Self::KvCacheClearFailed(detail) => {
                 GeneratedTokenFinalResult::KvCacheClearFailed(detail).into()
+            }
+            Self::MediaDecodingFailed(undecodable_media) => {
+                GeneratedTokenFinalResult::MediaDecodingFailed(undecodable_media).into()
             }
             Self::MediaExceedsMicroBatch(details) => {
                 GeneratedTokenFinalResult::MediaExceedsMicroBatch(details).into()
@@ -262,6 +276,9 @@ impl StreamableResult for GeneratedTokenResult {
             Self::SchedulerUnavailable(detail) => {
                 GeneratedTokenFinalResult::SchedulerUnavailable(detail).into()
             }
+            Self::TextGenerationNotServed(detail) => {
+                GeneratedTokenFinalResult::TextGenerationNotServed(detail).into()
+            }
             Self::ToolCallParseFailed(detail) => {
                 GeneratedTokenPartialResult::ToolCallParseFailed(detail).into()
             }
@@ -290,14 +307,18 @@ mod tests {
     use std::mem::discriminant;
 
     use super::GeneratedTokenResult;
+    use crate::conversation_feature::ConversationFeature;
     use crate::generation_finish::GenerationFinish;
     use crate::generation_summary::GenerationSummary;
+    use crate::media_kind::MediaKind;
     use crate::oversized_media_details::OversizedMediaDetails;
     use crate::oversized_prompt_details::OversizedPromptDetails;
     use crate::raw_tool_call_tokens::RawToolCallTokens;
     use crate::result_step::ResultStep;
     use crate::streamable_result::StreamableResult as _;
     use crate::token_usage::TokenUsage;
+    use crate::undecodable_media::UndecodableMedia;
+    use crate::unsupported_conversation_feature::UnsupportedConversationFeature;
 
     fn keeps_the_stream_open(token_result: &GeneratedTokenResult) -> bool {
         matches!(token_result.clone().into_step(), ResultStep::Partial(_))
@@ -310,8 +331,16 @@ mod tests {
         }
     }
 
-    fn detailed_terminal_results() -> [GeneratedTokenResult; 3] {
+    fn detailed_terminal_results() -> [GeneratedTokenResult; 5] {
         [
+            GeneratedTokenResult::MediaDecodingFailed(UndecodableMedia {
+                description: "the audio data is not valid base64".to_owned(),
+                media: MediaKind::Audio,
+            }),
+            GeneratedTokenResult::ConversationFeatureNotSupported(UnsupportedConversationFeature {
+                description: "the chat template of the model does not support thinking".to_owned(),
+                feature: ConversationFeature::Thinking,
+            }),
             GeneratedTokenResult::Done(GenerationSummary {
                 finish: GenerationFinish::EndOfGeneration,
                 usage: TokenUsage::default(),
@@ -339,11 +368,11 @@ mod tests {
             GeneratedTokenResult::GrammarInitializationFailed(String::new()),
             GeneratedTokenResult::GrammarRejectedModelOutput(String::new()),
             GeneratedTokenResult::GrammarSyntaxError(String::new()),
-            GeneratedTokenResult::ImageDecodingFailed(String::new()),
             GeneratedTokenResult::KvCacheClearFailed(String::new()),
             GeneratedTokenResult::ModelNotLoaded(String::new()),
             GeneratedTokenResult::MultimodalIngestionFailed(String::new()),
             GeneratedTokenResult::MultimodalNotSupported(String::new()),
+            GeneratedTokenResult::TextGenerationNotServed(String::new()),
             GeneratedTokenResult::MultimodalTokenizationFailed(String::new()),
             GeneratedTokenResult::NoSequenceSlotAvailable(String::new()),
             GeneratedTokenResult::PromptTokenizationFailed(String::new()),

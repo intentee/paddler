@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -27,11 +28,12 @@ async fn agent_conversation_with_json_schema_grammar_returns_valid_json() {
                 content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
                 role: "user".to_owned(),
             }]),
-            enable_thinking: false,
+            enable_thinking: ModelDefaultOr::Explicit(false),
             grammar: Some(GrammarConstraint::JsonSchema {
                 schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
             }),
             max_tokens: NonZeroU32::new(50).unwrap(),
+            parallel_tool_calls: ModelDefaultOr::ModelDefault,
             parse_tool_calls: false,
             tools: vec![],
         })

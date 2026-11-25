@@ -9,31 +9,31 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::atomic_value::AtomicValue;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::model_metadata::ModelMetadata;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
+use paddler_messaging::requested_capability::RequestedCapability;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_outbox::outbox::Outbox;
 
 use crate::accept_newer_status_report::accept_newer_status_report;
 use crate::agent_controller_params::AgentControllerParams;
 use crate::agent_controller_update_result::AgentControllerUpdateResult;
-use crate::agent_desired_state_notification::agent_desired_state_notification;
 use crate::agent_response_receiver::AgentResponseReceiver;
 use crate::agent_response_senders::AgentResponseSenders;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::balancer_applicable_state::BalancerApplicableState;
-use crate::delivered_desired_state_version::DeliveredDesiredStateVersion;
 use crate::response_senders::ResponseSenders;
 
 pub struct AgentController {
     pub agent_outbox: Outbox<AgentJsonRpcMessage>,
     pub agent_response_senders: AgentResponseSenders,
     pub connection_close: CancellationToken,
-    pub delivered_desired_state_version: Mutex<DeliveredDesiredStateVersion>,
+    pub delivered_desired_state_version: Mutex<DesiredStateVersion>,
     pub id: String,
     pub name: Option<String>,
     pub reported_status: RwLock<SlotAggregatedStatusSnapshot>,
@@ -54,7 +54,7 @@ impl AgentController {
             agent_outbox: Outbox::default(),
             agent_response_senders: AgentResponseSenders::default(),
             connection_close,
-            delivered_desired_state_version: Mutex::new(DeliveredDesiredStateVersion::Nothing),
+            delivered_desired_state_version: Mutex::new(DesiredStateVersion::Nothing),
             id,
             name,
             reported_status: RwLock::new(reported_status),
@@ -78,24 +78,26 @@ impl AgentController {
         )
     }
 
-    pub fn set_desired_state(
-        &self,
-        BalancerApplicableState {
-            agent_desired_state,
-            version,
-            ..
-        }: &BalancerApplicableState,
-    ) {
+    #[must_use]
+    pub fn may_serve(&self, requested_capability: RequestedCapability) -> bool {
+        let delivered_desired_state_version = *self.delivered_desired_state_version.lock();
+        let reported_status = &self.reported_status.read().status;
+
+        reported_status.desired_state_version != delivered_desired_state_version
+            || reported_status.may_serve(requested_capability)
+    }
+
+    pub fn set_desired_state(&self, balancer_applicable_state: &BalancerApplicableState) {
         let mut delivered_desired_state_version = self.delivered_desired_state_version.lock();
 
-        if !delivered_desired_state_version.precedes(*version) {
+        if !delivered_desired_state_version.precedes(balancer_applicable_state.version) {
             return;
         }
 
-        *delivered_desired_state_version = DeliveredDesiredStateVersion::Version(*version);
-        self.agent_outbox.push(agent_desired_state_notification(
-            agent_desired_state.clone(),
-        ));
+        *delivered_desired_state_version =
+            DesiredStateVersion::Version(balancer_applicable_state.version);
+        self.agent_outbox
+            .push(balancer_applicable_state.agent_notification());
         drop(delivered_desired_state_version);
     }
 
@@ -169,7 +171,6 @@ mod tests {
 
     use super::AgentController;
     use crate::agent_controller_params::AgentControllerParams;
-    use crate::agent_desired_state_notification::agent_desired_state_notification;
     use crate::balancer_applicable_state::BalancerApplicableState;
 
     #[test]
@@ -197,12 +198,7 @@ mod tests {
 
         assert_eq!(
             sent_messages,
-            vec![
-                to_value(agent_desired_state_notification(
-                    newest_state.agent_desired_state
-                ))
-                .unwrap()
-            ]
+            vec![to_value(newest_state.agent_notification()).unwrap()]
         );
     }
 }

@@ -12,11 +12,16 @@ version.workspace = true
 doctest = false
 
 [dependencies]
+llama-cpp-bindings-types = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+indexmap = { workspace = true }
+paddler_model_capabilities_fixture = { workspace = true }
 
 [lints]
 workspace = true

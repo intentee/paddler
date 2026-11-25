@@ -1,6 +1,8 @@
 use serde::Serialize;
 use serde::Serializer;
 
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
+
 use crate::responses_output_item::ResponsesOutputItem;
 use crate::responses_response_progress::ResponsesResponseProgress;
 use crate::responses_response_status::ResponsesResponseStatus;
@@ -90,8 +92,8 @@ struct SerializedResponse<'response> {
     parallel_tool_calls: bool,
     metadata: EmptyMetadata,
     tool_choice: &'static str,
-    temperature: f32,
-    top_p: f32,
+    temperature: ModelDefaultOr<f32>,
+    top_p: ModelDefaultOr<f32>,
     text: TextConfiguration,
     #[serde(flatten)]
     progress: SerializedProgress<'response>,
@@ -104,8 +106,8 @@ pub struct ResponsesResponse {
     pub instructions: Option<String>,
     pub model: String,
     pub progress: ResponsesResponseProgress,
-    pub temperature: f32,
-    pub top_p: f32,
+    pub temperature: ModelDefaultOr<f32>,
+    pub top_p: ModelDefaultOr<f32>,
 }
 
 impl Serialize for ResponsesResponse {

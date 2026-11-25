@@ -4,9 +4,11 @@ use std::num::NonZeroU32;
 
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_tests::swappable_model_file::SwappableModelFile;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_card_fixture::constants::SERVED_CONTEXT_SIZE;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -37,15 +39,11 @@ async fn changing_the_context_size_restarts_serving_on_the_loaded_model() {
 
     serving_pipeline_arbiter
         .serve(BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                context_size: NonZeroU32::new(
-                    initial_desired_state
-                        .model_runtime_parameters
-                        .context_size
-                        .get()
-                        / 2,
-                )
-                .expect("half of the initial context must hold tokens"),
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                context_size: ModelDefaultOr::Explicit(
+                    NonZeroU32::new(SERVED_CONTEXT_SIZE.get() / 2)
+                        .expect("half of the served context must hold tokens"),
+                ),
                 ..initial_desired_state.model_runtime_parameters.clone()
             },
             ..initial_desired_state

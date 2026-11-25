@@ -13,6 +13,7 @@ use paddler_cluster_harness::is_unending_generation_text::is_unending_generation
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -59,9 +60,10 @@ async fn generating_request_keeps_every_token_when_multimodal_request_is_admitte
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(4).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

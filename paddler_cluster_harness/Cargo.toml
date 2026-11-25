@@ -33,6 +33,7 @@ async-openai = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
 futures-util = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_balancer_desired_state_fixture = { workspace = true }
@@ -60,6 +61,7 @@ trzcina = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
+indexmap = { workspace = true }
 paddler_file_fixture = { workspace = true }
 
 [lints]

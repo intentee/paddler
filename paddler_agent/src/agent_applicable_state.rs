@@ -1,8 +1,7 @@
-use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
+use paddler_agent_model_capabilities::model_capabilities_settings::ModelCapabilitiesSettings;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
 
-use crate::inference_capabilities::InferenceCapabilities;
 use crate::model_serving_settings::ModelServingSettings;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -20,13 +19,9 @@ impl AgentApplicableState {
     pub fn chat_template_override(&self) -> Option<ChatTemplate> {
         match self {
             Self::WithModel(ModelServingSettings {
-                capabilities:
-                    InferenceCapabilities {
-                        text_generation:
-                            TextGenerationSettings {
-                                chat_template_source: ChatTemplateSource::Override(chat_template),
-                                ..
-                            },
+                model_capabilities:
+                    ModelCapabilitiesSettings {
+                        chat_template_source: ChatTemplateSource::Override(chat_template),
                         ..
                     },
                 ..

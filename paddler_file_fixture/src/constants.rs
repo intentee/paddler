@@ -1,3 +1,6 @@
+use paddler_messaging::audio_format::AudioFormat;
+
+use crate::audio_fixture::AudioFixture;
 use crate::image_fixture::ImageFixture;
 
 pub const CA_BUNDLE_WITHOUT_CERTIFICATES: &str = "ca_bundle_without_certificates.pem";
@@ -8,6 +11,10 @@ pub const LLAMAS_JPEG: ImageFixture = ImageFixture {
 pub const LLAMAS_WEBP: ImageFixture = ImageFixture {
     fixture_name: "llamas.webp",
     mime_type: "image/webp",
+};
+pub const QUICK_BROWN_FOX_WAV: AudioFixture = AudioFixture {
+    fixture_name: "quick_brown_fox.wav",
+    format: AudioFormat::Wav,
 };
 pub const SARNOW_JPEG: ImageFixture = ImageFixture {
     fixture_name: "sarnow.jpeg",

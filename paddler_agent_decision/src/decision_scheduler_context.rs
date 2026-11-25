@@ -1,6 +1,8 @@
-use crate::kev_option_scorer::KevOptionScorer;
+use std::sync::Arc;
+
+use paddler_agent_model_capabilities::established_model_capabilities::EstablishedModelCapabilities;
 
 pub struct DecisionSchedulerContext {
     pub agent_name: Option<String>,
-    pub option_scorer: KevOptionScorer,
+    pub model_capabilities: Arc<EstablishedModelCapabilities>,
 }

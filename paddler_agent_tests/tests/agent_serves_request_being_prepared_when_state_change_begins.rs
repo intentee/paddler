@@ -12,6 +12,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_cluster_harness::unending_generation::unending_generation;
 use paddler_file_fixture::constants::SOLID_COLOR_4000X4000_PNG;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
@@ -52,9 +53,10 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() {
                     ]),
                 role: "user".to_owned(),
             }]),
-            enable_thinking: false,
+            enable_thinking: ModelDefaultOr::Explicit(false),
             grammar: None,
             max_tokens: NonZeroU32::new(4).unwrap(),
+            parallel_tool_calls: ModelDefaultOr::ModelDefault,
             parse_tool_calls: false,
             tools: vec![],
         },

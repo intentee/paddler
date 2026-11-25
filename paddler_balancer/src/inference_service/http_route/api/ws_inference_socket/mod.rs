@@ -28,13 +28,14 @@ use paddler_messaging::inference_server::request::Request as InferenceServerRequ
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use paddler_messaging::validates::Validates as _;
+use paddler_messaging::request_params::validates::Validates as _;
 use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
 use crate::agent_relay::AgentRelay;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::awaiting_agent_relay::AwaitingAgentRelay;
+use crate::capability_availability::CapabilityAvailability;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::dispatchable_request::DispatchableRequest;
@@ -54,6 +55,20 @@ async fn handle_inference_request<TParams>(
 ) where
     TParams: AgentStreamingRequest + Send + 'static,
 {
+    if let CapabilityAvailability::Lacking(cluster_lacks_capability) = context
+        .agent_controller_pool
+        .capability_availability(TParams::REQUESTED_CAPABILITY)
+    {
+        respond_with_error(
+            cluster_lacks_capability.into_jsonrpc_error(),
+            request_id,
+            &mut websocket_session_controller,
+        )
+        .await;
+
+        return;
+    }
+
     let request_close = connection_close.child_token();
 
     let Some(request_registration) = RequestRegistryGuard::register(
@@ -125,6 +140,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 
     fn create_context(&self) -> Self::Context {
         InferenceSocketControllerContext {
+            agent_controller_pool: self.app_data.agent_controller_pool.clone(),
             buffered_request_manager: self.app_data.buffered_request_manager.clone(),
             inference_service_configuration: self.app_data.inference_service_configuration.clone(),
             request_cancellation_tokens: Arc::default(),

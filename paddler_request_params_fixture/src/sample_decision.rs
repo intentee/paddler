@@ -1,32 +1,52 @@
-use paddler_messaging::decision_question::DecisionQuestion;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
+use indexmap::IndexMap;
+use llama_cpp_bindings_types::decision_question::DecisionQuestion;
+use llama_cpp_bindings_types::decision_request::DecisionRequest;
+use serde_json::Value;
+use serde_json::json;
 
-fn question(id: &str, instructions: &str, options: &[&str]) -> DecisionQuestion {
-    DecisionQuestion {
-        id: id.to_owned(),
-        instructions: instructions.to_owned(),
-        options: options.iter().map(|option| (*option).to_owned()).collect(),
+fn choice(instructions: &str, options: &[&str]) -> DecisionQuestion {
+    DecisionQuestion::Choice {
+        criteria: options
+            .iter()
+            .map(|option| ((*option).to_owned(), Value::Null))
+            .collect(),
+        instructions: json!(instructions),
     }
 }
 
+pub const SAMPLE_DECISION_STATE: &str = "Ada paid the invoice for order 1042 two days late and wrote that the delivery was slow, but the support team was friendly.";
+
 #[must_use]
-pub fn sample_decision() -> RawDecideParams {
-    RawDecideParams {
-        questions: vec![
-            question("paid", "Was the invoice paid?", &["no", "yes"]),
-            question(
-                "sentiment",
-                "How does the customer feel?",
-                &["positive", "neutral", "negative: the customer complains"],
+pub fn sample_decision() -> DecisionRequest {
+    DecisionRequest {
+        images: Vec::new(),
+        questions: IndexMap::from([
+            (
+                "paid".to_owned(),
+                DecisionQuestion::Noul {
+                    criteria: IndexMap::new(),
+                    instructions: json!("Was the invoice paid?"),
+                },
             ),
-            question(
-                "urgency",
-                "How urgent is the follow-up?",
-                &["none", "low", "medium", "high"],
+            (
+                "sentiment".to_owned(),
+                DecisionQuestion::Choice {
+                    criteria: IndexMap::from([
+                        ("positive".to_owned(), Value::Null),
+                        ("neutral".to_owned(), Value::Null),
+                        ("negative".to_owned(), json!("the customer complains")),
+                    ]),
+                    instructions: json!("How does the customer feel?"),
+                },
             ),
-        ],
-        state: "Ada paid the invoice for order 1042 two days late and wrote that the delivery was \
-                slow, but the support team was friendly."
-            .to_owned(),
+            (
+                "urgency".to_owned(),
+                choice(
+                    "How urgent is the follow-up?",
+                    &["none", "low", "medium", "high"],
+                ),
+            ),
+        ]),
+        state: json!(SAMPLE_DECISION_STATE),
     }
 }

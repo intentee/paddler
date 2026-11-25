@@ -1,107 +1,71 @@
-use std::num::NonZeroU8;
-
 use indexmap::IndexMap;
+use llama_cpp_bindings_types::decision_question::DecisionQuestion;
+use llama_cpp_bindings_types::decision_request::DecisionRequest;
 use serde::Deserialize;
+use serde_json::Map;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::value::RawValue;
 
-use paddler_messaging::decision_question::DecisionQuestion;
-use paddler_messaging::request_params::decide_params::DecideParams;
+use paddler_messaging::request_params::validates::Validates as _;
 
-use crate::render_json_content::render_json_content;
-use crate::system_one_answer_layout::SystemOneAnswerLayout;
 use crate::system_one_question::SystemOneQuestion;
 use crate::system_one_response_layout::SystemOneResponseLayout;
-use crate::translated_system_one_question::TranslatedSystemOneQuestion;
 use crate::translated_system_one_request::TranslatedSystemOneRequest;
 use crate::typesafe_translation_error::TypeSafeTranslationError;
 
-fn option_text(name: &str, description: Option<&Value>) -> String {
-    match description {
-        None | Some(Value::Null) => name.to_owned(),
-        Some(Value::String(text)) if text.is_empty() => name.to_owned(),
-        Some(description) => format!("{name}: {}", render_json_content(description, 0)),
-    }
+const CRITERIA_MAXIMUM: usize = u8::MAX as usize;
+
+fn criteria_in_range(criteria_count: usize) -> bool {
+    (1..=CRITERIA_MAXIMUM).contains(&criteria_count)
 }
 
-fn criteria_count(criteria_len: usize) -> Option<NonZeroU8> {
-    NonZeroU8::new(u8::try_from(criteria_len).ok()?)
+fn criteria_map(criteria: Map<String, Value>) -> IndexMap<String, Value> {
+    criteria.into_iter().collect()
 }
 
 fn translate_question(
-    question_id: String,
+    question_id: &str,
     question: SystemOneQuestion,
-) -> Result<TranslatedSystemOneQuestion, TypeSafeTranslationError> {
+) -> Result<DecisionQuestion, TypeSafeTranslationError> {
     match question {
         SystemOneQuestion::Choice {
             criteria,
             instructions,
         } => {
-            let Some(option_count) = criteria_count(criteria.len()) else {
+            if !criteria_in_range(criteria.len()) {
                 return Err(TypeSafeTranslationError::ChoiceCriteriaOutOfRange {
                     criteria_count: criteria.len(),
-                    question_id,
+                    question_id: question_id.to_owned(),
                 });
-            };
+            }
 
-            Ok(TranslatedSystemOneQuestion {
-                decision_question: DecisionQuestion {
-                    id: question_id.clone(),
-                    instructions: render_json_content(&instructions, 0),
-                    options: criteria
-                        .iter()
-                        .map(|(name, description)| option_text(name, Some(description)))
-                        .collect(),
-                },
-                answer_layout: SystemOneAnswerLayout::Choice {
-                    id: question_id,
-                    keys: criteria.keys().cloned().collect(),
-                    option_count,
-                },
+            Ok(DecisionQuestion::Choice {
+                criteria: criteria_map(criteria),
+                instructions,
             })
         }
         SystemOneQuestion::Noul {
             criteria,
             instructions,
-        } => Ok(TranslatedSystemOneQuestion {
-            decision_question: DecisionQuestion {
-                id: question_id.clone(),
-                instructions: render_json_content(&instructions, 0),
-                options: vec![
-                    option_text("no", criteria.get("false")),
-                    option_text("yes", criteria.get("true")),
-                ],
-            },
-            answer_layout: SystemOneAnswerLayout::Noul { id: question_id },
+        } => Ok(DecisionQuestion::Noul {
+            criteria: criteria_map(criteria),
+            instructions,
         }),
         SystemOneQuestion::Score {
             criteria,
             instructions,
         } => {
-            let Some(level_count) = criteria_count(criteria.len()) else {
+            if !criteria_in_range(criteria.len()) {
                 return Err(TypeSafeTranslationError::ScoreCriteriaOutOfRange {
                     criteria_count: criteria.len(),
-                    question_id,
+                    question_id: question_id.to_owned(),
                 });
-            };
+            }
 
-            let legend: Vec<String> = criteria
-                .iter()
-                .map(|level| render_json_content(level, 0))
-                .collect();
-
-            Ok(TranslatedSystemOneQuestion {
-                decision_question: DecisionQuestion {
-                    id: question_id.clone(),
-                    instructions: render_json_content(&instructions, 0),
-                    options: legend.clone(),
-                },
-                answer_layout: SystemOneAnswerLayout::Score {
-                    id: question_id,
-                    legend,
-                    level_count,
-                },
+            Ok(DecisionQuestion::Score {
+                criteria,
+                instructions,
             })
         }
     }
@@ -118,10 +82,9 @@ pub struct SystemOneRequest {
 impl SystemOneRequest {
     /// # Errors
     ///
-    /// Returns [`TypeSafeTranslationError::QuestionMalformed`] when a question is not a valid choice, noul or score question, [`TypeSafeTranslationError::ChoiceCriteriaOutOfRange`] or [`TypeSafeTranslationError::ScoreCriteriaOutOfRange`] when a choice or score question has no criteria or more than 255 of them, and [`TypeSafeTranslationError::DecisionWithoutQuestions`] when the request has no questions.
+    /// Returns [`TypeSafeTranslationError::QuestionMalformed`] when a question is not a valid choice, noul or score question, [`TypeSafeTranslationError::ChoiceCriteriaOutOfRange`] or [`TypeSafeTranslationError::ScoreCriteriaOutOfRange`] when a choice or score question has no criteria or more than 255 of them, and [`TypeSafeTranslationError::DecisionInvalid`] when the request has no questions.
     pub fn translate(self) -> Result<TranslatedSystemOneRequest, TypeSafeTranslationError> {
-        let mut answer_layouts = Vec::with_capacity(self.questions.len());
-        let mut questions = Vec::with_capacity(self.questions.len());
+        let mut questions = IndexMap::with_capacity(self.questions.len());
 
         for (question_id, question) in self.questions {
             let question = from_str::<SystemOneQuestion>(question.get()).map_err(|source| {
@@ -130,31 +93,24 @@ impl SystemOneRequest {
                     source,
                 }
             })?;
-            let TranslatedSystemOneQuestion {
-                answer_layout,
-                decision_question,
-            } = translate_question(question_id, question)?;
+            let decision_question = translate_question(&question_id, question)?;
 
-            questions.push(decision_question);
-            answer_layouts.push(answer_layout);
+            questions.insert(question_id, decision_question);
         }
 
-        let mut leading_questions = questions;
-        let last_question = leading_questions
-            .pop()
-            .ok_or(TypeSafeTranslationError::DecisionWithoutQuestions)?;
-        let decide_params = DecideParams {
-            last_question,
-            leading_questions,
-            state: render_json_content(&self.state, 0),
+        let response_layout = SystemOneResponseLayout {
+            model: self.model,
+            question_ids: questions.keys().cloned().collect(),
         };
 
         Ok(TranslatedSystemOneRequest {
-            decide_params,
-            response_layout: SystemOneResponseLayout {
-                answer_layouts,
-                model: self.model,
-            },
+            decide_params: DecisionRequest {
+                images: Vec::new(),
+                questions,
+                state: self.state,
+            }
+            .validate()?,
+            response_layout,
         })
     }
 }

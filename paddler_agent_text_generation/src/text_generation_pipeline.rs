@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
-use log::info;
-use log::warn;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
+use paddler_agent_model_capabilities::established_model_capabilities::EstablishedModelCapabilities;
 use paddler_agent_runtime::continue_startup_unless_shutting_down::continue_startup_unless_shutting_down;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
@@ -17,29 +15,16 @@ use paddler_agent_runtime::scheduler_ready::SchedulerReady;
 use paddler_agent_runtime::scheduler_request_preparer::SchedulerRequestPreparer;
 use paddler_agent_runtime::start_scheduler_thread::start_scheduler_thread;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
-use paddler_agent_status::agent_issue_fix::AgentIssueFix;
-use paddler_error_chain::error_chain::ErrorChain;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
-use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
-use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_messaging::chat_template::ChatTemplate;
-use paddler_messaging::chat_template_source::ChatTemplateSource;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_messaging::inference_capability::InferenceCapability;
 
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
-use crate::conversation_capabilities::ConversationCapabilities;
-use crate::conversation_chat_templates::ConversationChatTemplates;
-use crate::conversation_prompt_support::ConversationPromptSupport;
-use crate::conversation_support::ConversationSupport;
 use crate::generation_request_preparer::GenerationRequestPreparer;
 use crate::model_bos_token::ModelBosToken;
 use crate::multimodal_ingestion::MultimodalIngestion;
-use crate::multimodal_projection::MultimodalProjection;
 use crate::prompt_tokenizer::PromptTokenizer;
-use crate::resident_multimodal_context::ResidentMultimodalContext;
 use crate::sampler_chain_factory::SamplerChainFactory;
 use crate::text_generation_error::TextGenerationError;
 use crate::text_generation_settings::TextGenerationSettings;
@@ -47,14 +32,15 @@ use crate::text_generation_settings::TextGenerationSettings;
 pub struct TextGenerationPipeline {
     pub inference_runtime_context: InferenceRuntimeContext,
     pub loaded_llama_model: LoadedLlamaModel,
-    pub model_runtime_parameters: ModelRuntimeParameters,
+    pub model_capabilities: Arc<EstablishedModelCapabilities>,
+    pub model_runtime_parameters: DesiredModelRuntimeParameters,
     pub text_generation_settings: TextGenerationSettings,
 }
 
 impl TextGenerationPipeline {
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::AgentRuntime`] when the text generation context or the multimodal projection cannot claim the VRAM, or the context cannot be created or warmed up, [`TextGenerationError::SamplingParametersUnfitForTheSequenceContext`] when the penalty window exceeds the sequence context, [`TextGenerationError::ChatTemplateContainsNul`] or [`TextGenerationError::ChatTemplateDoesNotCompile`] when the chat template cannot be prepared, and [`TextGenerationError::MultimodalProjectionLoadFailed`] when the multimodal projection cannot be loaded.
+    /// Returns [`TextGenerationError::AgentRuntime`] when the text generation context cannot claim the VRAM, be created or be warmed up, and [`TextGenerationError::SamplingParametersUnfitForTheSequenceContext`] when the penalty window exceeds the sequence context.
     pub async fn spawn(
         self,
         cancellation_token: &CancellationToken,
@@ -67,158 +53,6 @@ impl TextGenerationPipeline {
             },
         )
         .await
-    }
-
-    fn chat_templates(
-        &self,
-        chat_template: ChatTemplate,
-    ) -> Result<ConversationChatTemplates, TextGenerationError> {
-        let model_issue_path = self
-            .loaded_llama_model
-            .llama_model_settings
-            .reported_model_path();
-        let slot_aggregated_status = &self.inference_runtime_context.slot_aggregated_status;
-
-        match self.prepared_chat_templates(&chat_template) {
-            Ok(chat_templates) => {
-                slot_aggregated_status
-                    .register_fix(&AgentIssueFix::ChatTemplateIsCompiled(model_issue_path));
-
-                Ok(chat_templates)
-            }
-            Err(preparation_error) => {
-                slot_aggregated_status.register_pipeline_issue(
-                    AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-                        error: ErrorChain {
-                            error: &preparation_error,
-                        }
-                        .to_string(),
-                        model_path: model_issue_path,
-                        template_content: chat_template.content,
-                    }),
-                );
-
-                Err(preparation_error)
-            }
-        }
-    }
-
-    fn conversation_capabilities(
-        &self,
-        prompt_tokenizer: &PromptTokenizer,
-    ) -> Result<ConversationCapabilities, TextGenerationError> {
-        let chat_template = match &self.text_generation_settings.chat_template_source {
-            ChatTemplateSource::Override(chat_template_override) => chat_template_override.clone(),
-            ChatTemplateSource::EmbeddedInModel => {
-                let Some(embedded_chat_template) = self
-                    .loaded_llama_model
-                    .model_metadata
-                    .embedded_chat_template()
-                else {
-                    warn!(
-                        "{:?}: the model embeds no chat template, so it serves no conversations",
-                        self.inference_runtime_context.agent_name
-                    );
-
-                    return Ok(ConversationCapabilities {
-                        conversation_support: ConversationSupport::ChatTemplateMissing(
-                            self.loaded_llama_model
-                                .llama_model_settings
-                                .reported_model_path(),
-                        ),
-                        multimodal_ingestion: MultimodalIngestion::Unsupported,
-                    });
-                };
-
-                embedded_chat_template
-            }
-        };
-        let chat_templates = self.chat_templates(chat_template)?;
-        let multimodal_ingestion = self.multimodal_ingestion(prompt_tokenizer)?;
-
-        Ok(ConversationCapabilities {
-            conversation_support: ConversationSupport::Available(Box::new(
-                ConversationPromptSupport {
-                    chat_templates,
-                    image_input: multimodal_ingestion.image_input(),
-                },
-            )),
-            multimodal_ingestion,
-        })
-    }
-
-    fn multimodal_ingestion(
-        &self,
-        &PromptTokenizer {
-            sequence_context_size,
-            ..
-        }: &PromptTokenizer,
-    ) -> Result<MultimodalIngestion, TextGenerationError> {
-        let MultimodalProjection::File(multimodal_projection_path) =
-            &self.text_generation_settings.multimodal_projection
-        else {
-            return Ok(MultimodalIngestion::Unsupported);
-        };
-        let multimodal_projection_issue_path =
-            ModelPath::from(multimodal_projection_path.as_path());
-        let slot_aggregated_status = &self.inference_runtime_context.slot_aggregated_status;
-        let vram_occupancy = self
-            .inference_runtime_context
-            .vram_residencies
-            .multimodal_projection
-            .try_occupy()?;
-
-        match ResidentMultimodalContext::load(
-            multimodal_projection_path,
-            &self.loaded_llama_model,
-            vram_occupancy,
-        ) {
-            Ok(resident_multimodal_context) => {
-                slot_aggregated_status.register_fix(&AgentIssueFix::MultimodalProjectionIsLoaded(
-                    multimodal_projection_issue_path,
-                ));
-
-                info!(
-                    "Multimodal context initialized from: {}",
-                    multimodal_projection_path.display()
-                );
-
-                Ok(MultimodalIngestion::Supported {
-                    multimodal_context: resident_multimodal_context,
-                    n_batch: self.model_runtime_parameters.n_batch.tokens_i32(),
-                    sequence_context_size,
-                })
-            }
-            Err(projection_load_error) => {
-                slot_aggregated_status.register_pipeline_issue(
-                    AgentIssue::MultimodalProjectionCannotBeLoaded(
-                        multimodal_projection_issue_path,
-                    ),
-                );
-
-                Err(projection_load_error)
-            }
-        }
-    }
-
-    fn prepared_chat_templates(
-        &self,
-        ChatTemplate { content }: &ChatTemplate,
-    ) -> Result<ConversationChatTemplates, TextGenerationError> {
-        let model = &self.loaded_llama_model.model;
-
-        match &self.text_generation_settings.chat_template_source {
-            ChatTemplateSource::Override(_) => model
-                .chat_templates_with_override(
-                    &LlamaChatTemplate::new(content)
-                        .map_err(TextGenerationError::ChatTemplateContainsNul)?,
-                )
-                .map(ConversationChatTemplates::Override),
-            ChatTemplateSource::EmbeddedInModel => model
-                .chat_templates()
-                .map(|_prepared_chat_templates| ConversationChatTemplates::EmbeddedInModel),
-        }
-        .map_err(TextGenerationError::ChatTemplateDoesNotCompile)
     }
 
     fn run_scheduler(
@@ -245,10 +79,17 @@ impl TextGenerationPipeline {
                     )
                     .into_llama_context_params(),
             )?;
-            let sequence_context_size = llama_context.n_ctx_seq();
-
-            self.text_generation_settings
+            let multimodal_ingestion = MultimodalIngestion::for_context(
+                &llama_context,
+                Arc::clone(&self.model_capabilities),
+            );
+            let sequence_context_size = multimodal_ingestion.sequence_context_size;
+            let sampling_parameters = self
+                .text_generation_settings
                 .sampling_parameters
+                .resolve(&self.model_capabilities.sampling_defaults);
+
+            sampling_parameters
                 .ensure_penalty_window_fits(sequence_context_size)
                 .map_err(TextGenerationError::SamplingParametersUnfitForTheSequenceContext)?;
 
@@ -259,63 +100,50 @@ impl TextGenerationPipeline {
             };
 
             continue_startup_unless_shutting_down(agent_shutdown, || {
-                let ConversationCapabilities {
-                    conversation_support,
-                    multimodal_ingestion,
-                } = self.conversation_capabilities(&prompt_tokenizer)?;
+                loaded_llama_model
+                    .warm_up_and_serve(llama_context, |llama_context, batch| {
+                        let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
-                continue_startup_unless_shutting_down(agent_shutdown, || {
-                    loaded_llama_model
-                        .warm_up_and_serve(llama_context, |llama_context, batch| {
-                            let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
-
-                            run_scheduler_unless_startup_abandoned(
-                                scheduler_startup_tx,
-                                Ok(SchedulerReady {
-                                    request_preparer: Arc::new(SchedulerRequestPreparer {
-                                        agent_name: self
-                                            .inference_runtime_context
-                                            .agent_name
-                                            .clone(),
-                                        preparation: GenerationRequestPreparer {
-                                            conversation_support,
-                                            image_resize_to_fit: self
-                                                .text_generation_settings
-                                                .image_resize_to_fit,
-                                            loaded_llama_model: loaded_llama_model.clone(),
-                                            prompt_tokenizer,
-                                            sampler_chain_factory: SamplerChainFactory {
-                                                sampling_parameters: self
-                                                    .text_generation_settings
-                                                    .sampling_parameters
-                                                    .clone(),
-                                                n_vocab: loaded_llama_model.model.n_vocab(),
-                                            },
+                        run_scheduler_unless_startup_abandoned(
+                            scheduler_startup_tx,
+                            Ok(SchedulerReady {
+                                request_preparer: Arc::new(SchedulerRequestPreparer {
+                                    agent_name: self.inference_runtime_context.agent_name.clone(),
+                                    preparation: GenerationRequestPreparer {
+                                        image_resize_to_fit: self
+                                            .text_generation_settings
+                                            .image_resize_to_fit,
+                                        loaded_llama_model: loaded_llama_model.clone(),
+                                        model_capabilities: self.model_capabilities.clone(),
+                                        prompt_tokenizer,
+                                        sampler_chain_factory: SamplerChainFactory {
+                                            sampling_parameters,
+                                            n_vocab: loaded_llama_model.model.n_vocab(),
                                         },
-                                        preparation_tasks: TaskTracker::new(),
-                                        scheduler_message_tx,
-                                    }),
+                                    },
+                                    preparation_tasks: TaskTracker::new(),
+                                    scheduler_message_tx,
                                 }),
-                                || {
-                                    ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
-                                        agent_shutdown: agent_shutdown.clone(),
-                                        batch,
-                                        scheduler_message_rx,
-                                        llama_context,
-                                        scheduler_context: ContinuousBatchSchedulerContext {
-                                            agent_name: self.inference_runtime_context.agent_name,
-                                            desired_slots_total,
-                                            model: &loaded_llama_model.model,
-                                            multimodal_ingestion,
-                                            sequence_context_size,
-                                        },
-                                    })
-                                    .run();
-                                },
-                            );
-                        })
-                        .map_err(TextGenerationError::from)
-                })
+                            }),
+                            || {
+                                ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
+                                    agent_shutdown: agent_shutdown.clone(),
+                                    batch,
+                                    scheduler_message_rx,
+                                    llama_context,
+                                    scheduler_context: ContinuousBatchSchedulerContext {
+                                        agent_name: self.inference_runtime_context.agent_name,
+                                        desired_slots_total,
+                                        model: &loaded_llama_model.model,
+                                        multimodal_ingestion,
+                                        sequence_context_size,
+                                    },
+                                })
+                                .run();
+                            },
+                        );
+                    })
+                    .map_err(TextGenerationError::from)
             })
         })
     }

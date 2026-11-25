@@ -4,6 +4,7 @@ use tokio_tungstenite::tungstenite::Error as WebSocketError;
 
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_agent_embeddings::embedding_error::EmbeddingError;
+use paddler_agent_model_capabilities::agent_model_capabilities_error::AgentModelCapabilitiesError;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_model_source::model_source_error::ModelSourceError;
@@ -28,6 +29,9 @@ pub enum AgentError {
         #[source]
         source: Box<WebSocketError>,
     },
+
+    #[error("the capabilities of the model cannot be established")]
+    ModelCapabilities(#[from] AgentModelCapabilitiesError),
 
     #[error("the model failed to load")]
     ModelLoad(#[from] AgentRuntimeError),

@@ -182,13 +182,14 @@ impl StateDatabaseFile {
                          ..
                      }| BalancerDesiredState::from(balancer_desired_state),
                 ),
-            StateDatabaseSchemaVersion::V3 => from_str::<Schema<BalancerDesiredState>>(content)
-                .map(
+            StateDatabaseSchemaVersion::V3 | StateDatabaseSchemaVersion::V4 => {
+                from_str::<Schema<BalancerDesiredState>>(content).map(
                     |Schema {
                          balancer_desired_state,
                          ..
                      }| balancer_desired_state,
-                ),
+                )
+            }
         }
         .map_err(|source| StateDatabaseError::FileContentsInvalid {
             path: self.path.clone(),
@@ -203,6 +204,7 @@ mod tests {
     use std::fs::OpenOptions;
     use std::fs::Permissions;
     use std::io::ErrorKind;
+    use std::num::NonZeroU32;
     use std::os::unix::fs::PermissionsExt as _;
     #[cfg(target_os = "linux")]
     use std::os::unix::fs::symlink;
@@ -221,6 +223,7 @@ mod tests {
     use tokio::fs::write;
 
     use paddler_balancer_desired_state_fixture::desired_state_with_model::desired_state_with_model;
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     use super::StateDatabaseFile;
@@ -502,6 +505,43 @@ mod tests {
                 path: refused_path,
                 source,
             }) if found == r#""1""# && refused_path == path && source.classify() == Category::Data
+        ));
+    }
+
+    #[tokio::test]
+    async fn reading_a_file_of_schema_version_3_keeps_its_parameters_explicit() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+        let mut stored_desired_state =
+            to_value(desired_state_with_model("stored_model_uri")).unwrap();
+
+        *stored_desired_state
+            .pointer_mut("/model_runtime_parameters/context_size")
+            .unwrap() = json!(4096);
+        *stored_desired_state
+            .pointer_mut("/text_generation/sampling_parameters/temperature")
+            .unwrap() = json!(0.25);
+        write(
+            &path,
+            to_vec(&json!({
+                "balancer_desired_state": stored_desired_state,
+                "version": "3",
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(
+            StateDatabaseFile::new(path)
+                .read_balancer_desired_state()
+                .await
+                .unwrap(),
+            StoredBalancerDesiredState::Stored(desired_state)
+                if desired_state.model_runtime_parameters.context_size
+                    == ModelDefaultOr::Explicit(NonZeroU32::new(4096).unwrap())
+                    && desired_state.text_generation.sampling_parameters.temperature
+                        == ModelDefaultOr::Explicit(0.25)
         ));
     }
 

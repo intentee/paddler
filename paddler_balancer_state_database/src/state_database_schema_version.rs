@@ -5,7 +5,9 @@ use serde::Serialize;
 pub enum StateDatabaseSchemaVersion {
     #[serde(rename = "2")]
     V2,
-    #[default]
     #[serde(rename = "3")]
     V3,
+    #[default]
+    #[serde(rename = "4")]
+    V4,
 }

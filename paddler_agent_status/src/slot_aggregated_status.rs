@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::mem::replace;
 use std::num::NonZeroU16;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
@@ -13,6 +13,7 @@ use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::atomic_value::AtomicValue;
+use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
@@ -25,11 +26,11 @@ use crate::serving_report::ServingReport;
 pub struct SlotAggregatedStatus {
     pub desired_slots_total: u16,
     desired_state_issues: DashSet<AgentIssue>,
+    desired_state_version: RwLock<DesiredStateVersion>,
     download_status: RwLock<ModelDownloadStatus>,
     model_path: RwLock<Option<String>>,
     pipeline_issues: DashSet<AgentIssue>,
     runtime: RwLock<AgentRuntimeStatus>,
-    serving_issues: RwLock<BTreeSet<AgentIssue>>,
     slots_processing: AtomicValue<AtomicU64>,
     slots_released: Notify,
     state_application_status: RwLock<AgentStateApplicationStatus>,
@@ -46,17 +47,28 @@ impl SlotAggregatedStatus {
         Self {
             desired_slots_total,
             desired_state_issues: DashSet::new(),
+            desired_state_version: RwLock::new(DesiredStateVersion::Nothing),
             download_status: RwLock::new(ModelDownloadStatus::NotDownloading),
             model_path: RwLock::new(None),
             pipeline_issues: DashSet::new(),
             runtime: RwLock::new(AgentRuntimeStatus::Idle),
-            serving_issues: RwLock::new(BTreeSet::new()),
             state_application_status: RwLock::new(AgentStateApplicationStatus::Fresh),
             slots_processing: AtomicValue::<AtomicU64>::new(0),
             slots_released: Notify::new(),
             update_tx,
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
             version: AtomicValue::<AtomicU64>::new(0),
+        }
+    }
+
+    pub fn acknowledge_desired_state_version(&self, desired_state_version: DesiredStateVersion) {
+        let previous_desired_state_version = replace(
+            &mut *self.desired_state_version.write(),
+            desired_state_version,
+        );
+
+        if previous_desired_state_version != desired_state_version {
+            self.announce_change();
         }
     }
 
@@ -83,9 +95,7 @@ impl SlotAggregatedStatus {
     }
 
     pub fn has_issue(&self, issue: &AgentIssue) -> bool {
-        self.desired_state_issues.contains(issue)
-            || self.pipeline_issues.contains(issue)
-            || self.serving_issues.read().contains(issue)
+        self.desired_state_issues.contains(issue) || self.pipeline_issues.contains(issue)
     }
 
     pub fn has_issue_like<TFunction>(&self, issue_like: TFunction) -> bool
@@ -96,7 +106,6 @@ impl SlotAggregatedStatus {
             .iter()
             .chain(self.pipeline_issues.iter())
             .any(|ref_multi| issue_like(ref_multi.key()))
-            || self.serving_issues.read().iter().any(issue_like)
     }
 
     pub fn register_desired_state_issue(&self, issue: AgentIssue) {
@@ -145,7 +154,6 @@ impl SlotAggregatedStatus {
     pub fn serve_nothing(&self, uses_chat_template_override: bool) {
         *self.model_path.write() = None;
         *self.runtime.write() = AgentRuntimeStatus::Idle;
-        self.serving_issues.write().clear();
         *self.state_application_status.write() = AgentStateApplicationStatus::Applied;
         self.uses_chat_template_override
             .set(uses_chat_template_override);
@@ -171,9 +179,8 @@ impl SlotAggregatedStatus {
     pub fn start_serving(
         &self,
         ServingReport {
-            decisions,
+            capabilities,
             model_path,
-            serving_issues,
             uses_chat_template_override,
         }: ServingReport,
     ) {
@@ -183,10 +190,9 @@ impl SlotAggregatedStatus {
 
         *self.model_path.write() = Some(model_path);
         *self.runtime.write() = AgentRuntimeStatus::Serving {
-            decisions,
+            capabilities,
             slots_total: u64::from(self.desired_slots_total),
         };
-        *self.serving_issues.write() = serving_issues;
         *self.state_application_status.write() = AgentStateApplicationStatus::Applied;
         self.uses_chat_template_override
             .set(uses_chat_template_override);
@@ -208,7 +214,6 @@ impl SlotAggregatedStatus {
     pub fn withdraw_serving(&self) {
         *self.model_path.write() = None;
         *self.runtime.write() = AgentRuntimeStatus::Idle;
-        self.serving_issues.write().clear();
         self.announce_change();
     }
 
@@ -242,13 +247,13 @@ impl ProducesSnapshot for SlotAggregatedStatus {
         SlotAggregatedStatusSnapshot {
             status: AgentStatus {
                 desired_slots_total: self.desired_slots_total,
+                desired_state_version: *self.desired_state_version.read(),
                 download_status: self.download_status.read().clone(),
                 issues: self
                     .desired_state_issues
                     .iter()
                     .chain(self.pipeline_issues.iter())
                     .map(|issue| issue.clone())
-                    .chain(self.serving_issues.read().iter().cloned())
                     .collect(),
                 model_path: self.model_path.read().clone(),
                 runtime: *self.runtime.read(),
@@ -268,7 +273,6 @@ mod tests {
 
     use tokio_test::task::spawn;
 
-    use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
@@ -279,26 +283,18 @@ mod tests {
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
+    use paddler_model_capabilities_fixture::chat_model_capabilities::chat_model_capabilities;
+
     use super::SlotAggregatedStatus;
     use crate::agent_issue_fix::AgentIssueFix;
     use crate::dispenses_slots::DispensesSlots;
     use crate::serving_report::ServingReport;
 
-    fn serving_report(decisions: AgentDecisionsServing) -> ServingReport {
+    fn serving_report() -> ServingReport {
         ServingReport {
-            decisions,
+            capabilities: chat_model_capabilities(),
             model_path: "model".to_owned(),
-            serving_issues: BTreeSet::new(),
             uses_chat_template_override: false,
-        }
-    }
-
-    fn serving_without_a_chat_template() -> ServingReport {
-        ServingReport {
-            serving_issues: BTreeSet::from([AgentIssue::UnableToFindChatTemplate(
-                ModelPath::from("model"),
-            )]),
-            ..serving_report(AgentDecisionsServing::NotServed)
         }
     }
 
@@ -392,7 +388,7 @@ mod tests {
             }));
         }
 
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
+        status.start_serving(serving_report());
 
         assert!(!status.has_issue_like(is_slot_cannot_start));
     }
@@ -401,7 +397,7 @@ mod tests {
     fn serving_nothing_makes_the_agent_idle() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
+        status.start_serving(serving_report());
         status.serve_nothing(false);
 
         assert_eq!(
@@ -411,10 +407,10 @@ mod tests {
     }
 
     #[test]
-    fn starting_to_serve_reports_the_model_its_slots_its_decisions_and_the_applied_state() {
+    fn starting_to_serve_reports_the_model_its_slots_its_capabilities_and_the_applied_state() {
         let status = SlotAggregatedStatus::new(4);
 
-        status.start_serving(serving_report(AgentDecisionsServing::Served));
+        status.start_serving(serving_report());
 
         let snapshot = status.make_snapshot();
 
@@ -423,7 +419,7 @@ mod tests {
         assert_eq!(
             snapshot.status.runtime,
             AgentRuntimeStatus::Serving {
-                decisions: AgentDecisionsServing::Served,
+                capabilities: chat_model_capabilities(),
                 slots_total: 4,
             }
         );
@@ -502,7 +498,7 @@ mod tests {
     fn serving_nothing_forgets_the_model_but_keeps_requests_in_flight() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
+        status.start_serving(serving_report());
         status.take_slots(NonZeroU16::MIN);
 
         status.serve_nothing(false);
@@ -599,7 +595,7 @@ mod tests {
 
         status.start_serving(ServingReport {
             uses_chat_template_override: true,
-            ..serving_report(AgentDecisionsServing::NotServed)
+            ..serving_report()
         });
 
         assert!(status.make_snapshot().status.uses_chat_template_override);
@@ -607,42 +603,6 @@ mod tests {
         status.serve_nothing(false);
 
         assert!(!status.make_snapshot().status.uses_chat_template_override);
-    }
-
-    #[test]
-    fn serving_issues_stay_reported_while_a_new_pipeline_begins() {
-        let status = SlotAggregatedStatus::new(2);
-        let serving_issue = AgentIssue::UnableToFindChatTemplate(ModelPath::from("model"));
-
-        status.start_serving(serving_without_a_chat_template());
-        status.begin_pipeline();
-
-        assert!(status.has_issue(&serving_issue));
-        assert!(status.has_issue_like(|agent_issue| *agent_issue == serving_issue));
-        assert_eq!(
-            status.make_snapshot().status.issues,
-            BTreeSet::from([serving_issue])
-        );
-    }
-
-    #[test]
-    fn serving_again_replaces_the_previous_serving_issues() {
-        let status = SlotAggregatedStatus::new(2);
-
-        status.start_serving(serving_without_a_chat_template());
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
-
-        assert_eq!(status.make_snapshot().status.issues, BTreeSet::new());
-    }
-
-    #[test]
-    fn serving_nothing_clears_the_serving_issues() {
-        let status = SlotAggregatedStatus::new(2);
-
-        status.start_serving(serving_without_a_chat_template());
-        status.serve_nothing(false);
-
-        assert_eq!(status.make_snapshot().status.issues, BTreeSet::new());
     }
 
     #[test]

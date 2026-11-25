@@ -13,13 +13,14 @@ use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_agent_status::slot_guard::SlotGuard;
-use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::decision_result::DecisionResult;
+use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as JsonRpcMessage;
 use paddler_messaging::management_socket::agent::notification::Notification as JsonRpcNotification;
+use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
 use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
 use paddler_messaging::management_socket::agent::request::Request as JsonRpcRequest;
 use paddler_messaging::management_socket::agent::response::Response as JsonRpcResponse;
@@ -31,13 +32,14 @@ use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::agent_response_message::agent_response_message;
+use crate::delivered_desired_state::DeliveredDesiredState;
 use crate::management_connection_end::ManagementConnectionEnd;
 use crate::management_connection_step::ManagementConnectionStep;
 use crate::pipeline_request::PipelineRequest;
 use crate::pipeline_response_stream::PipelineResponseStream;
 
 pub struct BalancerMessageContext {
-    pub agent_desired_state_tx: watch::Sender<AgentDesiredState>,
+    pub delivered_desired_state_tx: watch::Sender<DeliveredDesiredState>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub pipeline_requests: Arc<Outbox<PipelineRequest>>,
     pub request_stoppers: Arc<RequestRegistry<mpsc::UnboundedSender<()>>>,
@@ -78,17 +80,15 @@ impl BalancerMessageContext {
     ) -> ManagementConnectionStep {
         match deserialized_message {
             JsonRpcMessage::Notification(JsonRpcNotification::SetState(set_state_params)) => {
-                let desired_state = set_state_params.desired_state;
+                let SetStateParams {
+                    desired_state,
+                    version,
+                } = *set_state_params;
 
-                self.agent_desired_state_tx
-                    .send_if_modified(|current_desired_state| {
-                        if *current_desired_state == desired_state {
-                            return false;
-                        }
-
-                        *current_desired_state = desired_state;
-
-                        true
+                self.delivered_desired_state_tx
+                    .send_replace(DeliveredDesiredState {
+                        desired_state,
+                        version: DesiredStateVersion::Version(version),
                     });
 
                 ManagementConnectionStep::Continue
@@ -141,21 +141,21 @@ impl BalancerMessageContext {
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GetChatTemplateOverride,
-            }) => ManagementConnectionStep::Write(agent_response_message(
+            }) => ManagementConnectionStep::Write(Box::new(agent_response_message(
                 id,
                 JsonRpcResponse::ChatTemplateOverride(
                     self.served_applicable_state_holder
                         .get_agent_applicable_state()
                         .chat_template_override(),
                 ),
-            )),
+            ))),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GetModelMetadata,
-            }) => ManagementConnectionStep::Write(agent_response_message(
+            }) => ManagementConnectionStep::Write(Box::new(agent_response_message(
                 id,
                 JsonRpcResponse::ModelMetadata(self.model_metadata_holder.get_model_metadata()),
-            )),
+            ))),
         }
     }
 

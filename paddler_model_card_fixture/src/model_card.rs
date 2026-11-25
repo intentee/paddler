@@ -3,9 +3,8 @@ use std::path::PathBuf;
 use futures::executor::block_on;
 use hf_hub::HFResult;
 
-use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -14,6 +13,8 @@ use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_model_source::model_source::ModelSource;
+
+use crate::served_model_runtime_parameters::served_model_runtime_parameters;
 
 pub struct ModelCard {
     pub reference: HuggingFaceModelReference,
@@ -44,12 +45,11 @@ impl ModelCard {
     pub fn into_desired_state(self) -> BalancerDesiredState {
         BalancerDesiredState {
             model: self.into_agent_desired_model(),
-            model_runtime_parameters: ModelRuntimeParameters {
-                n_gpu_layers: ALL_GPU_LAYERS,
-                ..ModelRuntimeParameters::default()
-            },
+            model_runtime_parameters: served_model_runtime_parameters(),
             text_generation: BalancerTextGenerationSettings {
-                sampling_parameters: SamplingParameters::deterministic(),
+                sampling_parameters: DesiredSamplingParameters::from(
+                    SamplingParameters::deterministic(),
+                ),
                 ..BalancerTextGenerationSettings::default()
             },
             ..BalancerDesiredState::default()

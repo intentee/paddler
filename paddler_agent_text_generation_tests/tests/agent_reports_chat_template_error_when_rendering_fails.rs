@@ -10,6 +10,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -25,7 +26,7 @@ async fn agent_reports_chat_template_error_when_rendering_fails() {
             desired_state_with_chat_template_override(
                 qwen3_desired_state(),
                 ChatTemplate {
-                    content: "{{ raise_exception('conversations are not supported') }}".to_owned(),
+                    content: "{%- if messages | length > 1 -%}{{ raise_exception('only the first message is supported') }}{%- endif -%}{{ messages[0]['content'] }}".to_owned(),
                 },
             ),
         )),
@@ -45,10 +46,15 @@ async fn agent_reports_chat_template_error_when_rendering_fails() {
                         content: ConversationMessageContent::Text("Hello".to_owned()),
                         role: "user".to_owned(),
                     },
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text("Hello again".to_owned()),
+                        role: "user".to_owned(),
+                    },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(4).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

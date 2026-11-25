@@ -5,8 +5,8 @@ import {
   type ModelRuntimeParameters,
 } from "@intentee/paddler-client/schemas/ModelRuntimeParameters";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
-import { ParameterNumberInput } from "./ParameterNumberInput";
-import { ParameterSelect } from "./ParameterSelect";
+import { ModelDefaultNumberInput } from "./ModelDefaultNumberInput";
+import { ModelDefaultSelect } from "./ModelDefaultSelect";
 
 export function ModelRuntimeParametersFields() {
   const { balancerDesiredState, setBalancerDesiredState } = useContext(
@@ -32,7 +32,7 @@ export function ModelRuntimeParametersFields() {
 
   return (
     <>
-      <ParameterNumberInput
+      <ModelDefaultNumberInput
         description="Batch Size (higher = more memory usage, lower = less inference speed)"
         name="n_batch"
         onValue={function (value) {
@@ -40,7 +40,7 @@ export function ModelRuntimeParametersFields() {
         }}
         value={modelRuntimeParameters.n_batch}
       />
-      <ParameterNumberInput
+      <ModelDefaultNumberInput
         description="Context Size (higher = longer inputs, lower = less memory usage)"
         name="context_size"
         onValue={function (value) {
@@ -48,7 +48,7 @@ export function ModelRuntimeParametersFields() {
         }}
         value={modelRuntimeParameters.context_size}
       />
-      <ParameterNumberInput
+      <ModelDefaultNumberInput
         description="Number of model layers to offload to GPU (0 = CPU only; -1 = all layers)"
         name="n_gpu_layers"
         onValue={function (value) {
@@ -56,7 +56,7 @@ export function ModelRuntimeParametersFields() {
         }}
         value={modelRuntimeParameters.n_gpu_layers}
       />
-      <ParameterSelect
+      <ModelDefaultSelect
         description="Datatype for K cache tensors"
         name="k_cache_dtype"
         onValue={function (value) {
@@ -65,7 +65,7 @@ export function ModelRuntimeParametersFields() {
         options={cacheDtypes}
         value={modelRuntimeParameters.k_cache_dtype}
       />
-      <ParameterSelect
+      <ModelDefaultSelect
         description="Datatype for V cache tensors"
         name="v_cache_dtype"
         onValue={function (value) {

@@ -6,21 +6,29 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent::agent_applicable_state::AgentApplicableState;
 use paddler_agent::finished_serving_startup::FinishedServingStartup;
-use paddler_agent::inference_capabilities::InferenceCapabilities;
 use paddler_agent::model_serving::ModelServing;
 use paddler_agent::model_serving_settings::ModelServingSettings;
 use paddler_agent::replacement_outcome::ReplacementOutcome;
 use paddler_agent::retry_delay::RetryDelay;
 use paddler_agent::serving_replacement::ServingReplacement;
+use paddler_agent_pipeline_harness::embedding_batch_generation::EmbeddingBatchGeneration;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_pipeline_harness::model_serving_text_generation_and_embeddings::ModelServingTextGenerationAndEmbeddings;
-use paddler_agent_pipeline_harness::raw_prompt_generation::RawPromptGeneration;
-use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
-use paddler_inference_parameters::pooling_type::PoolingType;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
+use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_result::EmbeddingResult;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabilities_it_kept() {
+    let serving = ModelServingTextGenerationAndEmbeddings::start(&CancellationToken::new())
+        .await
+        .expect("the model must load")
+        .expect("text generation and embeddings must start");
+    let kept_embeddings_request_preparer = serving
+        .embeddings_request_preparer()
+        .expect("the served model must serve embeddings");
     let ModelServingTextGenerationAndEmbeddings {
         llama_runtime:
             LlamaRuntime {
@@ -30,18 +38,9 @@ async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabili
             },
         model_serving_settings,
         served_model,
-    } = ModelServingTextGenerationAndEmbeddings::start(&CancellationToken::new())
-        .await
-        .expect("the model must load")
-        .expect("text generation and embeddings must start");
+    } = serving;
 
     drop(model_loaded_for_serving);
-
-    let kept_text_generation_request_preparer = served_model
-        .capabilities
-        .text_generation
-        .request_preparer
-        .clone();
     let cancelled_restart = CancellationToken::new();
 
     cancelled_restart.cancel();
@@ -51,9 +50,11 @@ async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabili
         ..
     } = ServingReplacement {
         agent_applicable_state: AgentApplicableState::WithModel(ModelServingSettings {
-            capabilities: InferenceCapabilities {
-                embeddings: PoolingType::Mean,
-                ..model_serving_settings.capabilities.clone()
+            text_generation: TextGenerationSettings {
+                sampling_parameters: DesiredSamplingParameters::from(
+                    SamplingParameters::deterministic(),
+                ),
+                ..model_serving_settings.text_generation.clone()
             },
             ..model_serving_settings
         }),
@@ -72,33 +73,35 @@ async fn a_restart_cancelled_while_starting_a_capability_shuts_down_the_capabili
     assert!(
         inference_runtime_context
             .vram_residencies
-            .text_generation_context
+            .embeddings_context
             .try_occupy()
             .is_ok()
     );
 
-    let RawPromptGeneration {
+    let EmbeddingBatchGeneration {
         agent_request,
-        generate_tokens_stop_tx: _generate_tokens_stop_tx,
-        mut generated_tokens_rx,
-    } = RawPromptGeneration::new(
-        "The capital of France is",
+        generate_embedding_stop_tx: _generate_embedding_stop_tx,
+        mut generated_embedding_rx,
+    } = EmbeddingBatchGeneration::new(
+        vec![EmbeddingInputDocument {
+            content: "The capital of France is Paris.".to_owned(),
+            id: "capital".to_owned(),
+        }],
         inference_runtime_context.slot_aggregated_status.clone(),
     );
 
-    kept_text_generation_request_preparer
-        .prepare(TextGenerationRequest::ContinueFromRawPrompt(agent_request));
+    kept_embeddings_request_preparer.prepare(agent_request);
 
     assert!(matches!(
-        generated_tokens_rx.recv().await,
-        Some(GeneratedTokenResult::SchedulerUnavailable(_))
+        generated_embedding_rx.recv().await,
+        Some(EmbeddingResult::SchedulerUnavailable(_))
     ));
 
-    kept_text_generation_request_preparer
+    kept_embeddings_request_preparer
         .preparation_tasks
         .wait()
         .await;
-    drop(kept_text_generation_request_preparer);
+    drop(kept_embeddings_request_preparer);
 
     let model_weights = &inference_runtime_context.vram_residencies.model_weights;
 

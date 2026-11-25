@@ -1,10 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use llama_cpp_bindings_types::decisions_capability::DecisionsCapability;
+use llama_cpp_bindings_types::model_capabilities::ModelCapabilities;
+
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_tests::swappable_model_file::SwappableModelFile;
 use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
-use paddler_inference_parameters::sampling_parameters::SamplingParameters;
-use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -40,7 +42,7 @@ async fn a_state_changing_only_its_sampling_keeps_serving_decisions_without_relo
     serving_pipeline_arbiter
         .apply(BalancerDesiredState {
             text_generation: BalancerTextGenerationSettings {
-                sampling_parameters: SamplingParameters::default(),
+                sampling_parameters: DesiredSamplingParameters::default(),
                 ..serving_decisions.text_generation.clone()
             },
             ..serving_decisions
@@ -58,13 +60,16 @@ async fn a_state_changing_only_its_sampling_keeps_serving_decisions_without_relo
         status.state_application_status,
         AgentStateApplicationStatus::Applied
     );
-    assert_eq!(
+    assert!(matches!(
         status.runtime,
         AgentRuntimeStatus::Serving {
-            decisions: AgentDecisionsServing::Served,
-            slots_total: u64::from(DECISION_SLOTS_MINIMUM.get()),
-        }
-    );
+            capabilities: ModelCapabilities {
+                decisions: DecisionsCapability::Supported(_),
+                ..
+            },
+            slots_total,
+        } if slots_total == u64::from(DECISION_SLOTS_MINIMUM.get())
+    ));
 
     serving_pipeline_arbiter.shut_down().await;
 }

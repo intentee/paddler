@@ -14,6 +14,7 @@ use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
+use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
 use paddler_agent_text_generation_tests::last_generated_token_result::last_generated_token_result;
@@ -47,16 +48,18 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
         llama_runtime: &runtime,
         sequence_context_size,
     }
-    .into_multimodal_generation_request_preparer()
-    .expect("the first message content chat template must be prepared");
-    let multimodal_ingestion = runtime
-        .multimodal_ingestion(
-            &llama_context,
-            &smolvlm2_256m_mmproj()
-                .cached_path()
-                .expect("the multimodal projection must be in the Hugging Face cache"),
-        )
-        .expect("the multimodal projection must load");
+    .into_multimodal_generation_request_preparer(
+        smolvlm2_256m_mmproj()
+            .cached_path()
+            .expect("the multimodal projection must be in the Hugging Face cache"),
+    )
+    .expect(
+        "the first message content chat template and the multimodal projection must be prepared",
+    );
+    let multimodal_ingestion = MultimodalIngestion::for_context(
+        &llama_context,
+        request_preparer.model_capabilities.clone(),
+    );
     let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
     let image_question = || {
         ConversationGeneration::new(

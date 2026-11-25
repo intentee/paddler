@@ -3,6 +3,7 @@ use std::sync::Arc;
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
+use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
 use actix_web::rt;
 use actix_web::web;
@@ -22,8 +23,10 @@ use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::agent_relay::AgentRelay;
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::awaiting_agent_relay::AwaitingAgentRelay;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
+use crate::capability_availability::CapabilityAvailability;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
@@ -40,6 +43,13 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
+    if let CapabilityAvailability::Lacking(cluster_lacks_capability) = app_data
+        .agent_controller_pool
+        .capability_availability(GenerateEmbeddingBatchParams::REQUESTED_CAPABILITY)
+    {
+        return Err(ErrorServiceUnavailable(cluster_lacks_capability));
+    }
+
     let embedding_batch_size = app_data
         .balancer_applicable_state_holder
         .get_balancer_applicable_state()
@@ -66,18 +76,10 @@ async fn respond(
     let chunk_dispatches: Vec<EmbeddingChunkDispatch> = batches
         .into_iter()
         .map(|batch| {
-            let dispatchable_batch = DispatchableRequest::from(batch);
-
-            match app_data
-                .buffered_request_manager
-                .take_available_agent(dispatchable_batch.dispatch_requirement)
-            {
-                Some(dispatched_agent) => EmbeddingChunkDispatch::Claimed {
-                    batch: dispatchable_batch.params,
-                    dispatched_agent,
-                },
-                None => EmbeddingChunkDispatch::Buffered(dispatchable_batch),
-            }
+            EmbeddingChunkDispatch::claim_or_buffer(
+                DispatchableRequest::from(batch),
+                &app_data.buffered_request_manager,
+            )
         })
         .collect();
 

@@ -40,7 +40,6 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_balancer_desired_state_fixture::desired_state_with_model::desired_state_with_model;
-    use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
@@ -48,7 +47,6 @@ mod tests {
     use crate::agent_controller::AgentController;
     use crate::agent_controller_params::AgentControllerParams;
     use crate::agent_controller_pool::AgentControllerPool;
-    use crate::agent_desired_state_notification::agent_desired_state_notification;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 
@@ -62,10 +60,8 @@ mod tests {
     }
 
     fn desired_state_notification_value(desired_state: &BalancerDesiredState) -> Value {
-        to_value(agent_desired_state_notification(AgentDesiredState::from(
-            desired_state,
-        )))
-        .unwrap()
+        to_value(BalancerApplicableState::initial(desired_state.clone()).agent_notification())
+            .unwrap()
     }
 
     #[test]

@@ -8,6 +8,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_cluster_harness::unending_grammar::unending_grammar;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -34,9 +35,10 @@ async fn agent_reports_completion_tokens_matching_streamed_token_count() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: Some(unending_grammar()),
                 max_tokens: MAX_TOKENS,
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

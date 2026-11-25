@@ -6,13 +6,16 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
+use paddler_messaging::media_kind::MediaKind;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::undecodable_media::UndecodableMedia;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_returns_image_decoding_error_for_remote_url() {
@@ -40,9 +43,10 @@ async fn agent_returns_image_decoding_error_for_remote_url() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(20).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },
@@ -52,9 +56,11 @@ async fn agent_returns_image_decoding_error_for_remote_url() {
     let collected = outcome.expect("the request must complete");
     assert_eq!(
         collected.into_token_results(),
-        vec![GeneratedTokenResult::ImageDecodingFailed(
-            "test-agent-0: failed to decode images: Remote image URLs are not supported. Use base64 data URIs (data:image/...;base64,...) instead.".to_owned()
-        )]
+        vec![GeneratedTokenResult::MediaDecodingFailed(UndecodableMedia {
+            description: "test-agent-0: failed to decode images: Remote image URLs are not supported. Use base64 data URIs (data:image/...;base64,...) instead."
+                .to_owned(),
+            media: MediaKind::Image,
+        })]
     );
 
     cluster

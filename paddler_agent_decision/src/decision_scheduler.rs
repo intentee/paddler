@@ -15,8 +15,8 @@ use crate::decision_capacity_ledger::DecisionCapacityLedger;
 use crate::decision_decoder::DecisionDecoder;
 use crate::decision_error::DecisionError;
 use crate::decision_scheduler_context::DecisionSchedulerContext;
-use crate::prepared_decision_request::PreparedDecisionRequest;
 use crate::reports_decision_outcome::ReportsDecisionOutcome as _;
+use crate::scheduled_decision_request::ScheduledDecisionRequest;
 
 pub struct DecisionScheduler<'model> {
     pub active_requests: VecDeque<ActiveDecisionRequest>,
@@ -24,9 +24,9 @@ pub struct DecisionScheduler<'model> {
     pub batch: LlamaBatch,
     pub capacity_ledger: DecisionCapacityLedger,
     pub llama_context: ResidentLlamaContext<'model>,
-    pub pending_requests: VecDeque<PreparedDecisionRequest>,
+    pub pending_requests: VecDeque<ScheduledDecisionRequest>,
     pub scheduler_context: DecisionSchedulerContext,
-    pub scheduler_inbox: SchedulerInbox<PreparedDecisionRequest>,
+    pub scheduler_inbox: SchedulerInbox<ScheduledDecisionRequest>,
 }
 
 impl DecisionScheduler<'_> {
@@ -78,7 +78,7 @@ impl DecisionScheduler<'_> {
 
             let Some(admission) = self
                 .capacity_ledger
-                .admit(request.layout.question_lane_demand())
+                .admit(request.plan.question_lane_demand())
             else {
                 self.pending_requests.push_front(request);
 
@@ -119,11 +119,18 @@ impl DecisionScheduler<'_> {
             return;
         }
 
-        match request.advance(
-            &mut decoder,
-            &self.scheduler_context.option_scorer,
-            agent_name,
-        ) {
+        let advance = if request.plan.prepared.has_media {
+            self.scheduler_context
+                .model_capabilities
+                .projector
+                .with_multimodal_context(|projector| {
+                    request.advance(&mut decoder, projector, agent_name)
+                })
+        } else {
+            request.advance(&mut decoder, None, agent_name)
+        };
+
+        match advance {
             Ok(DecisionAdvance::Continuing) => self.active_requests.push_back(request),
             Ok(DecisionAdvance::Completed) => {
                 let summary = request.summary();

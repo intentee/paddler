@@ -15,7 +15,9 @@ doctest = false
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 llama-cpp-model = { workspace = true }
+llama-cpp-model-capabilities = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -26,6 +28,7 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 paddler_agent_decision = { workspace = true }
 paddler_agent_embeddings = { workspace = true }
+paddler_agent_model_capabilities = { workspace = true }
 paddler_agent_runtime = { workspace = true }
 paddler_agent_status = { workspace = true }
 paddler_agent_text_generation = { workspace = true }
@@ -40,9 +43,9 @@ paddler_spawn_resuming_panic = { workspace = true }
 
 [features]
 default = []
-cuda = ["paddler_agent_decision/cuda", "paddler_agent_embeddings/cuda", "paddler_agent_runtime/cuda", "paddler_agent_text_generation/cuda"]
-metal = ["paddler_agent_decision/metal", "paddler_agent_embeddings/metal", "paddler_agent_runtime/metal", "paddler_agent_text_generation/metal"]
-vulkan = ["paddler_agent_decision/vulkan", "paddler_agent_embeddings/vulkan", "paddler_agent_runtime/vulkan", "paddler_agent_text_generation/vulkan"]
+cuda = ["paddler_agent_decision/cuda", "paddler_agent_embeddings/cuda", "paddler_agent_model_capabilities/cuda", "paddler_agent_runtime/cuda", "paddler_agent_text_generation/cuda"]
+metal = ["paddler_agent_decision/metal", "paddler_agent_embeddings/metal", "paddler_agent_model_capabilities/metal", "paddler_agent_runtime/metal", "paddler_agent_text_generation/metal"]
+vulkan = ["paddler_agent_decision/vulkan", "paddler_agent_embeddings/vulkan", "paddler_agent_model_capabilities/vulkan", "paddler_agent_runtime/vulkan", "paddler_agent_text_generation/vulkan"]
 
 [dev-dependencies]
 http = { workspace = true }

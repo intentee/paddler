@@ -18,13 +18,10 @@ name = "integration"
 path = "tests/main.rs"
 
 [dependencies]
+llama-cpp-bindings-types = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_typesafe_translation = { workspace = true }
 serde_json = { workspace = true }
-
-[dev-dependencies]
-paddler_file_fixture = { workspace = true }
-serde = { workspace = true }
 
 [lints]
 workspace = true

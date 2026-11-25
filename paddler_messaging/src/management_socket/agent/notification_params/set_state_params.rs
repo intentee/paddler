@@ -7,4 +7,5 @@ use crate::agent_desired_state::AgentDesiredState;
 #[serde(deny_unknown_fields)]
 pub struct SetStateParams {
     pub desired_state: AgentDesiredState,
+    pub version: u64,
 }

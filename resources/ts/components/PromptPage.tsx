@@ -7,7 +7,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { matchWebSocketState } from "../matchWebSocketState";
 import { ConversationMessage } from "./ConversationMessage";
 import { ConversationMessagePromptGeneratedTokens } from "./ConversationMessagePromptGeneratedTokens";
-import { ConversationPromptInput } from "./ConversationPromptInput";
+import { ConversationPromptStream } from "./ConversationPromptStream";
 import { FloatingStatus } from "./FloatingStatus";
 
 import {
@@ -40,7 +40,7 @@ export function PromptPage() {
             <ConversationMessagePromptGeneratedTokens webSocket={webSocket} />
           </div>
           <div className={promptPage__promptForm}>
-            <ConversationPromptInput />
+            <ConversationPromptStream />
           </div>
         </div>
       );

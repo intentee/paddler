@@ -8,9 +8,10 @@ use paddler_agent_pipeline_harness::write_patched_gguf::write_patched_gguf;
 use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_cluster_harness::agent_desired_model_at::agent_desired_model_at;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::constants::EMBEDDED_CHAT_TEMPLATE_KEY;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 use paddler_model_source::model_source_error::ModelSourceError;
+
+use crate::constants::CHAT_TEMPLATE_GGUF_KEY;
 
 pub struct Qwen3WithoutAChatTemplate {
     model_directory: TempDir,
@@ -33,7 +34,7 @@ impl Qwen3WithoutAChatTemplate {
             .context("Qwen3 must be in the Hugging Face cache")
             .and_then(|qwen3_path| {
                 write_patched_gguf(&qwen3_path, &self.model_path(), |gguf_context| {
-                    gguf_context.remove_key(EMBEDDED_CHAT_TEMPLATE_KEY)
+                    gguf_context.remove_key(CHAT_TEMPLATE_GGUF_KEY)
                 })
                 .context("the model without a chat template must be writable")
             })

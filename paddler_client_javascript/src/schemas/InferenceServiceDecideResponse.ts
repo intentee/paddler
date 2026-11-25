@@ -1,9 +1,37 @@
 import { z } from "zod";
 
-const DecisionAnswerSchema = z.object({
-  id: z.string(),
-  probabilities: z.array(z.number()),
-});
+const DecisionAnswerSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      choice: z.string(),
+      confidence: z.number(),
+      probabilities: z.record(z.string(), z.number()),
+      type: z.literal("choice"),
+    })
+    .strict(),
+  z
+    .object({
+      noul: z.number(),
+      type: z.literal("noul"),
+    })
+    .strict(),
+  z
+    .object({
+      confidence: z.number(),
+      legend: z.record(z.string(), z.json()),
+      probabilities: z.record(z.string(), z.number()),
+      score: z.number(),
+      type: z.literal("score"),
+    })
+    .strict(),
+]);
+
+const AnsweredDecisionQuestionSchema = z
+  .object({
+    answer: DecisionAnswerSchema,
+    id: z.string(),
+  })
+  .strict();
 
 const DecisionSummarySchema = z.object({
   input_tokens: z.number(),
@@ -16,41 +44,44 @@ const OversizedDecisionDetailsSchema = z.object({
 });
 
 const decisionFailureCodes = {
+  AnswersUnreadable: 500,
   BatchAssemblyFailed: 500,
   DecisionsNotServed: 503,
   DecodeFailed: 500,
-  HiddenStateUnavailable: 500,
-  InputTokenizationFailed: 400,
   KvCacheCopyFailed: 500,
   KvCacheRemovalFailed: 500,
+  MediaEvaluationFailed: 500,
   ModelNotLoaded: 503,
+  RequestRejected: 400,
   SchedulerUnavailable: 503,
 } as const;
 
 type DecisionFailure = keyof typeof decisionFailureCodes;
 
 const DecisionFailureSchema = z.union([
+  z.object({ AnswersUnreadable: z.string() }).strict(),
   z.object({ BatchAssemblyFailed: z.string() }).strict(),
   z.object({ DecisionsNotServed: z.string() }).strict(),
   z.object({ DecodeFailed: z.string() }).strict(),
-  z.object({ HiddenStateUnavailable: z.string() }).strict(),
-  z.object({ InputTokenizationFailed: z.string() }).strict(),
   z.object({ KvCacheCopyFailed: z.string() }).strict(),
   z.object({ KvCacheRemovalFailed: z.string() }).strict(),
+  z.object({ MediaEvaluationFailed: z.string() }).strict(),
   z.object({ ModelNotLoaded: z.string() }).strict(),
+  z.object({ RequestRejected: z.string() }).strict(),
   z.object({ SchedulerUnavailable: z.string() }).strict(),
 ]);
 
 const DecisionResultSchema = z.union([
   z.object({ Done: DecisionSummarySchema }).strict(),
-  z.object({ QuestionAnswered: DecisionAnswerSchema }).strict(),
+  z.object({ QuestionAnswered: AnsweredDecisionQuestionSchema }).strict(),
   z.object({ RequestExceedsContext: OversizedDecisionDetailsSchema }).strict(),
+  z.literal("StopRequested"),
   DecisionFailureSchema,
 ]);
 
 type DecisionMessage =
   | {
-      answer: z.infer<typeof DecisionAnswerSchema>;
+      answered_question: z.infer<typeof AnsweredDecisionQuestionSchema>;
       done: false;
       error: null;
       generated_by: string | null;
@@ -58,7 +89,7 @@ type DecisionMessage =
       summary: null;
     }
   | {
-      answer: null;
+      answered_question: null;
       done: true;
       error: null;
       generated_by: string | null;
@@ -66,7 +97,7 @@ type DecisionMessage =
       summary: z.infer<typeof DecisionSummarySchema>;
     }
   | {
-      answer: null;
+      answered_question: null;
       done: true;
       error: { code: number; description: string };
       generated_by: string | null;
@@ -81,7 +112,7 @@ function failedDecision(
   description: string,
 ): DecisionMessage {
   return Object.freeze({
-    answer: null,
+    answered_question: null,
     done: true,
     error: Object.freeze({ code, description }),
     generated_by,
@@ -121,9 +152,18 @@ function decisionMessage(
   const { generated_by, request_id, response } = message.Response;
   const decisionResult = response.Decision;
 
+  if (decisionResult === "StopRequested") {
+    return failedDecision(
+      request_id,
+      generated_by,
+      502,
+      "the agent stopped before it finished the decision",
+    );
+  }
+
   if ("Done" in decisionResult) {
     return Object.freeze({
-      answer: null,
+      answered_question: null,
       done: true,
       error: null,
       generated_by,
@@ -134,7 +174,7 @@ function decisionMessage(
 
   if ("QuestionAnswered" in decisionResult) {
     return Object.freeze({
-      answer: decisionResult.QuestionAnswered,
+      answered_question: decisionResult.QuestionAnswered,
       done: false,
       error: null,
       generated_by,

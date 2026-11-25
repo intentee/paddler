@@ -17,7 +17,6 @@ pub const API_PATH_INFERENCE_SOCKET: &str = "/api/v1/inference_socket";
 pub const API_PATH_METRICS: &str = "/metrics";
 pub const ASSISTANT_ROLE: &str = "assistant";
 pub const DECISION_SLOTS_MINIMUM: NonZeroU16 = NonZeroU16::new(2).unwrap();
-pub const EMBEDDED_CHAT_TEMPLATE_KEY: &str = "tokenizer.chat_template";
 pub const PING_INTERVAL: Duration = Duration::from_secs(3);
 pub const SYSTEM_ROLE: &str = "system";
 pub const UNANSWERED_PINGS_TOLERATED: u32 = 1;

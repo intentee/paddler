@@ -10,6 +10,7 @@ export function run({ development, once = false, rustJobs }) {
       "paddler_agent",
       "paddler_agent_decision",
       "paddler_agent_embeddings",
+      "paddler_agent_model_capabilities",
       "paddler_agent_runtime",
       "paddler_agent_status",
       "paddler_agent_text_generation",

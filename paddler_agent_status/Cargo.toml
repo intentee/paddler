@@ -13,11 +13,13 @@ doctest = false
 
 [dependencies]
 dashmap = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 parking_lot = { workspace = true }
 tokio = { workspace = true }
 paddler_messaging = { workspace = true }
 
 [dev-dependencies]
+paddler_model_capabilities_fixture = { workspace = true }
 tokio-test = { workspace = true }
 
 [lints]

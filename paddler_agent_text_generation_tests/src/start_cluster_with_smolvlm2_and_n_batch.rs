@@ -6,7 +6,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
 /// # Errors
@@ -21,8 +22,8 @@ pub async fn start_cluster_with_smolvlm2_and_n_batch(
     Cluster::start_in_process(ClusterParams {
         agents,
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                n_batch,
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                n_batch: ModelDefaultOr::Explicit(n_batch),
                 ..desired_state.model_runtime_parameters
             },
             ..desired_state

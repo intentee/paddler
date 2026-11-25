@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_text_generation_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -39,9 +40,10 @@ async fn qwen35_with_system_message_completes_with_thinking_disabled() {
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
                 conversation_history,
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(512).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

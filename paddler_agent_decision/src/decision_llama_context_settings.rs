@@ -1,5 +1,6 @@
-use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_decision::decision_model::DecisionModel;
 
+use paddler_agent_model_capabilities::established_model_capabilities::EstablishedModelCapabilities;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::llama_context_settings::LlamaContextSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
@@ -8,8 +9,10 @@ use paddler_messaging::inference_capability::InferenceCapability;
 
 use crate::decision_error::DecisionError;
 
-pub struct DecisionLlamaContextSettings<'parameters> {
-    pub llama_context_settings: LlamaContextSettings<'parameters>,
+pub struct DecisionLlamaContextSettings<'settings> {
+    pub decision_model: &'settings DecisionModel,
+    pub llama_context_settings: LlamaContextSettings<'settings>,
+    pub model_capabilities: &'settings EstablishedModelCapabilities,
 }
 
 impl DecisionLlamaContextSettings<'_> {
@@ -24,10 +27,13 @@ impl DecisionLlamaContextSettings<'_> {
         Ok(loaded_llama_model.create_llama_context(
             inference_runtime_context,
             InferenceCapability::Decisions,
-            self.llama_context_settings
-                .into_llama_context_params()
-                .with_kv_unified(true)
-                .with_pooling_type(LlamaPoolingType::None),
+            self.model_capabilities.detected.context_params(
+                self.decision_model.output().context_params(
+                    self.llama_context_settings
+                        .into_llama_context_params()
+                        .with_kv_unified(true),
+                ),
+            ),
         )?)
     }
 }

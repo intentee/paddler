@@ -7,10 +7,10 @@ use tokio::sync::mpsc;
 use paddler_agent::pipeline_request::PipelineRequest;
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_runtime::agent_request::AgentRequest;
-use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
+use paddler_request_params_fixture::many_question_decision::many_question_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_a_model_that_makes_no_decisions_rejects_decisions() {
@@ -29,13 +29,7 @@ async fn an_agent_serving_a_model_that_makes_no_decisions_rejects_decisions() {
         .pipeline_arbiter
         .forward(PipelineRequest::Decide(AgentRequest {
             params: DecideParams {
-                last_question: DecisionQuestion {
-                    id: "paid".to_owned(),
-                    instructions: "Was it paid?".to_owned(),
-                    options: vec!["no".to_owned(), "yes".to_owned()],
-                },
-                leading_questions: Vec::new(),
-                state: "The invoice was paid on time.".to_owned(),
+                request: many_question_decision(1),
             },
             response_tx,
             slot_guard: serving_pipeline_arbiter.slot_guard(NonZeroU16::MIN),

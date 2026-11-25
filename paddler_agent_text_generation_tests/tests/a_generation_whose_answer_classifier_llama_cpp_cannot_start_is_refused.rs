@@ -39,6 +39,16 @@ fn a_generation_whose_answer_classifier_llama_cpp_cannot_start_is_refused() {
     let chat_templates = model
         .chat_templates()
         .expect("the model must embed a chat template");
+    let request_preparer = FirstMessageContentRequestPreparer {
+        llama_runtime: &runtime,
+        sequence_context_size,
+    }
+    .into_generation_request_preparer()
+    .expect("the first message content chat template must be prepared");
+    let multimodal_ingestion = MultimodalIngestion::for_context(
+        &llama_context,
+        request_preparer.model_capabilities.clone(),
+    );
     let RawPromptGeneration {
         agent_request,
         generate_tokens_stop_tx: _generate_tokens_stop_tx,
@@ -58,14 +68,9 @@ fn a_generation_whose_answer_classifier_llama_cpp_cannot_start_is_refused() {
                 weather_chat_session(model, chat_templates)
                     .expect("the model's template must serve the weather question"),
             ),
-            ..FirstMessageContentRequestPreparer {
-                llama_runtime: &runtime,
-                sequence_context_size,
-            }
-            .into_generation_request_preparer()
-            .expect("the first message content chat template must be prepared")
-            .prepare_raw_prompt(agent_request)
-            .expect("the generation must be prepared")
+            ..request_preparer
+                .prepare_raw_prompt(agent_request)
+                .expect("the generation must be prepared")
         }))
         .expect("the scheduler must accept the generation");
     scheduler_message_tx
@@ -82,7 +87,7 @@ fn a_generation_whose_answer_classifier_llama_cpp_cannot_start_is_refused() {
             agent_name: None,
             desired_slots_total: 1,
             model,
-            multimodal_ingestion: MultimodalIngestion::Unsupported,
+            multimodal_ingestion,
             sequence_context_size,
         },
         scheduler_message_rx,

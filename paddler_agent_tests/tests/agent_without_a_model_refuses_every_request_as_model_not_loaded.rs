@@ -2,8 +2,8 @@ use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 
 use paddler_agent_tests::agent_connected_to_an_untrusted_balancer::AgentConnectedToAnUntrustedBalancer;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
-use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -19,6 +19,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::reserved_request::ReservedRequest;
+use paddler_request_params_fixture::many_question_decision::many_question_decision;
 
 fn requests_of_every_kind() -> [RequestEnvelope<AgentJsonRpcRequest>; 4] {
     [
@@ -28,9 +29,10 @@ fn requests_of_every_kind() -> [RequestEnvelope<AgentJsonRpcRequest>; 4] {
                 params: ContinueFromConversationHistoryParams {
                     add_generation_prompt: true,
                     conversation_history: ConversationHistory::new(Vec::new()),
-                    enable_thinking: false,
+                    enable_thinking: ModelDefaultOr::Explicit(false),
                     grammar: None,
                     max_tokens: NonZeroU32::MIN,
+                    parallel_tool_calls: ModelDefaultOr::ModelDefault,
                     parse_tool_calls: false,
                     tools: Vec::new(),
                 },
@@ -41,13 +43,7 @@ fn requests_of_every_kind() -> [RequestEnvelope<AgentJsonRpcRequest>; 4] {
             id: "decision".to_owned(),
             request: AgentJsonRpcRequest::Decide(ReservedRequest {
                 params: DecideParams {
-                    last_question: DecisionQuestion {
-                        id: "paid".to_owned(),
-                        instructions: "Was it paid?".to_owned(),
-                        options: vec!["no".to_owned(), "yes".to_owned()],
-                    },
-                    leading_questions: Vec::new(),
-                    state: "The invoice was paid on time.".to_owned(),
+                    request: many_question_decision(1),
                 },
                 reserved_slots: NonZeroU16::MIN,
             }),

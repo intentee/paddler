@@ -1,0 +1,5 @@
+.conversationPromptStream__notice {
+  composes: conversationPromptInput from "./ConversationPromptInput.module.css";
+  padding: var(--spacing-base-plus-half);
+  row-gap: var(--spacing-half);
+}

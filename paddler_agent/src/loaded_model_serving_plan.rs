@@ -1,6 +1,7 @@
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 
 use crate::capability_plan::CapabilityPlan;
+use crate::established_capabilities_plan::EstablishedCapabilitiesPlan;
 use crate::inference_capabilities::InferenceCapabilities;
 use crate::model_serving_settings::ModelServingSettings;
 use crate::served_decisions::ServedDecisions;
@@ -13,6 +14,7 @@ pub struct LoadedModelServingPlan {
         CapabilityPlan<ServedEmbeddings>,
         CapabilityPlan<ServedTextGeneration>,
     >,
+    pub established_capabilities: EstablishedCapabilitiesPlan,
     pub loaded_llama_model: LoadedLlamaModel,
     pub model_serving_settings: ModelServingSettings,
 }
@@ -29,6 +31,7 @@ impl LoadedModelServingPlan {
                 embeddings: CapabilityPlan::Start,
                 text_generation: CapabilityPlan::Start,
             },
+            established_capabilities: EstablishedCapabilitiesPlan::Establish,
             loaded_llama_model,
             model_serving_settings,
         }

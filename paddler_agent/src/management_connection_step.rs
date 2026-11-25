@@ -15,7 +15,7 @@ pub enum ManagementConnectionStep {
     Deregister,
     End(ManagementConnectionEnd),
     StreamResponses(BoxStream<'static, ManagementJsonRpcMessage>),
-    Write(ManagementJsonRpcMessage),
+    Write(Box<ManagementJsonRpcMessage>),
 }
 
 impl ManagementConnectionStep {

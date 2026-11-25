@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AgentDecisionsServingSchema } from "./AgentDecisionsServing";
+import { ModelCapabilitiesSchema } from "./ModelCapabilities";
 
 export const AgentRuntimeStatusSchema = z.union([
   z.literal("Idle"),
@@ -8,7 +8,7 @@ export const AgentRuntimeStatusSchema = z.union([
     .object({
       Serving: z
         .object({
-          decisions: AgentDecisionsServingSchema,
+          capabilities: ModelCapabilitiesSchema,
           slots_total: z.number(),
         })
         .strict(),

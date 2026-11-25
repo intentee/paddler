@@ -15,7 +15,7 @@ use paddler_agent_runtime::scheduler_ready::SchedulerReady;
 use paddler_agent_runtime::scheduler_request_preparer::SchedulerRequestPreparer;
 use paddler_agent_runtime::start_scheduler_thread::start_scheduler_thread;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 
 use crate::embedding_batch_preparer::EmbeddingBatchPreparer;
@@ -28,7 +28,7 @@ use crate::sequence_context_limit::SequenceContextLimit;
 pub struct EmbeddingPipeline {
     pub inference_runtime_context: InferenceRuntimeContext,
     pub loaded_llama_model: LoadedLlamaModel,
-    pub model_runtime_parameters: ModelRuntimeParameters,
+    pub model_runtime_parameters: DesiredModelRuntimeParameters,
     pub pooling_type: PoolingType,
 }
 

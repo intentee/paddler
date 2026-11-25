@@ -14,6 +14,7 @@ doctest = false
 
 [dependencies]
 base64 = { workspace = true }
+paddler_messaging = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

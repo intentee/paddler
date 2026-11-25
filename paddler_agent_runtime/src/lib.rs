@@ -19,6 +19,7 @@ pub mod loaded_llama_model;
 pub mod loaded_model_metadata;
 pub mod model_file_prefetch;
 pub mod model_metadata_holder;
+pub mod model_placement;
 pub mod prepares_scheduler_command;
 pub mod receives_stop_request;
 pub mod rejection_description;

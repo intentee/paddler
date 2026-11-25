@@ -69,7 +69,7 @@ impl ServingReplacement {
         desired_settings: ModelServingSettings,
     ) -> ReplacementOutcome {
         let loaded_model_serving_plan = match held.retain_for(desired_settings).await {
-            RetainedServing::LoadedModel(loaded_model_serving_plan) => loaded_model_serving_plan,
+            RetainedServing::LoadedModel(loaded_model_serving_plan) => *loaded_model_serving_plan,
             RetainedServing::ModelToLoad(desired_settings) => match capability_starter
                 .load_model(desired_settings.llama_model_settings())
                 .await

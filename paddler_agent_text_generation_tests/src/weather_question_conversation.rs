@@ -1,5 +1,6 @@
 use std::num::NonZeroU32;
 
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -20,9 +21,10 @@ pub fn weather_question_conversation(
             content: ConversationMessageContent::Text("What is the weather in Paris?".to_owned()),
             role: "user".to_owned(),
         }]),
-        enable_thinking: false,
+        enable_thinking: ModelDefaultOr::Explicit(false),
         grammar: Some(grammar),
         max_tokens,
+        parallel_tool_calls: ModelDefaultOr::ModelDefault,
         parse_tool_calls: !tools.is_empty(),
         tools,
     }

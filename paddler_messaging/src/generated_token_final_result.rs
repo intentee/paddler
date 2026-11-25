@@ -1,12 +1,15 @@
 use crate::generation_summary::GenerationSummary;
 use crate::oversized_media_details::OversizedMediaDetails;
 use crate::oversized_prompt_details::OversizedPromptDetails;
+use crate::undecodable_media::UndecodableMedia;
+use crate::unsupported_conversation_feature::UnsupportedConversationFeature;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum GeneratedTokenFinalResult {
     BatchAssemblyFailed(String),
     AnswerClassificationFailed(String),
     ChatTemplateError(String),
+    ConversationFeatureNotSupported(UnsupportedConversationFeature),
     DecodeFailed(String),
     DetokenizationFailed(String),
     Done(GenerationSummary),
@@ -14,8 +17,8 @@ pub enum GeneratedTokenFinalResult {
     GrammarInitializationFailed(String),
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
-    ImageDecodingFailed(String),
     KvCacheClearFailed(String),
+    MediaDecodingFailed(UndecodableMedia),
     MediaExceedsMicroBatch(OversizedMediaDetails),
     ModelNotLoaded(String),
     MultimodalIngestionFailed(String),
@@ -29,5 +32,6 @@ pub enum GeneratedTokenFinalResult {
     SamplerError(String),
     SamplingCandidatesExhausted(String),
     SchedulerUnavailable(String),
+    TextGenerationNotServed(String),
     ToolSchemaInvalid(String),
 }

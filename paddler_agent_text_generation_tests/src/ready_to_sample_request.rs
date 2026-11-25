@@ -108,41 +108,40 @@ impl ReadyToSampleRequest<'_> {
                 .slot_aggregated_status
                 .clone(),
         );
-
-        FirstMessageContentRequestPreparer {
+        let generation_request_preparer = FirstMessageContentRequestPreparer {
             llama_runtime: runtime,
             sequence_context_size,
         }
-        .into_generation_request_preparer()
-        .and_then(|generation_request_preparer| {
-            generation_request_preparer
-                .prepare_raw_prompt(agent_request)
-                .context("the generation must be prepared")
-        })
-        .and_then(|prepared_generation_request| {
-            ready_to_sample(
-                customize_request(prepared_generation_request),
-                &runtime.loaded_llama_model.model,
-                batch_position,
-                next_token_position,
-            )
-        })
-        .map(|mut active_request| {
-            AdvanceGeneratingPhase {
-                candidates: &mut LlamaTokenDataArray::new(Vec::new(), false),
-                ingest_outcomes: &mut Vec::new(),
-                llama_context,
-                scheduler_context: &ContinuousBatchSchedulerContext {
-                    agent_name: None,
-                    desired_slots_total: 1,
-                    model: &runtime.loaded_llama_model.model,
-                    multimodal_ingestion: MultimodalIngestion::Unsupported,
-                    sequence_context_size,
-                },
-            }
-            .run(slice::from_mut(&mut active_request));
+        .into_generation_request_preparer()?;
+        let mut active_request = generation_request_preparer
+            .prepare_raw_prompt(agent_request)
+            .context("the generation must be prepared")
+            .and_then(|prepared_generation_request| {
+                ready_to_sample(
+                    customize_request(prepared_generation_request),
+                    &runtime.loaded_llama_model.model,
+                    batch_position,
+                    next_token_position,
+                )
+            })?;
 
-            active_request.state.into_terminal_outcome()
-        })
+        AdvanceGeneratingPhase {
+            candidates: &mut LlamaTokenDataArray::new(Vec::new(), false),
+            ingest_outcomes: &mut Vec::new(),
+            llama_context,
+            scheduler_context: &ContinuousBatchSchedulerContext {
+                agent_name: None,
+                desired_slots_total: 1,
+                model: &runtime.loaded_llama_model.model,
+                multimodal_ingestion: MultimodalIngestion::for_context(
+                    llama_context,
+                    generation_request_preparer.model_capabilities,
+                ),
+                sequence_context_size,
+            },
+        }
+        .run(slice::from_mut(&mut active_request));
+
+        Ok(active_request.state.into_terminal_outcome())
     }
 }

@@ -4,14 +4,15 @@ use std::time::SystemTime;
 use nanoid::nanoid;
 use serde::Deserialize;
 
-use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::constants::SYSTEM_ROLE;
 use paddler_messaging::constants::USER_ROLE;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::validates::Validates;
+use paddler_messaging::request_params::validates::Validates;
 
 use crate::constants::DEFAULT_MAX_TOKENS;
 use crate::openai_translation_error::OpenAITranslationError;
@@ -37,6 +38,8 @@ pub struct ResponsesRequest {
     #[serde(default)]
     pub max_output_tokens: Option<NonZeroU32>,
     #[serde(default)]
+    pub parallel_tool_calls: Option<bool>,
+    #[serde(default)]
     pub tools: Vec<ResponsesTool>,
     #[serde(default)]
     pub text: Option<ResponsesTextParam>,
@@ -51,9 +54,9 @@ impl ResponsesRequest {
     pub fn translate(
         self,
         now: SystemTime,
-        SamplingParameters {
+        DesiredSamplingParameters {
             temperature, top_p, ..
-        }: &SamplingParameters,
+        }: &DesiredSamplingParameters,
     ) -> Result<TranslatedResponsesRequest, OpenAITranslationError> {
         let Self {
             model,
@@ -64,6 +67,7 @@ impl ResponsesRequest {
             tools,
             text,
             reasoning,
+            parallel_tool_calls,
         } = self;
 
         let mut messages: Vec<ConversationMessage> = Vec::new();
@@ -111,9 +115,10 @@ impl ResponsesRequest {
                 conversation_history: ConversationHistory::new(messages),
                 enable_thinking: reasoning
                     .as_ref()
-                    .is_none_or(ResponsesReasoning::enables_thinking),
+                    .map_or(ModelDefaultOr::ModelDefault, ResponsesReasoning::thinking),
                 grammar: text.and_then(ResponsesTextParam::into_grammar_constraint),
                 max_tokens: max_output_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+                parallel_tool_calls: ModelDefaultOr::from(parallel_tool_calls),
                 parse_tool_calls: !validated_tools.is_empty(),
                 tools: validated_tools,
             },
@@ -136,7 +141,8 @@ mod tests {
     use serde_json::from_value;
     use serde_json::json;
 
-    use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+    use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::conversation_message::ConversationMessage;
     use paddler_messaging::conversation_message_content::ConversationMessageContent;
     use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
@@ -162,7 +168,7 @@ mod tests {
         let params: ResponsesRequest = from_value(value).unwrap();
 
         params
-            .translate(UNIX_EPOCH, &SamplingParameters::default())
+            .translate(UNIX_EPOCH, &DesiredSamplingParameters::default())
             .unwrap()
     }
 
@@ -290,7 +296,7 @@ mod tests {
         .unwrap();
 
         assert!(matches!(
-            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
+            params.translate(UNIX_EPOCH, &DesiredSamplingParameters::default()),
             Err(OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject { tool_call_id, .. })
                 if tool_call_id == "call_1"
         ));
@@ -451,7 +457,10 @@ mod tests {
             "reasoning": { "effort": "none" }
         }));
 
-        assert!(!translated.conversation_history_params.enable_thinking);
+        assert_eq!(
+            translated.conversation_history_params.enable_thinking,
+            ModelDefaultOr::Explicit(false)
+        );
     }
 
     #[test]
@@ -552,7 +561,7 @@ mod tests {
         .unwrap();
 
         assert!(matches!(
-            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
+            params.translate(UNIX_EPOCH, &DesiredSamplingParameters::default()),
             Err(OpenAITranslationError::ToolRejected(
                 RequestParamsValidationError::RequiredFieldNotInProperties { field }
             )) if field == "absent"
@@ -626,7 +635,7 @@ mod tests {
         .unwrap();
 
         assert!(matches!(
-            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
+            params.translate(UNIX_EPOCH, &DesiredSamplingParameters::default()),
             Err(OpenAITranslationError::ReasoningItemWithoutContent)
         ));
     }

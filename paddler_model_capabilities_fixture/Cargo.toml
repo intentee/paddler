@@ -1,0 +1,19 @@
+[package]
+name = "paddler_model_capabilities_fixture"
+authors.workspace = true
+description = "Fixed model capabilities, as llama-cpp-bindings reports them for a chat model and a decision model, for tests that need a reported capability set"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-types = { workspace = true }
+
+[lints]
+workspace = true

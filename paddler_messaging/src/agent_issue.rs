@@ -5,6 +5,7 @@ use crate::agent_issue_params::agent_model_uri_not_canonical_params::AgentModelU
 use crate::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use crate::agent_issue_params::hugging_face_download_failed_params::HuggingFaceDownloadFailedParams;
 use crate::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+use crate::agent_issue_params::model_capability_failure_params::ModelCapabilityFailureParams;
 use crate::agent_issue_params::model_path::ModelPath;
 use crate::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use crate::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
@@ -17,15 +18,16 @@ pub enum AgentIssue {
     CacheCannotAcquireLock(ModelPath),
     CacheDirectoryIsNotWritable(ModelPath),
     CacheStorageIsFull(ModelPath),
+    ChatTemplateCapabilitiesUnreadable(ModelCapabilityFailureParams),
     ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams),
-    DecisionModelIsMalformed(ModelPath),
-    DecisionTypeIsUnsupported(ModelPath),
+    DecisionModelCannotBeServed(ModelCapabilityFailureParams),
     DownloadInterrupted(ModelPath),
     DownloadServerDeniedAccess(ModelPath),
     DownloadServerErrored(ModelPath),
     DownloadServerIsUnreachable(ModelPath),
     DownloadServerRejectedRequest(ModelPath),
     DownloadUrlIsMalformed(ModelPath),
+    EmbeddingPoolingProducesNoVectors(ModelPath),
     HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock),
     HuggingFaceDownloadFailed(HuggingFaceDownloadFailedParams),
     HuggingFaceModelDoesNotExist(ModelPath),
@@ -34,11 +36,12 @@ pub enum AgentIssue {
     LocalModelFileCannotBeChecked(ModelPath),
     ModelCacheIsCorrupted(ModelPath),
     ModelCannotBeLoaded(ModelPath),
+    ModelDeclaresAnUnknownPoolingType(ModelCapabilityFailureParams),
     ModelDoesNotExistAtUrl(ModelPath),
     ModelFileDoesNotExist(ModelPath),
+    ModelTrainingContextIsUnrepresentable(ModelPath),
     ModelUriIsUnparseable(ModelPath),
     MultimodalProjectionCannotBeLoaded(ModelPath),
     SlotCannotStart(SlotCannotStartParams),
     SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams),
-    UnableToFindChatTemplate(ModelPath),
 }

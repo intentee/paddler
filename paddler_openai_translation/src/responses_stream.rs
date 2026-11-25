@@ -337,6 +337,7 @@ mod tests {
 
     use paddler_generation_result_fixture::finished_generation_summary::finished_generation_summary;
     use paddler_generation_result_fixture::weather_call::weather_call;
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 
@@ -355,8 +356,8 @@ mod tests {
             created_at: 0,
             model: "test-model".to_owned(),
             instructions: None,
-            temperature: 0.25,
-            top_p: 0.5,
+            temperature: ModelDefaultOr::Explicit(0.25),
+            top_p: ModelDefaultOr::Explicit(0.5),
         })
     }
 

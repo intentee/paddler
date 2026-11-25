@@ -8,6 +8,7 @@ use paddler_agent_text_generation_tests::start_cluster_with_ministral_3_and_mmpr
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -44,9 +45,10 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() {
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
                 conversation_history,
-                enable_thinking: true,
+                enable_thinking: ModelDefaultOr::Explicit(true),
                 grammar: None,
                 max_tokens: NonZeroU32::new(200).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

@@ -12,6 +12,7 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -45,9 +46,10 @@ async fn a_multimodal_agent_whose_chat_template_drops_the_image_rejects_the_prom
                 conversation_history: image_description_conversation(
                     LLAMAS_JPEG.data_uri().expect("the test image must load"),
                 ),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::MIN,
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

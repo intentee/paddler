@@ -4,19 +4,20 @@ use std::num::NonZeroU32;
 
 use serde_json::to_value;
 
+use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
+use paddler_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster_harness::cluster::Cluster;
+use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster_harness::half_closed_client::HalfClosedClient;
+use paddler_cluster_harness::unending_grammar::unending_grammar;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::half_closed_client::HalfClosedClient;
-use paddler_cluster_harness::unending_grammar::unending_grammar;
-use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
-use paddler_cluster_harness::cluster::Cluster;
-use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_stops_a_generation_whose_client_half_closes_before_max_tokens() {
@@ -44,9 +45,10 @@ async fn balancer_stops_a_generation_whose_client_half_closes_before_max_tokens(
                 ),
                 role: "user".to_owned(),
             }]),
-            enable_thinking: false,
+            enable_thinking: ModelDefaultOr::Explicit(false),
             grammar: Some(unending_grammar()),
             max_tokens: NonZeroU32::MAX,
+            parallel_tool_calls: ModelDefaultOr::ModelDefault,
             parse_tool_calls: false,
             tools: Vec::new(),
         };

@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "wouter";
 
 import { type AgentIssue } from "@intentee/paddler-client/schemas/AgentIssue";
+import { AgentIssueRepeatedServingFailure } from "./AgentIssueRepeatedServingFailure";
 
 import { agentIssues, agentIssues__issue } from "./AgentIssues.module.css";
 
@@ -9,26 +10,83 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
   return (
     <ul className={agentIssues}>
       {issues.map(function (issue, index) {
-        if ("ChatTemplateDoesNotCompile" in issue) {
+        if ("ChatTemplateCapabilitiesUnreadable" in issue) {
+          const { error, model_path } =
+            issue.ChatTemplateCapabilitiesUnreadable;
+
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Chat template does not compile: "
-                {issue.ChatTemplateDoesNotCompile.error}"
+                llama.cpp cannot read what the chat template supports:{" "}
+                {model_path.model_path}
               </strong>
+              <strong>What is the cause?</strong> <p>{error}</p>
               <strong>What will Paddler do?</strong>{" "}
-              <p>
-                Paddler will continue to run, but it won't reattempt to load the
-                model.
-              </p>
+              <AgentIssueRepeatedServingFailure failingPart="chat template" />
               <strong>What can you do?</strong>{" "}
               <p>
-                <Link href="/model">You need to fix the chat template.</Link>
+                <Link href="/model">Provide your own chat template</Link>, or
+                use a different model.
               </p>
-              <strong>Template in question:</strong>{" "}
-              <pre>
-                <code>{issue.ChatTemplateDoesNotCompile.template_content}</code>
-              </pre>
+            </li>
+          );
+        }
+
+        if ("ChatTemplateDoesNotCompile" in issue) {
+          const { error, template_source } = issue.ChatTemplateDoesNotCompile;
+
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>Chat template does not compile: "{error}"</strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <AgentIssueRepeatedServingFailure failingPart="chat template" />
+              {"EmbeddedInModel" === template_source ? (
+                <>
+                  <strong>Template in question:</strong>{" "}
+                  <p>The chat template embedded in the model.</p>
+                  <strong>What can you do?</strong>{" "}
+                  <p>
+                    <Link href="/model">Provide your own chat template</Link> to
+                    use instead of the one embedded in the model.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong>Template in question:</strong>{" "}
+                  <pre>
+                    <code>{template_source.Override.content}</code>
+                  </pre>
+                  <strong>What can you do?</strong>{" "}
+                  <p>
+                    <Link href="/model">
+                      You need to fix your chat template.
+                    </Link>
+                  </p>
+                </>
+              )}
+            </li>
+          );
+        }
+
+        if ("EmbeddingPoolingProducesNoVectors" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Embedding pooling produces no embedding vectors:{" "}
+                {issue.EmbeddingPoolingProducesNoVectors.model_path}
+              </strong>
+              <strong>What is the cause?</strong>{" "}
+              <p>
+                The pooling type chosen in the embedding parameters produces no
+                embedding vectors.
+              </p>
+              <strong>What will Paddler do?</strong>{" "}
+              <AgentIssueRepeatedServingFailure failingPart="pooling type" />
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">Change the pooling type</Link> in the
+                embedding parameters to one that produces embedding vectors.
+              </p>
             </li>
           );
         }
@@ -226,14 +284,58 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will continue to run, but it will not reattempt to load
-                the model.
+                The agent does not serve the model until the multimodal
+                projection loads. It keeps retrying every few seconds.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
                 Either ensure that the file is available to the agent at a given
                 path, or <Link href="/model">change the model parameters</Link>{" "}
                 to use a different model file.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ModelDeclaresAnUnknownPoolingType" in issue) {
+          const { error, model_path } = issue.ModelDeclaresAnUnknownPoolingType;
+
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Model declares a pooling type llama.cpp does not know:{" "}
+                {model_path.model_path}
+              </strong>
+              <strong>What is the cause?</strong> <p>{error}</p>
+              <strong>What will Paddler do?</strong>{" "}
+              <AgentIssueRepeatedServingFailure failingPart="model" />
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">Choose a pooling type</Link> in the
+                embedding parameters instead of the one the model declares, or
+                use a different model.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ModelTrainingContextIsUnrepresentable" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Model declares a training context size Paddler cannot use:{" "}
+                {issue.ModelTrainingContextIsUnrepresentable.model_path}
+              </strong>
+              <strong>What is the cause?</strong>{" "}
+              <p>
+                The training context size in the metadata of the model does not
+                fit a context size.
+              </p>
+              <strong>What will Paddler do?</strong>{" "}
+              <AgentIssueRepeatedServingFailure failingPart="model" />
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">Use a different model file</Link>.
               </p>
             </li>
           );
@@ -249,37 +351,6 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
                 Unable to start slot {slot_index} for {inference_capability}:{" "}
                 {error}
               </strong>
-            </li>
-          );
-        }
-
-        if ("UnableToFindChatTemplate" in issue) {
-          return (
-            <li className={agentIssues__issue} key={index}>
-              <strong>
-                Unable to find chat template:{" "}
-                {issue.UnableToFindChatTemplate.model_path}
-              </strong>
-              <strong>What will Paddler do?</strong>{" "}
-              <p>
-                Paddler will not be able to use the chat template, but it will
-                continue to run. It will not try to load the model again until
-                you provide a chat template to use.
-              </p>
-              <strong>What can you do?</strong>{" "}
-              <p>You need to provide a chat template for the model to use.</p>
-              <p>
-                Chat templates are extremely important for the model to work
-                correctly, but sometimes they are not included in the model file
-                itself (especially in the older GGUF models), and need to be
-                provided separately.
-              </p>
-              <strong>Where can I find chat templates?</strong>{" "}
-              <p>
-                Usually they are provided by the model author, and they can be
-                found in the model's README file on HuggingFace, or in the
-                model's documentation.
-              </p>
             </li>
           );
         }
@@ -615,45 +686,21 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("DecisionModelIsMalformed" in issue) {
-          return (
-            <li className={agentIssues__issue} key={index}>
-              <strong>
-                Decision model is malformed:{" "}
-                {issue.DecisionModelIsMalformed.model_path}
-              </strong>
-              <strong>What is the cause?</strong>{" "}
-              <p>
-                The model declares itself a kev decision model, but it lacks
-                its decision temperatures, or its vocabulary does not hold the
-                kev delimiters as control tokens.
-              </p>
-              <strong>What can you do?</strong>{" "}
-              <p>
-                <Link href="/model">Use a kev decision model</Link> converted
-                by llama.cpp.
-              </p>
-            </li>
-          );
-        }
+        if ("DecisionModelCannotBeServed" in issue) {
+          const { error, model_path } = issue.DecisionModelCannotBeServed;
 
-        if ("DecisionTypeIsUnsupported" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Decision type is not supported:{" "}
-                {issue.DecisionTypeIsUnsupported.model_path}
+                llama.cpp cannot serve the decisions the model declares:{" "}
+                {model_path.model_path}
               </strong>
+              <strong>What is the cause?</strong> <p>{error}</p>
               <strong>What will Paddler do?</strong>{" "}
-              <p>
-                Paddler serves completions with the model, but neither
-                decisions nor embeddings, because it serves decisions only of
-                kev decision models.
-              </p>
+              <AgentIssueRepeatedServingFailure failingPart="model" />
               <strong>What can you do?</strong>{" "}
               <p>
-                <Link href="/model">Use a kev decision model</Link> to serve
-                decisions.
+                <Link href="/model">Use a different model</Link>.
               </p>
             </li>
           );

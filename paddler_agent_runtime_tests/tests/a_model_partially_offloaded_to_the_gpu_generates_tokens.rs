@@ -9,7 +9,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
@@ -18,9 +19,9 @@ const PARTIAL_GPU_LAYER_COUNT: i32 = 14;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_model_partially_offloaded_to_the_gpu_generates_tokens() {
-    let model_runtime_parameters = ModelRuntimeParameters {
-        n_gpu_layers: PARTIAL_GPU_LAYER_COUNT,
-        ..ModelRuntimeParameters::default()
+    let model_runtime_parameters = DesiredModelRuntimeParameters {
+        n_gpu_layers: ModelDefaultOr::Explicit(PARTIAL_GPU_LAYER_COUNT),
+        ..DesiredModelRuntimeParameters::default()
     };
 
     let cluster = Cluster::start_in_process(ClusterParams {

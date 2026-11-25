@@ -2,6 +2,7 @@ pub mod agent_inference_runtime_context;
 pub mod conversation_generation;
 pub mod desired_state_reconciled_discriminant;
 pub mod embedding_batch_generation;
+pub mod established_decision_capabilities;
 pub mod llama_runtime;
 pub mod model_declaring_decision_metadata;
 pub mod model_serving_text_generation_and_embeddings;

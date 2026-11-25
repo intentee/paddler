@@ -19,7 +19,7 @@ use paddler_agent_text_generation::multimodal_ingestion::MultimodalIngestion;
 use paddler_agent_text_generation_tests::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 use paddler_agent_text_generation_tests::last_generated_token_result::last_generated_token_result;
 use paddler_cluster_harness::generation_done_discriminant::generation_done_discriminant;
-use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 const SENTENCE: &str = "Paddler balances inference across agents. ";
 const SLOTS: u16 = 2;
@@ -40,17 +40,17 @@ fn raw_prompt_generation(
 #[test]
 fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b()
+        &qwen3_5_0_8b()
             .cached_path()
-            .expect("the kev model must be in the Hugging Face cache"),
+            .expect("the Qwen3.5 model must be in the Hugging Face cache"),
         agent_inference_runtime_context(SLOTS),
     )
-    .expect("the kev model must load");
+    .expect("the Qwen3.5 model must load");
     let llama_context = runtime
         .create_text_generation_llama_context(u32::from(SLOTS))
         .expect("the context must be created");
     let sequence_context_size = llama_context.n_ctx_seq();
-    let n_batch = runtime.model_runtime_parameters.n_batch;
+    let n_batch = runtime.n_batch_tokens();
     let model = &runtime.loaded_llama_model.model;
     let tokens_of_repeated_sentence = |repeats: usize| {
         model
@@ -64,8 +64,7 @@ fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
     };
     let tokens_per_repeated_sentence =
         tokens_of_repeated_sentence(2) - tokens_of_repeated_sentence(1);
-    let batch_filling_prompt =
-        SENTENCE.repeat(n_batch.tokens_usize() / tokens_per_repeated_sentence + 1);
+    let batch_filling_prompt = SENTENCE.repeat(n_batch / tokens_per_repeated_sentence + 1);
     let batch_filling_prompt_tokens = model
         .str_to_token(
             &batch_filling_prompt,
@@ -76,7 +75,7 @@ fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
         .len();
 
     assert!(
-        batch_filling_prompt_tokens > n_batch.tokens_usize()
+        batch_filling_prompt_tokens > n_batch
             && batch_filling_prompt_tokens < sequence_context_size as usize,
         "{batch_filling_prompt_tokens}"
     );
@@ -87,6 +86,10 @@ fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
     }
     .into_generation_request_preparer()
     .expect("the first message content chat template must be prepared");
+    let multimodal_ingestion = MultimodalIngestion::for_context(
+        &llama_context,
+        request_preparer.model_capabilities.clone(),
+    );
     let RawPromptGeneration {
         agent_request: batch_filling_generation,
         generate_tokens_stop_tx: _batch_filling_generate_tokens_stop_tx,
@@ -120,7 +123,7 @@ fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
             agent_name: None,
             desired_slots_total: SLOTS,
             model: &runtime.loaded_llama_model.model,
-            multimodal_ingestion: MultimodalIngestion::Unsupported,
+            multimodal_ingestion,
             sequence_context_size,
         },
         scheduler_message_rx,

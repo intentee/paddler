@@ -11,7 +11,8 @@ use paddler_cluster_harness::decision_done_discriminant::decision_done_discrimin
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
-const SLOTS: u16 = 2;
+const LONGEST_SAMPLE_DECISION_READ_SPAN: u16 = 12;
+const SLOTS: u16 = LONGEST_SAMPLE_DECISION_READ_SPAN;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn warm_up_with_one_batch_token_per_slot_lets_decisions_be_served() {

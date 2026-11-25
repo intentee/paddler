@@ -3,10 +3,13 @@ import { scan } from "rxjs";
 
 import { inferenceSocketClient } from "@intentee/paddler-client/inferenceSocketClient";
 import { type ConversationMessage as ConversationMessageType } from "@intentee/paddler-client/schemas/ConversationMessage";
+import { type ConversationMessageContentPart } from "@intentee/paddler-client/schemas/ConversationMessageContentPart";
 import { type InferenceServiceGenerateTokensResponse } from "@intentee/paddler-client/schemas/InferenceServiceGenerateTokensResponse";
 import { PromptContext } from "../contexts/PromptContext";
-import { PromptImageContext } from "../contexts/PromptImageContext";
+import { PromptMediaContext } from "../contexts/PromptMediaContext";
+import { PromptSystemMessageContext } from "../contexts/PromptSystemMessageContext";
 import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
+import { type PromptMedia } from "../PromptMedia";
 import { ConversationMessage } from "./ConversationMessage";
 
 interface Message {
@@ -28,19 +31,39 @@ const defaultMessage: Message = Object.freeze({
   thoughts: "",
 });
 
+const systemMessage: ConversationMessageType = Object.freeze({
+  Message: {
+    role: "system",
+    content:
+      "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.",
+  },
+});
+
+const assistantGreeting: ConversationMessageType = Object.freeze({
+  Message: {
+    role: "assistant",
+    content: "Hello! How can I help you today?",
+  },
+});
+
+function mediaContentPart(media: PromptMedia): ConversationMessageContentPart {
+  if ("audio" === media.kind) {
+    return { type: "input_audio", input_audio: media.audio };
+  }
+
+  return { type: "image_url", image_url: { url: media.dataUri } };
+}
+
 function buildUserMessage(
   submittedPrompt: string,
-  submittedImageDataUri: null | string,
+  submittedMedia: null | PromptMedia,
 ): ConversationMessageType {
-  if (submittedImageDataUri) {
+  if (submittedMedia) {
     return {
       Message: {
         role: "user",
         content: [
-          {
-            type: "image_url",
-            image_url: { url: submittedImageDataUri },
-          },
+          mediaContentPart(submittedMedia),
           {
             type: "text",
             text: submittedPrompt,
@@ -65,8 +88,11 @@ export const ConversationMessagePromptGeneratedTokens = memo(
     webSocket: WebSocket;
   }) {
     const { submittedPrompt, version } = useContext(PromptContext);
-    const { submittedImageDataUri } = useContext(PromptImageContext);
+    const { submittedMedia } = useContext(PromptMediaContext);
     const { submittedIsThinkingEnabled } = useContext(PromptThinkingContext);
+    const { submittedIsSystemMessageIncluded } = useContext(
+      PromptSystemMessageContext,
+    );
     const [message, setMessage] = useState<Message>(defaultMessage);
 
     const socketClient = useMemo(
@@ -86,20 +112,9 @@ export const ConversationMessagePromptGeneratedTokens = memo(
           .continueConversation({
             enableThinking: submittedIsThinkingEnabled,
             messages: [
-              {
-                Message: {
-                  role: "system",
-                  content:
-                    "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.",
-                },
-              },
-              {
-                Message: {
-                  role: "assistant",
-                  content: "Hello! How can I help you today?",
-                },
-              },
-              buildUserMessage(submittedPrompt, submittedImageDataUri),
+              ...(submittedIsSystemMessageIncluded ? [systemMessage] : []),
+              assistantGreeting,
+              buildUserMessage(submittedPrompt, submittedMedia),
             ],
           })
           .pipe(
@@ -165,7 +180,8 @@ export const ConversationMessagePromptGeneratedTokens = memo(
       [
         socketClient,
         setMessage,
-        submittedImageDataUri,
+        submittedMedia,
+        submittedIsSystemMessageIncluded,
         submittedIsThinkingEnabled,
         submittedPrompt,
         version,

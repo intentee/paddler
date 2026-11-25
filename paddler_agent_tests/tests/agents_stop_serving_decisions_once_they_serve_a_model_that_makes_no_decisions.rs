@@ -3,7 +3,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_tests::start_decision_cluster_that_answered_a_decision::start_decision_cluster_that_answered_a_decision;
-use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
+use paddler_messaging::requested_capability::RequestedCapability;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -21,7 +21,7 @@ async fn agents_stop_serving_decisions_once_they_serve_a_model_that_makes_no_dec
         .await
         .expect("the balancer must accept a model that makes no decisions");
     cluster
-        .wait_for_first_agent_to_serve(AgentDecisionsServing::NotServed)
+        .wait_for_first_agent_to_serve_a_model_lacking(RequestedCapability::Decisions)
         .await
         .expect("the agent must stop serving decisions");
 

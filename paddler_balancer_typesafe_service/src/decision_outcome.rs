@@ -33,7 +33,7 @@ impl From<DecisionFinalResult> for DecisionOutcome {
                     "the request needs {required_tokens} tokens in the cache, more than the {context_size} the context holds"
                 ),
             ),
-            DecisionFinalResult::InputTokenizationFailed(detail) => {
+            DecisionFinalResult::RequestRejected(detail) => {
                 failure(StatusCode::UNPROCESSABLE_ENTITY, detail)
             }
             DecisionFinalResult::DecisionsNotServed(detail)
@@ -41,11 +41,12 @@ impl From<DecisionFinalResult> for DecisionOutcome {
             | DecisionFinalResult::SchedulerUnavailable(detail) => {
                 failure(UpstreamFailure::Unavailable.status_code(), detail)
             }
-            DecisionFinalResult::BatchAssemblyFailed(detail)
+            DecisionFinalResult::AnswersUnreadable(detail)
+            | DecisionFinalResult::BatchAssemblyFailed(detail)
             | DecisionFinalResult::DecodeFailed(detail)
-            | DecisionFinalResult::HiddenStateUnavailable(detail)
             | DecisionFinalResult::KvCacheCopyFailed(detail)
-            | DecisionFinalResult::KvCacheRemovalFailed(detail) => {
+            | DecisionFinalResult::KvCacheRemovalFailed(detail)
+            | DecisionFinalResult::MediaEvaluationFailed(detail) => {
                 failure(UpstreamFailure::AgentFailed.status_code(), detail)
             }
             DecisionFinalResult::StopRequested => failure(
@@ -88,7 +89,7 @@ mod tests {
                 StatusCode::UNPROCESSABLE_ENTITY,
             ),
             (
-                DecisionFinalResult::InputTokenizationFailed("nul byte".to_owned()),
+                DecisionFinalResult::RequestRejected("no criteria".to_owned()),
                 StatusCode::UNPROCESSABLE_ENTITY,
             ),
             (
@@ -112,7 +113,7 @@ mod tests {
                 StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (
-                DecisionFinalResult::HiddenStateUnavailable("hidden".to_owned()),
+                DecisionFinalResult::AnswersUnreadable("answers".to_owned()),
                 StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (

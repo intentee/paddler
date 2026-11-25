@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use serde_json::Map;
 use serde_json::json;
 
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -28,9 +29,10 @@ pub fn conversation_with_a_tool_requiring_an_undeclared_property()
             content: ConversationMessageContent::Text("Say hello".to_owned()),
             role: "user".to_owned(),
         }]),
-        enable_thinking: true,
+        enable_thinking: ModelDefaultOr::Explicit(true),
         grammar: None,
         max_tokens: MAX_TOKENS,
+        parallel_tool_calls: ModelDefaultOr::ModelDefault,
         parse_tool_calls: true,
         tools: vec![Tool::Function(FunctionCall {
             function: Function {

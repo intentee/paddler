@@ -3,6 +3,9 @@
 use std::collections::BTreeSet;
 use std::mem::discriminant;
 
+use llama_cpp_bindings_types::decisions_capability::DecisionsCapability;
+use llama_cpp_bindings_types::model_capabilities::ModelCapabilities;
+
 use paddler_agent_pipeline_harness::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_tests::swappable_model_file::SwappableModelFile;
@@ -10,11 +13,11 @@ use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_ove
 use paddler_balancer_desired_state_fixture::first_message_content_chat_template::first_message_content_chat_template;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
-use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
@@ -72,25 +75,44 @@ async fn a_reconfiguration_replaced_before_it_starts_yields_to_its_replacement()
     );
     serving_pipeline_arbiter.conclude_next_startup().await;
     serving_pipeline_arbiter.conclude_next_startup().await;
+    let AgentStatus {
+        desired_slots_total,
+        desired_state_version,
+        download_status,
+        issues,
+        model_path,
+        runtime,
+        state_application_status,
+        uses_chat_template_override,
+    } = serving_pipeline_arbiter
+        .inference_runtime_context
+        .slot_aggregated_status
+        .make_snapshot()
+        .status;
+
+    assert_eq!(desired_slots_total, 1);
+    assert_eq!(desired_state_version, DesiredStateVersion::Nothing);
+    assert_eq!(download_status, ModelDownloadStatus::NotDownloading);
+    assert_eq!(issues, BTreeSet::new());
     assert_eq!(
-        serving_pipeline_arbiter
-            .inference_runtime_context
-            .slot_aggregated_status
-            .make_snapshot()
-            .status,
-        AgentStatus {
-            desired_slots_total: 1,
-            download_status: ModelDownloadStatus::NotDownloading,
-            issues: BTreeSet::new(),
-            model_path: Some(swappable_model_file.model_path().display().to_string()),
-            runtime: AgentRuntimeStatus::Serving {
-                decisions: AgentDecisionsServing::NotServed,
-                slots_total: 1,
-            },
-            state_application_status: AgentStateApplicationStatus::Applied,
-            uses_chat_template_override: true,
-        }
+        model_path,
+        Some(swappable_model_file.model_path().display().to_string())
     );
+    assert!(matches!(
+        runtime,
+        AgentRuntimeStatus::Serving {
+            capabilities: ModelCapabilities {
+                decisions: DecisionsCapability::Unsupported(_),
+                ..
+            },
+            slots_total: 1,
+        }
+    ));
+    assert_eq!(
+        state_application_status,
+        AgentStateApplicationStatus::Applied
+    );
+    assert!(uses_chat_template_override);
 
     serving_pipeline_arbiter.shut_down().await;
 }

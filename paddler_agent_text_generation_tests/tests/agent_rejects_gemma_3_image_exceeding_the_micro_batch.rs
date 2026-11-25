@@ -8,6 +8,7 @@ use paddler_agent_text_generation_tests::start_cluster_with_gemma_3_and_mmproj_a
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_file_fixture::constants::SARNOW_JPEG;
 use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -53,9 +54,10 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: MAX_TOKENS,
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

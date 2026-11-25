@@ -6,7 +6,7 @@ use paddler_messaging::agent_desired_state::AgentDesiredState;
 #[test]
 fn a_reconciliation_replaced_before_its_worker_runs_never_publishes_its_state() {
     let ReconciliationAfterReplacement {
-        agent_applicable_state_holder,
+        reconciled_state_holder,
         ..
     } = ReconciliationReplacedBeforeItsWorkerRuns {
         replaced_desired_state: AgentDesiredState::default(),
@@ -15,7 +15,9 @@ fn a_reconciliation_replaced_before_its_worker_runs_never_publishes_its_state() 
     .expect("the replaced reconciliation must run to its end");
 
     assert_eq!(
-        agent_applicable_state_holder.get_agent_applicable_state(),
+        reconciled_state_holder
+            .get_reconciled_state()
+            .agent_applicable_state,
         AgentApplicableState::NotConfigured
     );
 }

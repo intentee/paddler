@@ -45,7 +45,7 @@ pub enum EmbeddingError {
         source: TryFromIntError,
     },
 
-    #[error("the agent serves no embeddings with a decision model")]
+    #[error("the model of the agent serves no embeddings")]
     EmbeddingsNotServed,
 
     #[error("failed to read the embedding of a batch sequence")]

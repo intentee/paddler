@@ -9,7 +9,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
@@ -24,8 +25,8 @@ fn desired_state_batching_the_serving_agent_slots() -> Result<BalancerDesiredSta
     BatchSize::try_from(u32::from(SERVING_AGENT_SLOTS))
         .context("a batch as large as the serving agent's slots is invalid")
         .map(|n_batch| BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                n_batch,
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                n_batch: ModelDefaultOr::Explicit(n_batch),
                 ..qwen3_desired_state.model_runtime_parameters
             },
             ..qwen3_desired_state

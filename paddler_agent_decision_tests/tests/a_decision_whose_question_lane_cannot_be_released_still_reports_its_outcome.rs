@@ -1,47 +1,36 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_model::llama_token::LlamaToken;
 
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
-use paddler_agent_decision::decision_token_layout::DecisionTokenLayout;
 use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
-use paddler_agent_decision_tests::kev_decision_model::KevDecisionModel;
-use paddler_agent_decision_tests::two_option_question::two_option_question;
+use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_result::DecisionResult;
+use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u32 = 1;
 const SEQUENCES_THE_LEDGER_HANDS_OUT: u16 = 2;
 
 #[test]
 fn a_decision_whose_question_lane_cannot_be_released_still_reports_its_outcome() {
-    let KevDecisionModel {
-        delimiter_tokens,
-        runtime,
-        ..
-    } = KevDecisionModel::load(1).expect("the kev decision model must load");
-    let mut llama_context = runtime
-        .create_decision_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
+    let decision_model_runtime =
+        DecisionModelRuntime::load(&kev_0_8b(), 1).expect("the kev decision model must load");
+    let mut llama_context = decision_model_runtime
+        .create_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the decision context must be created");
     let mut batch = LlamaBatch::new(llama_context.limits());
-    let layout = DecisionTokenLayout::new(
-        &delimiter_tokens,
-        vec![LlamaToken::new(0)],
-        vec![two_option_question("leading")],
-        two_option_question("last"),
-    );
     let AdmittedDecision {
         active_decision_request,
         mut decision_result_rx,
         decision_stop_tx: _decision_stop_tx,
     } = AdmittedDecision::admit(
         &DecisionCapacityLedger::new(SEQUENCES_THE_LEDGER_HANDS_OUT),
-        runtime
-            .inference_runtime_context
-            .slot_aggregated_status
-            .clone(),
-        layout,
+        decision_model_runtime
+            .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+            .expect("the decision must be prepared"),
     )
     .expect("the decision must be admitted");
 

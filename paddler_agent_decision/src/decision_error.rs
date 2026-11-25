@@ -1,10 +1,7 @@
-use std::ffi::c_int;
-use std::num::ParseFloatError;
-use std::num::TryFromIntError;
-
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
-use llama_cpp_model::model_error::ModelError;
+use llama_cpp_decision::decision_error::DecisionError as LlamaDecisionError;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
 use log::error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
@@ -22,11 +19,14 @@ pub enum DecisionError {
     #[error(transparent)]
     AgentRuntime(#[from] AgentRuntimeError),
 
+    #[error("llama.cpp cannot read the answers of a decision prompt")]
+    AnswersUnreadable(#[source] LlamaDecisionError),
+
     #[error("failed to add a decision token to the batch")]
     BatchAssemblyFailed(#[source] ContextError),
 
     #[error("the client stopped listening for decisions")]
-    ClientDisconnected(#[source] SendError<DecisionResult>),
+    ClientDisconnected(#[source] Box<SendError<DecisionResult>>),
 
     #[error("the agent serves no decisions with the loaded model")]
     DecisionsNotServed,
@@ -34,70 +34,36 @@ pub enum DecisionError {
     #[error("llama.cpp rejected the decision batch")]
     DecodeFailed(#[source] ContextError),
 
-    #[error("unable to read the attributes of the decision delimiter {delimiter}")]
-    DelimiterAttributesUnreadable {
-        delimiter: String,
-        #[source]
-        source: ModelError,
-    },
-
-    #[error("the decision delimiter {delimiter} is not a single control token of the model")]
-    DelimiterIsNotAControlToken { delimiter: String },
-
-    #[error("unable to tokenize the decision delimiter {delimiter}")]
-    DelimiterTokenizationFailed {
-        delimiter: String,
-        #[source]
-        source: ModelError,
-    },
-
-    #[error("unable to read the hidden state of a decision output")]
-    HiddenStateUnavailable(#[source] ContextError),
-
-    #[error("failed to tokenize the decision input")]
-    InputTokenizationFailed(#[source] ModelError),
-
-    #[error("the metadata of the kev decision model names no architecture")]
-    KevArchitectureUnknown,
-
-    #[error(
-        "half of the {n_embd_out} outputs of the kev decision model does not fit a head dimension"
-    )]
-    KevHeadDimensionUnrepresentable {
-        n_embd_out: c_int,
-        #[source]
-        source: TryFromIntError,
-    },
-
-    #[error("the kev decision model holds no {key} temperature")]
-    KevTemperatureMissing { key: String },
-
-    #[error(
-        "the kev decision model declares different temperatures for choices ({choice}), scores ({score}) and noul questions ({noul}), and decisions carry no question type to pick one"
-    )]
-    KevTemperaturesDiffer { choice: f32, noul: f32, score: f32 },
-
-    #[error(
-        "the kev decision model declares {key} as {temperature}, which is not a finite positive temperature"
-    )]
-    KevTemperatureOutOfRange { key: String, temperature: f32 },
-
-    #[error("the kev decision model declares {key} as {declared:?}, which is not a number")]
-    KevTemperatureUnparseable {
-        declared: String,
-        key: String,
-        #[source]
-        source: ParseFloatError,
-    },
-
-    #[error("failed to copy the decision state into its question lane")]
+    #[error("failed to copy the shared decision prompt into its question lane")]
     KvCacheCopyFailed(#[source] ContextMemoryError),
 
     #[error("failed to remove a decision sequence from the KV cache")]
     KvCacheRemovalFailed(#[source] ContextMemoryError),
 
+    #[error("llama.cpp cannot evaluate the media of a decision prompt")]
+    MediaEvaluationFailed(#[source] MtmdError),
+
     #[error("no model is loaded")]
     ModelNotLoaded,
+
+    #[error(
+        "a decision prompt of {prompt_tokens} tokens must be decoded at once, but a batch holds {batch_tokens} tokens"
+    )]
+    PromptExceedsBatch {
+        batch_tokens: usize,
+        prompt_tokens: usize,
+    },
+
+    #[error(
+        "the answer of a decision prompt is read from its last {read_tokens} tokens, but a batch holds {batch_tokens} tokens"
+    )]
+    PromptReadSpanExceedsBatch {
+        batch_tokens: usize,
+        read_tokens: usize,
+    },
+
+    #[error("llama.cpp cannot lay out the prompts of the decision")]
+    PromptsRejected(#[source] LlamaDecisionError),
 
     #[error(
         "the decision needs {} tokens in the cache, more than the {} the context holds",
@@ -106,8 +72,17 @@ pub enum DecisionError {
     )]
     RequestExceedsContext { details: OversizedDecisionDetails },
 
+    #[error("llama.cpp rejected the decision request")]
+    RequestRejected(#[source] LlamaDecisionError),
+
     #[error("the scheduler is no longer accepting requests")]
     SchedulerUnavailable,
+
+    #[error("the agent has {desired_slots} slots, but decisions need at least {required_slots}")]
+    SlotsInsufficient {
+        desired_slots: u16,
+        required_slots: u16,
+    },
 }
 
 impl DecisionError {
@@ -137,25 +112,21 @@ impl ReportsDecisionOutcome for DecisionError {
         error!("{message}");
 
         let result = match self {
-            Self::AgentRuntime(_)
-            | Self::DelimiterAttributesUnreadable { .. }
-            | Self::DelimiterIsNotAControlToken { .. }
-            | Self::DelimiterTokenizationFailed { .. }
-            | Self::KevArchitectureUnknown
-            | Self::KevHeadDimensionUnrepresentable { .. }
-            | Self::KevTemperatureMissing { .. }
-            | Self::KevTemperatureOutOfRange { .. }
-            | Self::KevTemperaturesDiffer { .. }
-            | Self::KevTemperatureUnparseable { .. }
-            | Self::ModelNotLoaded => DecisionResult::ModelNotLoaded(message),
+            Self::AgentRuntime(_) | Self::ModelNotLoaded | Self::SlotsInsufficient { .. } => {
+                DecisionResult::ModelNotLoaded(message)
+            }
+            Self::AnswersUnreadable(_) => DecisionResult::AnswersUnreadable(message),
             Self::BatchAssemblyFailed(_) => DecisionResult::BatchAssemblyFailed(message),
             Self::ClientDisconnected(_) => return,
             Self::DecisionsNotServed => DecisionResult::DecisionsNotServed(message),
             Self::DecodeFailed(_) => DecisionResult::DecodeFailed(message),
-            Self::HiddenStateUnavailable(_) => DecisionResult::HiddenStateUnavailable(message),
-            Self::InputTokenizationFailed(_) => DecisionResult::InputTokenizationFailed(message),
             Self::KvCacheCopyFailed(_) => DecisionResult::KvCacheCopyFailed(message),
             Self::KvCacheRemovalFailed(_) => DecisionResult::KvCacheRemovalFailed(message),
+            Self::MediaEvaluationFailed(_) => DecisionResult::MediaEvaluationFailed(message),
+            Self::PromptExceedsBatch { .. }
+            | Self::PromptReadSpanExceedsBatch { .. }
+            | Self::PromptsRejected(_)
+            | Self::RequestRejected(_) => DecisionResult::RequestRejected(message),
             Self::RequestExceedsContext { details } => {
                 DecisionResult::RequestExceedsContext(details)
             }
@@ -172,7 +143,8 @@ mod tests {
 
     use llama_cpp_context::context_error::ContextError;
     use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
-    use llama_cpp_model::model_error::ModelError;
+    use llama_cpp_decision::decision_error::DecisionError as LlamaDecisionError;
+    use llama_cpp_mtmd::mtmd_error::MtmdError;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::SendError;
 
@@ -199,6 +171,10 @@ mod tests {
         };
         let failures = [
             (
+                DecisionError::AnswersUnreadable(LlamaDecisionError::AnswersNotEnoughMemory),
+                DecisionResult::AnswersUnreadable(description()),
+            ),
+            (
                 DecisionError::BatchAssemblyFailed(ContextError::BatchFull { n_batch: 1 }),
                 DecisionResult::BatchAssemblyFailed(description()),
             ),
@@ -209,16 +185,6 @@ mod tests {
             (
                 DecisionError::DecodeFailed(ContextError::DecodeNoKvCacheSlot),
                 DecisionResult::DecodeFailed(description()),
-            ),
-            (
-                DecisionError::HiddenStateUnavailable(ContextError::EmbeddingTokenNotAnOutput {
-                    token_index: 0,
-                }),
-                DecisionResult::HiddenStateUnavailable(description()),
-            ),
-            (
-                DecisionError::InputTokenizationFailed(ModelError::TokenizeNotEnoughMemory),
-                DecisionResult::InputTokenizationFailed(description()),
             ),
             (
                 DecisionError::KvCacheCopyFailed(ContextMemoryError::SeqCpMemoryHandleUnavailable),
@@ -235,8 +201,19 @@ mod tests {
                 DecisionResult::KvCacheRemovalFailed(description()),
             ),
             (
+                DecisionError::MediaEvaluationFailed(MtmdError::EvalNotEnoughMemory),
+                DecisionResult::MediaEvaluationFailed(description()),
+            ),
+            (
                 DecisionError::ModelNotLoaded,
                 DecisionResult::ModelNotLoaded(description()),
+            ),
+            (
+                DecisionError::PromptExceedsBatch {
+                    batch_tokens: 16,
+                    prompt_tokens: 32,
+                },
+                DecisionResult::RequestRejected(description()),
             ),
             (
                 DecisionError::RequestExceedsContext {
@@ -261,9 +238,9 @@ mod tests {
     #[test]
     fn a_disconnected_client_is_not_sent_a_result() {
         assert_eq!(
-            reported(DecisionError::ClientDisconnected(SendError(
+            reported(DecisionError::ClientDisconnected(Box::new(SendError(
                 DecisionResult::SchedulerUnavailable(String::new())
-            ))),
+            )))),
             None
         );
     }

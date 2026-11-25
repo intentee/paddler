@@ -1,16 +1,17 @@
 use std::num::NonZeroU16;
 use std::sync::Arc;
 
+use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
-use paddler_messaging::inference_capability::InferenceCapability;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::requested_capability::RequestedCapability;
 use paddler_messaging::streamable_result::StreamableResult;
 
 use crate::agent_response_senders::AgentResponseSenders;
@@ -20,7 +21,7 @@ use crate::response_senders::ResponseSenders;
 use crate::slot_demand::SlotDemand;
 
 pub trait AgentStreamingRequest: IntoReservedAgentRequest {
-    const INFERENCE_CAPABILITY: InferenceCapability;
+    const REQUESTED_CAPABILITY: RequestedCapability;
 
     type Response: StreamableResult<Final: Send + 'static, Partial: Send + 'static>
         + Into<OutgoingResponse>
@@ -29,7 +30,7 @@ pub trait AgentStreamingRequest: IntoReservedAgentRequest {
 
     fn dispatch_requirement(&self) -> DispatchRequirement {
         DispatchRequirement {
-            inference_capability: Self::INFERENCE_CAPABILITY,
+            requested_capability: Self::REQUESTED_CAPABILITY,
             slot_demand: self.slot_demand(),
         }
     }
@@ -42,7 +43,7 @@ pub trait AgentStreamingRequest: IntoReservedAgentRequest {
 }
 
 impl AgentStreamingRequest for ContinueFromConversationHistoryParams<ValidatedParametersSchema> {
-    const INFERENCE_CAPABILITY: InferenceCapability = InferenceCapability::TextGeneration;
+    const REQUESTED_CAPABILITY: RequestedCapability = RequestedCapability::Conversation;
 
     type Response = GeneratedTokenResult;
 
@@ -60,7 +61,7 @@ impl AgentStreamingRequest for ContinueFromConversationHistoryParams<ValidatedPa
 }
 
 impl AgentStreamingRequest for ContinueFromRawPromptParams {
-    const INFERENCE_CAPABILITY: InferenceCapability = InferenceCapability::TextGeneration;
+    const REQUESTED_CAPABILITY: RequestedCapability = RequestedCapability::RawTextGeneration;
 
     type Response = GeneratedTokenResult;
 
@@ -78,7 +79,7 @@ impl AgentStreamingRequest for ContinueFromRawPromptParams {
 }
 
 impl AgentStreamingRequest for DecideParams {
-    const INFERENCE_CAPABILITY: InferenceCapability = InferenceCapability::Decisions;
+    const REQUESTED_CAPABILITY: RequestedCapability = RequestedCapability::Decisions;
 
     type Response = DecisionResult;
 
@@ -89,12 +90,16 @@ impl AgentStreamingRequest for DecideParams {
     }
 
     fn slot_demand(&self) -> SlotDemand {
-        SlotDemand::Exactly(self.required_slots())
+        SlotDemand::Exactly(if self.request.questions.len() > 1 {
+            DECISION_SLOTS_MINIMUM
+        } else {
+            NonZeroU16::MIN
+        })
     }
 }
 
 impl AgentStreamingRequest for GenerateEmbeddingBatchParams {
-    const INFERENCE_CAPABILITY: InferenceCapability = InferenceCapability::Embeddings;
+    const REQUESTED_CAPABILITY: RequestedCapability = RequestedCapability::Embeddings;
 
     type Response = EmbeddingResult;
 
@@ -114,26 +119,44 @@ mod tests {
     use std::num::NonZeroU16;
     use std::num::NonZeroU32;
 
+    use indexmap::IndexMap;
+    use llama_cpp_bindings_types::decision_question::DecisionQuestion;
+    use llama_cpp_bindings_types::decision_request::DecisionRequest;
+    use serde_json::json;
+
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
     use paddler_messaging::conversation_history::ConversationHistory;
-    use paddler_messaging::decision_question::DecisionQuestion;
     use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-    use paddler_messaging::inference_capability::InferenceCapability;
     use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
     use paddler_messaging::request_params::decide_params::DecideParams;
     use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+    use paddler_messaging::requested_capability::RequestedCapability;
 
     use super::AgentStreamingRequest as _;
     use crate::dispatch_requirement::DispatchRequirement;
     use crate::slot_demand::SlotDemand;
 
-    fn decision_question(id: &str) -> DecisionQuestion {
-        DecisionQuestion {
-            id: id.to_owned(),
-            instructions: "Pick one".to_owned(),
-            options: vec!["yes".to_owned(), "no".to_owned()],
+    fn decision_with_questions(question_ids: &[&str]) -> DecideParams {
+        DecideParams {
+            request: DecisionRequest {
+                images: Vec::new(),
+                questions: question_ids
+                    .iter()
+                    .map(|question_id| {
+                        (
+                            (*question_id).to_owned(),
+                            DecisionQuestion::Noul {
+                                criteria: IndexMap::new(),
+                                instructions: json!("Is it so?"),
+                            },
+                        )
+                    })
+                    .collect(),
+                state: json!("state"),
+            },
         }
     }
 
@@ -150,46 +173,59 @@ mod tests {
     }
 
     #[test]
-    fn a_text_generation_request_demands_exactly_one_text_generation_slot() {
-        let one_text_generation_slot = DispatchRequirement {
-            inference_capability: InferenceCapability::TextGeneration,
-            slot_demand: SlotDemand::Exactly(NonZeroU16::MIN),
-        };
-
+    fn a_raw_prompt_demands_exactly_one_raw_text_generation_slot() {
         assert_eq!(
-            [
-                ContinueFromRawPromptParams {
-                    grammar: None,
-                    max_tokens: NonZeroU32::MIN,
-                    raw_prompt: "prompt".to_owned(),
-                }
-                .dispatch_requirement(),
-                ContinueFromConversationHistoryParams {
-                    add_generation_prompt: true,
-                    conversation_history: ConversationHistory::new(Vec::new()),
-                    enable_thinking: false,
-                    grammar: None,
-                    max_tokens: NonZeroU32::MIN,
-                    parse_tool_calls: false,
-                    tools: Vec::new(),
-                }
-                .dispatch_requirement(),
-            ],
-            [one_text_generation_slot, one_text_generation_slot]
+            ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: NonZeroU32::MIN,
+                raw_prompt: "prompt".to_owned(),
+            }
+            .dispatch_requirement(),
+            DispatchRequirement {
+                requested_capability: RequestedCapability::RawTextGeneration,
+                slot_demand: SlotDemand::Exactly(NonZeroU16::MIN),
+            }
         );
     }
 
     #[test]
-    fn a_decision_with_leading_questions_demands_its_state_and_question_lane_slots() {
+    fn a_conversation_demands_exactly_one_conversation_slot() {
         assert_eq!(
-            DecideParams {
-                last_question: decision_question("last"),
-                leading_questions: vec![decision_question("leading")],
-                state: "state".to_owned(),
+            ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(Vec::new()),
+                enable_thinking: ModelDefaultOr::Explicit(false),
+                grammar: None,
+                max_tokens: NonZeroU32::MIN,
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
+                parse_tool_calls: false,
+                tools: Vec::new(),
             }
             .dispatch_requirement(),
             DispatchRequirement {
-                inference_capability: InferenceCapability::Decisions,
+                requested_capability: RequestedCapability::Conversation,
+                slot_demand: SlotDemand::Exactly(NonZeroU16::MIN),
+            }
+        );
+    }
+
+    #[test]
+    fn a_decision_asking_one_question_demands_only_its_state_slot() {
+        assert_eq!(
+            decision_with_questions(&["only"]).dispatch_requirement(),
+            DispatchRequirement {
+                requested_capability: RequestedCapability::Decisions,
+                slot_demand: SlotDemand::Exactly(NonZeroU16::MIN),
+            }
+        );
+    }
+
+    #[test]
+    fn a_decision_asking_several_questions_demands_its_state_and_question_lane_slots() {
+        assert_eq!(
+            decision_with_questions(&["first", "second"]).dispatch_requirement(),
+            DispatchRequirement {
+                requested_capability: RequestedCapability::Decisions,
                 slot_demand: SlotDemand::Exactly(DECISION_SLOTS_MINIMUM),
             }
         );
@@ -200,7 +236,7 @@ mod tests {
         assert_eq!(
             embedding_batch(3).dispatch_requirement(),
             DispatchRequirement {
-                inference_capability: InferenceCapability::Embeddings,
+                requested_capability: RequestedCapability::Embeddings,
                 slot_demand: SlotDemand::UpTo(3),
             }
         );
@@ -211,7 +247,7 @@ mod tests {
         assert_eq!(
             embedding_batch(usize::from(u16::MAX) + 1).dispatch_requirement(),
             DispatchRequirement {
-                inference_capability: InferenceCapability::Embeddings,
+                requested_capability: RequestedCapability::Embeddings,
                 slot_demand: SlotDemand::UpTo(u16::MAX),
             }
         );

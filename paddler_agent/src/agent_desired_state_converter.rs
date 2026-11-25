@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_model_capabilities::model_capabilities_settings::ModelCapabilitiesSettings;
+use paddler_agent_model_capabilities::multimodal_projection::MultimodalProjection;
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
-use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
 use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
@@ -18,7 +19,6 @@ use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_desired_state_conversion::AgentDesiredStateConversion;
 use crate::agent_error::AgentError;
 use crate::desired_model_file::DesiredModelFile;
-use crate::inference_capabilities::InferenceCapabilities;
 use crate::model_serving_settings::ModelServingSettings;
 
 pub struct AgentDesiredStateConverter {
@@ -71,21 +71,20 @@ impl AgentDesiredStateConverter {
 
         Ok(AgentDesiredStateConversion::Converted(
             AgentApplicableState::WithModel(ModelServingSettings {
-                capabilities: InferenceCapabilities {
-                    decisions: (),
-                    embeddings: pooling_type.clone(),
-                    text_generation: TextGenerationSettings {
-                        chat_template_source: chat_template_source.clone(),
-                        image_resize_to_fit: *image_resize_to_fit,
-                        multimodal_projection: multimodal_projection_path.map_or(
-                            MultimodalProjection::NotConfigured,
-                            MultimodalProjection::File,
-                        ),
-                        sampling_parameters: sampling_parameters.clone(),
-                    },
+                model_capabilities: ModelCapabilitiesSettings {
+                    chat_template_source: chat_template_source.clone(),
+                    embedding_pooling: pooling_type.clone(),
+                    multimodal_projection: multimodal_projection_path.map_or(
+                        MultimodalProjection::NotConfigured,
+                        MultimodalProjection::File,
+                    ),
                 },
                 model_path,
                 model_runtime_parameters: model_runtime_parameters.clone(),
+                text_generation: TextGenerationSettings {
+                    image_resize_to_fit: *image_resize_to_fit,
+                    sampling_parameters: *sampling_parameters,
+                },
             }),
         ))
     }
@@ -147,12 +146,13 @@ mod tests {
     use tempfile::tempdir;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_agent_model_capabilities::model_capabilities_settings::ModelCapabilitiesSettings;
+    use paddler_agent_model_capabilities::multimodal_projection::MultimodalProjection;
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
-    use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
     use paddler_agent_text_generation::text_generation_settings::TextGenerationSettings;
-    use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+    use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+    use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
     use paddler_inference_parameters::pooling_type::PoolingType;
-    use paddler_inference_parameters::sampling_parameters::SamplingParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::agent_issue::AgentIssue;
@@ -171,7 +171,6 @@ mod tests {
     use crate::agent_desired_state_conversion::AgentDesiredStateConversion;
     use crate::agent_desired_state_converter::AgentDesiredStateConverter;
     use crate::agent_error::AgentError;
-    use crate::inference_capabilities::InferenceCapabilities;
     use crate::model_serving_settings::ModelServingSettings;
 
     fn process_env_desired_model_resolver() -> DesiredModelResolver {
@@ -194,7 +193,7 @@ mod tests {
     ) -> AgentDesiredState {
         AgentDesiredState {
             model,
-            model_runtime_parameters: ModelRuntimeParameters::default(),
+            model_runtime_parameters: DesiredModelRuntimeParameters::default(),
             pooling_type: PoolingType::Last,
             text_generation: BalancerTextGenerationSettings {
                 multimodal: MultimodalSettings {
@@ -211,18 +210,17 @@ mod tests {
         multimodal_projection: MultimodalProjection,
     ) -> AgentApplicableState {
         AgentApplicableState::WithModel(ModelServingSettings {
-            capabilities: InferenceCapabilities {
-                decisions: (),
-                embeddings: PoolingType::Last,
-                text_generation: TextGenerationSettings {
-                    chat_template_source: ChatTemplateSource::default(),
-                    image_resize_to_fit: MultimodalSettings::default().image_resize_to_fit,
-                    multimodal_projection,
-                    sampling_parameters: SamplingParameters::default(),
-                },
+            model_capabilities: ModelCapabilitiesSettings {
+                chat_template_source: ChatTemplateSource::default(),
+                embedding_pooling: PoolingType::Last,
+                multimodal_projection,
             },
             model_path: model_file.path().to_path_buf(),
-            model_runtime_parameters: ModelRuntimeParameters::default(),
+            model_runtime_parameters: DesiredModelRuntimeParameters::default(),
+            text_generation: TextGenerationSettings {
+                image_resize_to_fit: MultimodalSettings::default().image_resize_to_fit,
+                sampling_parameters: DesiredSamplingParameters::default(),
+            },
         })
     }
 

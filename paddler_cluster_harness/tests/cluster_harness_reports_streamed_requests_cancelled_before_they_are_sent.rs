@@ -7,6 +7,7 @@ use paddler_client::format_api_url::format_api_url;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
 use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -51,9 +52,10 @@ async fn cluster_harness_reports_streamed_requests_cancelled_before_they_are_sen
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
                 conversation_history: ConversationHistory::new(Vec::new()),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::MIN,
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: Vec::new(),
             },

@@ -4,6 +4,7 @@ use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_infer
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_agent_runtime::model_placement::ModelPlacement;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
@@ -14,7 +15,9 @@ fn a_second_model_cannot_load_while_a_model_is_resident() {
         model_path: kev_0_8b()
             .cached_path()
             .expect("the kev model must be in the Hugging Face cache"),
-        n_gpu_layers: ALL_GPU_LAYERS,
+        placement: ModelPlacement::Offloaded {
+            n_gpu_layers: ALL_GPU_LAYERS,
+        },
     };
     let _resident_model =
         LoadedLlamaModel::load(&inference_runtime_context, llama_model_settings())

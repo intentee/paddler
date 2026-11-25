@@ -11,8 +11,9 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service as _;
 
-use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
+use paddler_agent::delivered_desired_state::DeliveredDesiredState;
 use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
+use paddler_agent::reconciled_state_holder::ReconciledStateHolder;
 use paddler_agent::reconciliation_service::ReconciliationService;
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
@@ -23,6 +24,7 @@ use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
@@ -53,8 +55,8 @@ fn desired_model_resolver_caching_in(
 }
 
 struct ReplacementDownloading {
-    agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
-    agent_desired_state_tx: watch::Sender<AgentDesiredState>,
+    delivered_desired_state_tx: watch::Sender<DeliveredDesiredState>,
+    reconciled_state_holder: Arc<ReconciledStateHolder>,
     cache_dir: TempDir,
     reconciliation: JoinHandle<AnyhowResult<()>>,
     shutdown: CancellationToken,
@@ -74,8 +76,8 @@ impl ReplacementDownloading {
 
     async fn stop(self) -> Result<ReconciliationAfterReplacement, AgentTestsError> {
         let Self {
-            agent_applicable_state_holder,
-            agent_desired_state_tx,
+            delivered_desired_state_tx,
+            reconciled_state_holder,
             cache_dir,
             reconciliation,
             shutdown,
@@ -100,13 +102,13 @@ impl ReplacementDownloading {
                 ready(server_outcome.map_err(AgentTestsError::StalledModelServerFailed))
             })
             .map_ok(|()| ReconciliationAfterReplacement {
-                agent_applicable_state_holder,
+                reconciled_state_holder,
                 slot_aggregated_status,
             })
             .await;
 
         drop(status_updates);
-        drop(agent_desired_state_tx);
+        drop(delivered_desired_state_tx);
         drop(cache_dir);
 
         stopped
@@ -114,8 +116,8 @@ impl ReplacementDownloading {
 }
 
 struct ReplacementPending {
-    agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
-    agent_desired_state_tx: watch::Sender<AgentDesiredState>,
+    delivered_desired_state_tx: watch::Sender<DeliveredDesiredState>,
+    reconciled_state_holder: Arc<ReconciledStateHolder>,
     cache_dir: TempDir,
     occupied_blocking_thread: OccupiedBlockingThread,
     reconciliation: JoinHandle<AnyhowResult<()>>,
@@ -131,8 +133,11 @@ impl ReplacementPending {
         replaced_desired_state: AgentDesiredState,
     ) -> Result<Self, AgentTestsError> {
         self.status_updates.borrow_and_update();
-        self.agent_desired_state_tx
-            .send_replace(replaced_desired_state);
+        self.delivered_desired_state_tx
+            .send_replace(DeliveredDesiredState {
+                desired_state: replaced_desired_state,
+                version: DesiredStateVersion::Version(1),
+            });
 
         let replaced_state_began = self.status_updates.changed().await;
 
@@ -146,29 +151,29 @@ impl ReplacementPending {
         stalled_model_server: LocalHttpFixture,
     ) -> Result<Self, AgentTestsError> {
         let occupied_blocking_thread = OccupiedBlockingThread::occupy();
-        let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
+        let reconciled_state_holder = Arc::new(ReconciledStateHolder::default());
         let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
         let status_updates = slot_aggregated_status.subscribe_to_updates();
-        let (agent_desired_state_tx, agent_desired_state_rx) =
-            watch::channel(AgentDesiredState::default());
+        let (delivered_desired_state_tx, delivered_desired_state_rx) =
+            watch::channel(DeliveredDesiredState::default());
         let shutdown = CancellationToken::new();
 
         desired_model_resolver_caching_in(&cache_dir).map(|desired_model_resolver| {
             let reconciliation = spawn(
                 Box::new(ReconciliationService {
-                    agent_applicable_state_holder: agent_applicable_state_holder.clone(),
-                    agent_desired_state_rx,
+                    delivered_desired_state_rx,
                     desired_state_reconciler: DesiredStateReconciler {
                         desired_model_resolver,
                         slot_aggregated_status: slot_aggregated_status.clone(),
                     },
+                    reconciled_state_holder: reconciled_state_holder.clone(),
                 })
                 .run(shutdown.clone()),
             );
 
             Self {
-                agent_applicable_state_holder,
-                agent_desired_state_tx,
+                delivered_desired_state_tx,
+                reconciled_state_holder,
                 cache_dir,
                 occupied_blocking_thread,
                 reconciliation,
@@ -184,8 +189,8 @@ impl ReplacementPending {
         self,
     ) -> Result<ReplacementDownloading, AgentTestsError> {
         let Self {
-            agent_applicable_state_holder,
-            agent_desired_state_tx,
+            delivered_desired_state_tx,
+            reconciled_state_holder,
             cache_dir,
             occupied_blocking_thread,
             reconciliation,
@@ -195,17 +200,20 @@ impl ReplacementPending {
             status_updates,
         } = self;
 
-        agent_desired_state_tx.send_replace(AgentDesiredState {
-            model: AgentDesiredModel::Uri(stalled_model_server.url("/model.gguf")),
-            ..AgentDesiredState::default()
+        delivered_desired_state_tx.send_replace(DeliveredDesiredState {
+            desired_state: AgentDesiredState {
+                model: AgentDesiredModel::Uri(stalled_model_server.url("/model.gguf")),
+                ..AgentDesiredState::default()
+            },
+            version: DesiredStateVersion::Version(2),
         });
 
         occupied_blocking_thread
             .release()
             .map_err(AgentTestsError::BlockingThreadOccupantUnreleased)
             .map_ok(|()| ReplacementDownloading {
-                agent_applicable_state_holder,
-                agent_desired_state_tx,
+                delivered_desired_state_tx,
+                reconciled_state_holder,
                 cache_dir,
                 reconciliation,
                 shutdown,

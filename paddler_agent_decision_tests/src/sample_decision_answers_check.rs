@@ -5,57 +5,75 @@ use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
 use tokio_util::sync::CancellationToken;
 
+use llama_cpp_bindings_types::decision_answer::DecisionAnswer;
+use llama_cpp_bindings_types::decision_question::DecisionQuestion;
+use llama_cpp_bindings_types::decision_request::DecisionRequest;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::collected_decision_results::CollectedDecisionResults;
-use paddler_messaging::decision_answer::DecisionAnswer;
-use paddler_messaging::decision_question::DecisionQuestion;
+
+use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
-const PROBABILITY_SUM_TOLERANCE: f32 = 1e-5;
-const SAMPLE_DECISION_INPUT_TOKENS: usize = 85;
+const PROBABILITY_SUM_TOLERANCE: f64 = 1e-5;
+const SAMPLE_DECISION_INPUT_TOKENS: usize = 83;
+
+fn answers_its_question(answer: &DecisionAnswer, question: &DecisionQuestion) -> bool {
+    match (answer, question) {
+        (
+            DecisionAnswer::Choice { probabilities, .. },
+            DecisionQuestion::Choice { criteria, .. },
+        ) => probabilities.keys().eq(criteria.keys()),
+        (DecisionAnswer::Noul { noul }, DecisionQuestion::Noul { .. }) => {
+            (0.0..=1.0).contains(noul)
+        }
+        (DecisionAnswer::Score { probabilities, .. }, DecisionQuestion::Score { criteria, .. }) => {
+            probabilities.len() == criteria.len()
+        }
+        _ => false,
+    }
+}
+
+fn probabilities_sum_to_one(answer: &DecisionAnswer) -> bool {
+    match answer {
+        DecisionAnswer::Choice { probabilities, .. }
+        | DecisionAnswer::Score { probabilities, .. } => {
+            (probabilities.values().sum::<f64>() - 1.0).abs() < PROBABILITY_SUM_TOLERANCE
+        }
+        DecisionAnswer::Noul { .. } => true,
+    }
+}
 
 fn sample_decision_answered(
     CollectedDecisionResults {
         answers,
         terminal_result,
     }: &CollectedDecisionResults,
-    RawDecideParams { questions, .. }: &RawDecideParams,
+    DecisionRequest { questions, .. }: &DecisionRequest,
 ) -> Result<()> {
     let answered_question_ids: Vec<&str> = answers
         .iter()
-        .map(|DecisionAnswer { id, .. }| id.as_str())
+        .map(|AnsweredDecisionQuestion { id, .. }| id.as_str())
         .collect();
-    let question_ids: Vec<&str> = questions
-        .iter()
-        .map(|DecisionQuestion { id, .. }| id.as_str())
-        .collect();
-    let answered_option_counts: Vec<usize> = answers
-        .iter()
-        .map(|DecisionAnswer { probabilities, .. }| probabilities.len())
-        .collect();
-    let option_counts: Vec<usize> = questions
-        .iter()
-        .map(|DecisionQuestion { options, .. }| options.len())
-        .collect();
+    let question_ids: Vec<&str> = questions.keys().map(String::as_str).collect();
 
-    (answered_question_ids == question_ids && answered_option_counts == option_counts)
+    (answered_question_ids == question_ids)
         .then_some(())
         .context(format!(
-            "the answers to {answered_question_ids:?} with {answered_option_counts:?} probabilities must match the questions {question_ids:?} with {option_counts:?} options"
+            "the answers to {answered_question_ids:?} must match the questions {question_ids:?}"
         ))
         .and_then(|()| {
             answers
                 .iter()
-                .all(|DecisionAnswer { probabilities, .. }| {
-                    (probabilities.iter().sum::<f32>() - 1.0).abs() < PROBABILITY_SUM_TOLERANCE
+                .zip(questions.values())
+                .all(|(AnsweredDecisionQuestion { answer, .. }, question)| {
+                    answers_its_question(answer, question) && probabilities_sum_to_one(answer)
                 })
                 .then_some(())
                 .context(format!(
-                    "the probabilities of every answer must sum to one: {answers:?}"
+                    "every answer must answer its question with probabilities summing to one: {answers:?}"
                 ))
         })
         .and_then(|()| {

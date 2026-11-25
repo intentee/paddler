@@ -10,21 +10,22 @@ use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_llama_context_with_distinct_k_and_v_cache_dtypes_generates_tokens() {
-    let mut model_runtime_parameters = ModelRuntimeParameters {
-        n_gpu_layers: ALL_GPU_LAYERS,
-        ..ModelRuntimeParameters::default()
+    let mut model_runtime_parameters = DesiredModelRuntimeParameters {
+        n_gpu_layers: ModelDefaultOr::Explicit(ALL_GPU_LAYERS),
+        ..DesiredModelRuntimeParameters::default()
     };
 
-    model_runtime_parameters.k_cache_dtype = KvCacheDtype::Q80;
-    model_runtime_parameters.v_cache_dtype = KvCacheDtype::F16;
+    model_runtime_parameters.k_cache_dtype = ModelDefaultOr::Explicit(KvCacheDtype::Q80);
+    model_runtime_parameters.v_cache_dtype = ModelDefaultOr::Explicit(KvCacheDtype::F16);
 
     let cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig {

@@ -7,7 +7,7 @@ HOST_TUPLE := $(shell rustc --print host-tuple)
 RUST_LOG ?= debug
 RUST_SYSROOT := $(shell rustc --print sysroot)
 
-PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings paddler_agent_runtime paddler_agent_status paddler_agent_text_generation paddler_balancer paddler_balancer_dashboard_assets paddler_balancer_openai_service paddler_balancer_state_database paddler_balancer_typesafe_service paddler_bootstrap paddler_cache_dir paddler_cli paddler_client paddler_download_manager paddler_error_chain paddler_frame_writer paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_model_source paddler_openai_translation paddler_outbox paddler_request_registry paddler_sha256_hex paddler_spawn_resuming_panic paddler_tool_call_validator paddler_typesafe_translation
+PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings paddler_agent_model_capabilities paddler_agent_runtime paddler_agent_status paddler_agent_text_generation paddler_balancer paddler_balancer_dashboard_assets paddler_balancer_openai_service paddler_balancer_state_database paddler_balancer_typesafe_service paddler_bootstrap paddler_cache_dir paddler_cli paddler_client paddler_download_manager paddler_error_chain paddler_frame_writer paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_model_source paddler_openai_translation paddler_outbox paddler_request_registry paddler_sha256_hex paddler_spawn_resuming_panic paddler_tool_call_validator paddler_typesafe_translation
 PADDLER_SOURCES := $(shell find $(addsuffix /src,$(PADDLER_CRATES)) -name '*.rs') $(wildcard $(addsuffix /build.rs,$(PADDLER_CRATES))) $(wildcard $(addsuffix /build/*.rs,$(PADDLER_CRATES))) $(addsuffix /Cargo.toml,$(PADDLER_CRATES)) Cargo.toml Cargo.lock
 FRONTEND_SOURCES := $(shell find resources paddler_client_javascript/src -type f) paddler_client_javascript/package.json $(wildcard jarmuz/*.mjs)
 JS_CLIENT_SOURCES := $(shell find paddler_client_javascript/src -type f) paddler_client_javascript/package.json paddler_client_javascript/tsconfig.json
@@ -173,6 +173,7 @@ test.openai.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_balancer_openai_
 .PHONY: test.typesafe.python.llm
 test.typesafe.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_balancer_typesafe_service_python_tests/.venv target/test-model-cards.stamp
 	$(RUN_WITH_TEST_CLUSTER_BINARY) kev-0-8b -- poetry -C paddler_balancer_typesafe_service_python_tests run pytest
+	$(RUN_WITH_TEST_CLUSTER_BINARY) open-jev -- poetry -C paddler_balancer_typesafe_service_python_tests run pytest
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json

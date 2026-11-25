@@ -3,7 +3,6 @@ use anyhow::Result;
 use libc::ENOMEM;
 use libc::SYS_brk;
 use libc::SYS_mmap;
-use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 use seccompiler::SeccompCmpArgLen;
 use seccompiler::SeccompCmpOp;
 use seccompiler::SeccompCondition;
@@ -11,63 +10,41 @@ use seccompiler::SeccompRule;
 
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
-use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
-use paddler_agent_text_generation::conversation_prompt_support::ConversationPromptSupport;
-use paddler_agent_text_generation::conversation_support::ConversationSupport;
 use paddler_agent_text_generation::generation_request_preparer::GenerationRequestPreparer;
-use paddler_agent_text_generation::image_input::ImageInput;
-use paddler_agent_text_generation::model_bos_token::ModelBosToken;
-use paddler_agent_text_generation::prompt_tokenizer::PromptTokenizer;
 use paddler_agent_text_generation::sampler_chain_factory::SamplerChainFactory;
-use paddler_balancer_desired_state_fixture::first_message_content_chat_template::first_message_content_chat_template;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
-use paddler_messaging::multimodal_settings::MultimodalSettings;
-use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 use paddler_refused_syscalls::refused_syscall::RefusedSyscall;
 use paddler_refused_syscalls::refused_syscalls::RefusedSyscalls;
+
+use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
 
 const PENALTY_WINDOW_OF_FOUR_GIBIBYTES_OF_TOKENS: i32 = 1 << 30;
 const SMALLEST_REFUSED_MAPPING_LENGTH: u64 = 1 << 32;
 const ERRNO_THAT_MAKES_BRK_REPORT_A_NULL_BREAK: i32 = 0;
 
 fn request_preparer_for(
-    LlamaRuntime {
-        loaded_llama_model, ..
-    }: &LlamaRuntime,
+    llama_runtime: &LlamaRuntime,
     sequence_context_size: u32,
 ) -> Result<GenerationRequestPreparer> {
-    let model = &loaded_llama_model.model;
-
-    LlamaChatTemplate::new(&first_message_content_chat_template().content)
-        .context("the first message content chat template holds a NUL")
-        .and_then(|chat_template| {
-            model
-                .chat_templates_with_override(&chat_template)
-                .context("llama.cpp cannot prepare the first message content chat template")
-        })
-        .map(|chat_templates| GenerationRequestPreparer {
-            conversation_support: ConversationSupport::Available(Box::new(
-                ConversationPromptSupport {
-                    chat_templates: ConversationChatTemplates::Override(chat_templates),
-                    image_input: ImageInput::Unsupported,
-                },
-            )),
-            image_resize_to_fit: MultimodalSettings::default().image_resize_to_fit,
-            loaded_llama_model: loaded_llama_model.clone(),
-            prompt_tokenizer: PromptTokenizer {
-                model: model.clone(),
-                model_bos_token: ModelBosToken::of(model),
-                sequence_context_size,
-            },
+    FirstMessageContentRequestPreparer {
+        llama_runtime,
+        sequence_context_size,
+    }
+    .into_generation_request_preparer()
+    .map(
+        |first_message_content_request_preparer| GenerationRequestPreparer {
             sampler_chain_factory: SamplerChainFactory {
                 sampling_parameters: SamplingParameters {
                     penalty_last_n: PENALTY_WINDOW_OF_FOUR_GIBIBYTES_OF_TOKENS,
                     penalty_repeat: 1.1,
-                    ..SamplingParameters::default()
+                    ..SamplingParameters::deterministic()
                 },
-                n_vocab: model.n_vocab(),
+                n_vocab: llama_runtime.loaded_llama_model.model.n_vocab(),
             },
-        })
+            ..first_message_content_request_preparer
+        },
+    )
 }
 
 fn mapping_length_rule() -> Result<SeccompRule> {
@@ -92,14 +69,14 @@ pub struct GenerationPreparationWithoutMemoryForThePenaltyWindow {
 impl GenerationPreparationWithoutMemoryForThePenaltyWindow {
     /// # Errors
     ///
-    /// Fails when the kev model cannot load, when its text generation context cannot be created, and when llama.cpp cannot prepare the first message content chat template.
+    /// Fails when the model cannot load, when its text generation context cannot be created, when llama.cpp cannot prepare the first message content chat template, and when the capabilities of the model cannot be established.
     pub fn load() -> Result<Self> {
-        kev_0_8b()
+        smolvlm2_256m()
             .cached_path()
-            .context("the kev model is not in the Hugging Face cache")
+            .context("the model is not in the Hugging Face cache")
             .and_then(|model_path| {
                 LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
-                    .context("the kev model cannot load")
+                    .context("the model cannot load")
             })
             .and_then(Self::preparing_generation_on)
     }

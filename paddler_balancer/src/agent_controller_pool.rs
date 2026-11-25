@@ -7,8 +7,8 @@ use tokio::sync::futures::Notified;
 use tokio::sync::watch;
 
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_messaging::inference_capability::InferenceCapability;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
+use paddler_messaging::requested_capability::RequestedCapability;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
 use super::agent_controller::AgentController;
@@ -18,8 +18,8 @@ use crate::agent_controller_slot_guard::AgentControllerSlotGuard;
 use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_counter::BufferedRequestCounter;
-use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
-use crate::decisions_serving::DecisionsServing;
+use crate::capability_availability::CapabilityAvailability;
+use crate::cluster_lacks_capability::ClusterLacksCapability;
 use crate::dispatch_candidate::DispatchCandidate;
 use crate::dispatch_claim::DispatchClaim;
 use crate::dispatch_position::DispatchPosition;
@@ -45,18 +45,21 @@ impl AgentControllerPool {
     }
 
     #[must_use]
-    pub fn decisions_serving(&self) -> DecisionsServing {
-        if self.agents.iter().any(|agent| {
-            agent
-                .value()
-                .reported_status
-                .read()
-                .status
-                .may_serve(InferenceCapability::Decisions)
-        }) {
-            DecisionsServing::Served
+    pub fn capability_availability(
+        &self,
+        requested_capability: RequestedCapability,
+    ) -> CapabilityAvailability {
+        if self.agents.is_empty()
+            || self
+                .agents
+                .iter()
+                .any(|agent| agent.value().may_serve(requested_capability))
+        {
+            CapabilityAvailability::Available
         } else {
-            DecisionsServing::NotServed(ClusterServesNoDecisions)
+            CapabilityAvailability::Lacking(ClusterLacksCapability {
+                requested_capability,
+            })
         }
     }
 
@@ -81,7 +84,7 @@ impl AgentControllerPool {
     #[must_use]
     pub fn model_paths_serving(
         &self,
-        inference_capability: InferenceCapability,
+        requested_capability: RequestedCapability,
     ) -> BTreeSet<String> {
         self.agents
             .iter()
@@ -91,7 +94,7 @@ impl AgentControllerPool {
                 reported_status
                     .status
                     .runtime
-                    .serves(inference_capability)
+                    .serves(requested_capability)
                     .then(|| reported_status.status.model_path.clone())
                     .flatten()
             })

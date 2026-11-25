@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 
 use crate::chat_template_source::ChatTemplateSource;
 use crate::multimodal_settings::MultimodalSettings;
@@ -11,5 +11,5 @@ use crate::multimodal_settings::MultimodalSettings;
 pub struct BalancerTextGenerationSettings {
     pub chat_template_source: ChatTemplateSource,
     pub multimodal: MultimodalSettings,
-    pub sampling_parameters: SamplingParameters,
+    pub sampling_parameters: DesiredSamplingParameters,
 }

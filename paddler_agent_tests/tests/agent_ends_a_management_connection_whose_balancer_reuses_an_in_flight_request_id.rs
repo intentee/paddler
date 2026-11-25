@@ -46,6 +46,7 @@ async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_r
             to_string(&AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::SetState(Box::new(SetStateParams {
                     desired_state: AgentDesiredState::from(&qwen3_desired_state()),
+                    version: 0,
                 })),
             ))
             .expect("the desired state must serialize"),

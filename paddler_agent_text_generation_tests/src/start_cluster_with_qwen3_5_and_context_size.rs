@@ -7,7 +7,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_model_card_fixture::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
@@ -29,9 +30,9 @@ pub async fn start_cluster_with_qwen3_5_and_context_size(
     Cluster::start_in_process(ClusterParams {
         agents,
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                context_size,
-                n_batch: BatchSize::default().at_most(context_size),
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                context_size: ModelDefaultOr::Explicit(context_size),
+                n_batch: ModelDefaultOr::Explicit(BatchSize::default().at_most(context_size)),
                 ..base_desired_state.model_runtime_parameters
             },
             ..base_desired_state

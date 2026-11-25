@@ -1,32 +1,34 @@
+use llama_cpp_bindings_types::model_capabilities::ModelCapabilities;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::agent_decisions_serving::AgentDecisionsServing;
-use crate::inference_capability::InferenceCapability;
+use crate::requested_capability::RequestedCapability;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum AgentRuntimeStatus {
     #[default]
     Idle,
     Serving {
-        decisions: AgentDecisionsServing,
+        capabilities: ModelCapabilities,
         slots_total: u64,
     },
 }
 
 impl AgentRuntimeStatus {
     #[must_use]
-    pub const fn serves(&self, inference_capability: InferenceCapability) -> bool {
+    pub const fn serves(&self, requested_capability: RequestedCapability) -> bool {
         match self {
             Self::Idle => false,
-            Self::Serving { decisions, .. } => decisions.serves(inference_capability),
+            Self::Serving { capabilities, .. } => {
+                requested_capability.is_supported_by(capabilities)
+            }
         }
     }
 
     #[must_use]
-    pub const fn slots_serving(&self, inference_capability: InferenceCapability) -> u64 {
-        if self.serves(inference_capability) {
+    pub const fn slots_serving(&self, requested_capability: RequestedCapability) -> u64 {
+        if self.serves(requested_capability) {
             self.slots_total()
         } else {
             0
@@ -44,41 +46,28 @@ impl AgentRuntimeStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::AgentRuntimeStatus;
-    use crate::agent_decisions_serving::AgentDecisionsServing;
-    use crate::inference_capability::InferenceCapability;
+    use paddler_model_capabilities_fixture::chat_model_capabilities::chat_model_capabilities;
 
-    const SERVING_WITHOUT_DECISIONS: AgentRuntimeStatus = AgentRuntimeStatus::Serving {
-        decisions: AgentDecisionsServing::NotServed,
+    use super::AgentRuntimeStatus;
+    use crate::requested_capability::RequestedCapability;
+
+    const SERVING_A_CHAT_MODEL: AgentRuntimeStatus = AgentRuntimeStatus::Serving {
+        capabilities: chat_model_capabilities(),
         slots_total: 3,
     };
 
     #[test]
-    fn an_idle_agent_has_no_slots() {
-        assert_eq!(AgentRuntimeStatus::Idle.slots_total(), 0);
-    }
-
-    #[test]
-    fn a_serving_agent_has_its_slots() {
-        assert_eq!(SERVING_WITHOUT_DECISIONS.slots_total(), 3);
-    }
-
-    #[test]
-    fn a_serving_agent_offers_its_slots_to_every_capability_it_serves() {
+    fn a_serving_agent_offers_its_slots_to_what_its_model_supports() {
         assert_eq!(
-            SERVING_WITHOUT_DECISIONS.slots_serving(InferenceCapability::Embeddings),
-            3
-        );
-        assert_eq!(
-            SERVING_WITHOUT_DECISIONS.slots_serving(InferenceCapability::TextGeneration),
+            SERVING_A_CHAT_MODEL.slots_serving(RequestedCapability::Conversation),
             3
         );
     }
 
     #[test]
-    fn a_serving_agent_offers_no_slots_to_a_capability_it_does_not_serve() {
+    fn a_serving_agent_offers_no_slots_to_what_its_model_does_not_support() {
         assert_eq!(
-            SERVING_WITHOUT_DECISIONS.slots_serving(InferenceCapability::Decisions),
+            SERVING_A_CHAT_MODEL.slots_serving(RequestedCapability::Decisions),
             0
         );
     }
@@ -86,7 +75,7 @@ mod tests {
     #[test]
     fn an_idle_agent_offers_no_slots_to_any_capability() {
         assert_eq!(
-            AgentRuntimeStatus::Idle.slots_serving(InferenceCapability::TextGeneration),
+            AgentRuntimeStatus::Idle.slots_serving(RequestedCapability::RawTextGeneration),
             0
         );
     }

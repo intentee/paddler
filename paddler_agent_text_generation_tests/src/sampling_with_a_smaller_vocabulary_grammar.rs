@@ -12,7 +12,7 @@ use paddler_agent_pipeline_harness::vocabulary_only_llama_model::VocabularyOnlyL
 use paddler_agent_text_generation::sampling_outcome::SamplingOutcome;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 pub struct SamplingWithASmallerVocabularyGrammar {
     pub runtime: LlamaRuntime,
@@ -22,14 +22,14 @@ pub struct SamplingWithASmallerVocabularyGrammar {
 impl SamplingWithASmallerVocabularyGrammar {
     /// # Errors
     ///
-    /// Returns an error when the kev model or the vocabulary of the smaller model cannot load.
+    /// Returns an error when the Qwen3.5 model or the vocabulary of the smaller model cannot load.
     pub fn load(smaller_vocabulary_model_path: &Path) -> Result<Self> {
-        kev_0_8b()
+        qwen3_5_0_8b()
             .cached_path()
-            .context("the kev model must be in the Hugging Face cache")
+            .context("the Qwen3.5 model must be in the Hugging Face cache")
             .and_then(|model_path| {
                 LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
-                    .context("the kev model must load")
+                    .context("the Qwen3.5 model must load")
             })
             .and_then(|runtime| {
                 VocabularyOnlyLlamaModel::load(

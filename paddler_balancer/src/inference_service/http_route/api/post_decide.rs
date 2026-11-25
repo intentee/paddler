@@ -5,12 +5,15 @@ use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
-use paddler_messaging::constants::API_PATH_DECIDE;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_messaging::validates::Validates as _;
+use llama_cpp_bindings_types::decision_request::DecisionRequest;
 
+use paddler_messaging::constants::API_PATH_DECIDE;
+use paddler_messaging::request_params::decide_params::DecideParams;
+use paddler_messaging::request_params::validates::Validates as _;
+
+use crate::agent_streaming_request::AgentStreamingRequest as _;
+use crate::capability_availability::CapabilityAvailability;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-use crate::decisions_serving::DecisionsServing;
 use crate::inference_service::app_data::AppData;
 use crate::invalid_request_parameters_description::invalid_request_parameters_description;
 use crate::ndjson_response::ndjson_response;
@@ -18,12 +21,13 @@ use crate::unbounded_stream_from_agent::UnboundedStreamFromAgent;
 
 async fn respond(
     app_data: web::Data<AppData>,
-    params: web::Json<RawDecideParams>,
+    params: web::Json<DecisionRequest>,
 ) -> Result<impl Responder, Error> {
-    if let DecisionsServing::NotServed(cluster_serves_no_decisions) =
-        app_data.agent_controller_pool.decisions_serving()
+    if let CapabilityAvailability::Lacking(cluster_lacks_capability) = app_data
+        .agent_controller_pool
+        .capability_availability(DecideParams::REQUESTED_CAPABILITY)
     {
-        return Err(ErrorServiceUnavailable(cluster_serves_no_decisions));
+        return Err(ErrorServiceUnavailable(cluster_lacks_capability));
     }
 
     let validated_params = params.into_inner().validate().map_err(|validation_error| {
