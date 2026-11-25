@@ -47,7 +47,9 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
+llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
+llama-cpp-fault-injection = { workspace = true }
 log = { workspace = true }
 paddler_balancer_desired_state_fixture = { workspace = true }
 paddler_capturing_logger = { workspace = true }

@@ -11,9 +11,14 @@ pub struct ReconciledStateHolder {
 
 impl ReconciledStateHolder {
     pub fn acknowledge(&self, desired_state_version: DesiredStateVersion) {
-        self.reconciled_state_tx.send_modify(|reconciled_state| {
-            reconciled_state.desired_state_version = desired_state_version;
-        });
+        self.reconciled_state_tx.send_modify(
+            |ReconciledState {
+                 desired_state_version: reconciled_version,
+                 ..
+             }| {
+                *reconciled_version = desired_state_version;
+            },
+        );
     }
 
     #[must_use]

@@ -19,11 +19,10 @@ fn a_shared_decision_prefix_the_kv_cache_cannot_hold_fails_the_decision() {
             question_count: QUESTIONS_SHARING_THEIR_PROMPT,
             state_repetitions: STATE_REPETITIONS_OVERFLOWING_THE_CACHE,
         }
-        .advances_until_it_ends()
-        .expect("the decision must be admitted to the kv cache")
-        .last(),
-        Some(Err(DecisionError::DecodeFailed(
+        .final_advance()
+        .expect("the decision must be admitted to the kv cache"),
+        Err(DecisionError::DecodeFailed(
             ContextError::DecodeNoKvCacheSlot
-        )))
+        ))
     ));
 }

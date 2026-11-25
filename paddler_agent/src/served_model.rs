@@ -6,8 +6,6 @@ use paddler_agent_runtime::shuts_down::ShutsDown;
 use paddler_agent_status::serving_report::ServingReport;
 use paddler_agent_text_generation::text_generation_request::TextGenerationRequest;
 
-use crate::capability_plan::CapabilityPlan;
-use crate::established_capabilities_plan::EstablishedCapabilitiesPlan;
 use crate::inference_capabilities::InferenceCapabilities;
 use crate::loaded_model_serving_plan::LoadedModelServingPlan;
 use crate::model_serving_settings::ModelServingSettings;
@@ -53,7 +51,7 @@ impl ServedModel {
             capabilities,
             loaded_llama_model,
             model_capabilities,
-            model_serving_settings: served_settings,
+            ..
         } = self;
 
         if !serves_the_desired_model {
@@ -69,10 +67,10 @@ impl ServedModel {
             drop(model_capabilities);
 
             return RetainedServing::LoadedModel(Box::new(
-                LoadedModelServingPlan::starting_every_capability(
+                LoadedModelServingPlan::StartingEveryCapability {
                     loaded_llama_model,
-                    desired_settings,
-                ),
+                    model_serving_settings: desired_settings,
+                },
             ));
         }
 
@@ -82,19 +80,13 @@ impl ServedModel {
             text_generation,
         } = capabilities;
 
-        RetainedServing::LoadedModel(Box::new(LoadedModelServingPlan {
-            capability_plans: InferenceCapabilities {
-                decisions: CapabilityPlan::Keep(decisions),
-                embeddings: CapabilityPlan::Keep(embeddings),
-                text_generation: CapabilityPlan::retaining(
-                    text_generation,
-                    &served_settings.text_generation,
-                    &desired_settings.text_generation,
-                )
-                .await,
-            },
-            established_capabilities: EstablishedCapabilitiesPlan::Keep(model_capabilities),
+        text_generation.shut_down().await;
+
+        RetainedServing::LoadedModel(Box::new(LoadedModelServingPlan::RestartingTextGeneration {
+            decisions,
+            embeddings,
             loaded_llama_model,
+            model_capabilities,
             model_serving_settings: desired_settings,
         }))
     }

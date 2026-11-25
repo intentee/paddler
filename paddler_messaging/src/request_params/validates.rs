@@ -7,16 +7,16 @@ use crate::request_params_validation_error::RequestParamsValidationError;
 
 const NUL_BYTE: char = '\0';
 
-fn entries_contain_a_nul_byte<'entries>(
-    mut entries: impl Iterator<Item = (&'entries String, &'entries Value)>,
-) -> bool {
-    entries.any(|(key, value)| key.contains(NUL_BYTE) || contains_a_nul_byte(value))
+fn entry_contains_a_nul_byte(key: &str, value: &Value) -> bool {
+    key.contains(NUL_BYTE) || contains_a_nul_byte(value)
 }
 
 fn contains_a_nul_byte(value: &Value) -> bool {
     match value {
         Value::Array(items) => items.iter().any(contains_a_nul_byte),
-        Value::Object(fields) => entries_contain_a_nul_byte(fields.iter()),
+        Value::Object(fields) => fields
+            .iter()
+            .any(|(key, field)| entry_contains_a_nul_byte(key, field)),
         Value::String(text) => text.contains(NUL_BYTE),
         Value::Bool(_) | Value::Null | Value::Number(_) => false,
     }
@@ -31,7 +31,12 @@ fn question_contains_a_nul_byte(question: &DecisionQuestion) -> bool {
         | DecisionQuestion::Noul {
             criteria,
             instructions,
-        } => contains_a_nul_byte(instructions) || entries_contain_a_nul_byte(criteria.iter()),
+        } => {
+            contains_a_nul_byte(instructions)
+                || criteria
+                    .iter()
+                    .any(|(key, description)| entry_contains_a_nul_byte(key, description))
+        }
         DecisionQuestion::Score {
             criteria,
             instructions,

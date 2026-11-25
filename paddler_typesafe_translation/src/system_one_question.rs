@@ -22,7 +22,8 @@ fn instructions_or_none_given<'de, TDeserializer>(
 where
     TDeserializer: Deserializer<'de>,
 {
-    Ok(Option::<Value>::deserialize(deserializer)?.unwrap_or_else(no_instructions))
+    Option::<Value>::deserialize(deserializer)
+        .map(|instructions| instructions.unwrap_or_else(no_instructions))
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]

@@ -8,7 +8,7 @@ use serde_json::json;
 
 use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::post_openai_chat_completion::post_openai_chat_completion;
+use paddler_cluster_harness::post_openai_request::post_openai_request;
 use paddler_cluster_harness::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 use paddler_request_params_fixture::oversized_text::oversized_text;
@@ -25,7 +25,7 @@ async fn openai_chat_completion_non_streaming_reports_a_conversation_exceeding_t
     .await
     .expect("the cluster must start");
 
-    let response = post_openai_chat_completion(
+    let response = post_openai_request(
         cluster
             .balancer
             .compat_openai_url(OPENAI_API_PATH_CHAT_COMPLETIONS)

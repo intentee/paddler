@@ -64,10 +64,10 @@ impl ModelServingTextGenerationAndEmbeddings {
             cancellation_token: agent_shutdown,
             inference_runtime_context: &llama_runtime.inference_runtime_context,
         })
-        .serve(LoadedModelServingPlan::starting_every_capability(
-            llama_runtime.loaded_llama_model.clone(),
-            model_serving_settings.clone(),
-        ))
+        .serve(LoadedModelServingPlan::StartingEveryCapability {
+            loaded_llama_model: llama_runtime.loaded_llama_model.clone(),
+            model_serving_settings: model_serving_settings.clone(),
+        })
         .await
         {
             ControlFlow::Continue(served_model) => Ok(Self {

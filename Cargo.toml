@@ -313,6 +313,7 @@ llama-cpp-error-recorder = [
     "paddler_cluster_harness",
 ]
 llama-cpp-fault-injection = [
+    "paddler_agent_decision_tests",
     "paddler_agent_text_generation_tests",
 ]
 llama-cpp-gbnf = [

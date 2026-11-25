@@ -13,26 +13,23 @@ use paddler_model_source::model_source_error::ModelSourceError;
 
 use crate::write_patched_gguf::write_patched_gguf;
 
-pub struct ModelDeclaringDecisionMetadata {
+pub struct ModelWithPatchedMetadata {
     model_directory: TempDir,
     source_desired_state: BalancerDesiredState,
 }
 
-impl ModelDeclaringDecisionMetadata {
+impl ModelWithPatchedMetadata {
     /// # Errors
     ///
-    /// Returns an error when the temporary model directory cannot be created, when the model of the card is not in the Hugging Face cache, and when the model with the declared decision metadata cannot be written.
-    pub fn write<TDeclaration>(
-        model_card: ModelCard,
-        declare_decision_metadata: TDeclaration,
-    ) -> Result<Self>
+    /// Returns an error when the temporary model directory cannot be created, when the model of the card is not in the Hugging Face cache, and when the model with the patched metadata cannot be written.
+    pub fn write<TPatch>(model_card: ModelCard, patch_metadata: TPatch) -> Result<Self>
     where
-        TDeclaration: FnOnce(&mut GgufContext) -> Result<(), GgufContextError>,
+        TPatch: FnOnce(&mut GgufContext) -> Result<(), GgufContextError>,
     {
         let source_model_path = model_card
             .cached_path()
             .context("the model must be in the Hugging Face cache")?;
-        let declaring_model = TempDir::new()
+        let patched_model = TempDir::new()
             .context("a temporary model directory must be creatable")
             .map(|model_directory| Self {
                 model_directory,
@@ -41,12 +38,12 @@ impl ModelDeclaringDecisionMetadata {
 
         write_patched_gguf(
             &source_model_path,
-            &declaring_model.model_path(),
-            declare_decision_metadata,
+            &patched_model.model_path(),
+            patch_metadata,
         )
-        .context("the model declaring decision metadata must be writable")?;
+        .context("the model with patched metadata must be writable")?;
 
-        Ok(declaring_model)
+        Ok(patched_model)
     }
 
     /// # Errors
@@ -63,6 +60,6 @@ impl ModelDeclaringDecisionMetadata {
     pub fn model_path(&self) -> PathBuf {
         self.model_directory
             .path()
-            .join("model-declaring-decision-metadata.gguf")
+            .join("model-with-patched-metadata.gguf")
     }
 }

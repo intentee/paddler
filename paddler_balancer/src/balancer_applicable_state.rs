@@ -15,16 +15,6 @@ pub struct BalancerApplicableState {
 
 impl BalancerApplicableState {
     #[must_use]
-    pub fn agent_notification(&self) -> AgentJsonRpcMessage {
-        AgentJsonRpcMessage::Notification(AgentJsonRpcNotification::SetState(Box::new(
-            SetStateParams {
-                desired_state: self.agent_desired_state.clone(),
-                version: self.version,
-            },
-        )))
-    }
-
-    #[must_use]
     pub fn initial(balancer_desired_state: BalancerDesiredState) -> Self {
         Self::at_version(balancer_desired_state, 0)
     }
@@ -35,6 +25,16 @@ impl BalancerApplicableState {
             balancer_desired_state,
             version,
         }
+    }
+
+    #[must_use]
+    pub fn agent_notification(&self) -> AgentJsonRpcMessage {
+        AgentJsonRpcMessage::Notification(AgentJsonRpcNotification::SetState(Box::new(
+            SetStateParams {
+                desired_state: self.agent_desired_state.clone(),
+                version: self.version,
+            },
+        )))
     }
 
     /// # Errors

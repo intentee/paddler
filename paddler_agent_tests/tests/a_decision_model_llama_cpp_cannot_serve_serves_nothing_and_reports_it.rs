@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_agent_pipeline_harness::model_declaring_decision_metadata::ModelDeclaringDecisionMetadata;
+use paddler_agent_pipeline_harness::model_with_patched_metadata::ModelWithPatchedMetadata;
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_capability_failure_params::ModelCapabilityFailureParams;
@@ -12,7 +12,7 @@ use paddler_model_card_fixture::smolvlm2_256m::smolvlm2_256m;
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_model_llama_cpp_cannot_serve_serves_nothing_and_reports_it() {
     let decision_model_without_its_decision_metadata =
-        ModelDeclaringDecisionMetadata::write(smolvlm2_256m(), |gguf_context| {
+        ModelWithPatchedMetadata::write(smolvlm2_256m(), |gguf_context| {
             gguf_context.set_val_str(c"llama.decision.type", c"lev");
 
             Ok(())

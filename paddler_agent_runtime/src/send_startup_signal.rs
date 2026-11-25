@@ -22,6 +22,8 @@ pub fn send_startup_signal<TSignal>(
 mod tests {
     use std::mem::discriminant;
 
+    use log::LevelFilter;
+    use log::set_max_level;
     use tokio::sync::mpsc::unbounded_channel;
 
     use super::send_startup_signal;
@@ -40,6 +42,8 @@ mod tests {
 
     #[test]
     fn reports_an_abandoned_startup_when_the_receiver_was_dropped() {
+        set_max_level(LevelFilter::Debug);
+
         let (startup_signal_tx, startup_signal_rx) = unbounded_channel::<()>();
 
         drop(startup_signal_rx);

@@ -28,10 +28,10 @@ impl ModelServing {
                     == desired_settings.llama_model_settings() =>
             {
                 RetainedServing::LoadedModel(Box::new(
-                    LoadedModelServingPlan::starting_every_capability(
-                        loaded_llama_model,
-                        desired_settings,
-                    ),
+                    LoadedModelServingPlan::StartingEveryCapability {
+                        loaded_llama_model: loaded_llama_model,
+                        model_serving_settings: desired_settings,
+                    },
                 ))
             }
             Self::Holding(loaded_llama_model) => {

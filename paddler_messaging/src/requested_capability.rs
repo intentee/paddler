@@ -10,8 +10,6 @@ use llama_cpp_bindings_types::text_generation_capability::TextGenerationCapabili
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::inference_capability::InferenceCapability;
-
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum RequestedCapability {
@@ -40,15 +38,6 @@ impl RequestedCapability {
             Self::RawTextGeneration => {
                 matches!(text_generation, TextGenerationCapability::Supported)
             }
-        }
-    }
-
-    #[must_use]
-    pub const fn pipeline(self) -> InferenceCapability {
-        match self {
-            Self::Conversation | Self::RawTextGeneration => InferenceCapability::TextGeneration,
-            Self::Decisions => InferenceCapability::Decisions,
-            Self::Embeddings => InferenceCapability::Embeddings,
         }
     }
 }

@@ -24,10 +24,12 @@ pub struct DecisionInASmallKvCache {
 }
 
 impl DecisionInASmallKvCache {
+    /// The advance that ends the decision.
+    ///
     /// # Errors
     ///
     /// Returns an error when the kev decision model cannot load, when its decision context cannot be created, and when the decision is not prepared or admitted.
-    pub fn advances_until_it_ends(&self) -> Result<Vec<Result<DecisionAdvance, DecisionError>>> {
+    pub fn final_advance(&self) -> Result<Result<DecisionAdvance, DecisionError>> {
         let sequences = if self.question_count > 1 {
             DECISION_SLOTS_MINIMUM
         } else {
@@ -50,33 +52,17 @@ impl DecisionInASmallKvCache {
             .create_llama_context(u32::from(sequences.get()))
             .context("the decision context must be created")?;
         let mut batch = LlamaBatch::new(llama_context.limits());
-        let AdmittedDecision {
-            mut active_decision_request,
-            decision_result_rx: _decision_result_rx,
-            decision_stop_tx: _decision_stop_tx,
-        } = AdmittedDecision::admit(
+
+        AdmittedDecision::admit(
             &DecisionCapacityLedger::new(sequences.get()),
             prepared_decision,
         )
-        .context("the decision must be admitted")?;
-        let mut advances = Vec::new();
-
-        loop {
-            let advance = active_decision_request.advance(
-                &mut DecisionDecoder {
-                    batch: &mut batch,
-                    llama_context: &mut llama_context,
-                },
-                None,
-                None,
-            );
-            let is_continuing = matches!(advance, Ok(DecisionAdvance::Continuing));
-
-            advances.push(advance);
-
-            if !is_continuing {
-                return Ok(advances);
-            }
-        }
+        .context("the decision must be admitted")
+        .map(|mut admitted_decision| {
+            admitted_decision.advance_until_it_ends(&mut DecisionDecoder {
+                batch: &mut batch,
+                llama_context: &mut llama_context,
+            })
+        })
     }
 }

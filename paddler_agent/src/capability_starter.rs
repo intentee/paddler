@@ -20,10 +20,7 @@ use paddler_agent_text_generation::text_generation_pipeline::TextGenerationPipel
 use paddler_spawn_resuming_panic::spawn_blocking_resuming_panic::spawn_blocking_resuming_panic;
 
 use crate::agent_error::AgentError;
-use crate::capability_plan::CapabilityPlan;
 use crate::capability_startup_interruption::CapabilityStartupInterruption;
-use crate::established_capabilities_plan::EstablishedCapabilitiesPlan;
-use crate::inference_capabilities::InferenceCapabilities;
 use crate::loaded_model_serving_plan::LoadedModelServingPlan;
 use crate::model_serving_settings::ModelServingSettings;
 use crate::served_capabilities::ServedCapabilities;
@@ -83,41 +80,74 @@ impl CapabilityStarter<'_> {
 
     pub async fn serve(
         &self,
-        LoadedModelServingPlan {
-            capability_plans,
-            established_capabilities,
-            loaded_llama_model,
-            model_serving_settings,
-        }: LoadedModelServingPlan,
+        loaded_model_serving_plan: LoadedModelServingPlan,
     ) -> ControlFlow<Box<ServingInterruption>, ServedModel> {
-        let model_capabilities = match self
-            .establish_capabilities(
-                &loaded_llama_model,
-                &model_serving_settings,
-                established_capabilities,
-            )
-            .await
-        {
-            ControlFlow::Continue(model_capabilities) => model_capabilities,
-            ControlFlow::Break(interruption) => {
-                capability_plans.shut_down().await;
+        match loaded_model_serving_plan {
+            LoadedModelServingPlan::RestartingTextGeneration {
+                decisions,
+                embeddings,
+                loaded_llama_model,
+                model_capabilities,
+                model_serving_settings,
+            } => {
+                let text_generation_start = self
+                    .complete_with_text_generation(
+                        &loaded_llama_model,
+                        &model_serving_settings,
+                        &model_capabilities,
+                        decisions,
+                        embeddings,
+                    )
+                    .await;
 
-                return ControlFlow::Break(Box::new(ServingInterruption {
-                    interruption,
+                Self::served_model_of(
+                    text_generation_start,
                     loaded_llama_model,
-                }));
+                    model_capabilities,
+                    model_serving_settings,
+                )
             }
-        };
+            LoadedModelServingPlan::StartingEveryCapability {
+                loaded_llama_model,
+                model_serving_settings,
+            } => {
+                let model_capabilities = match self
+                    .establish_capabilities(&loaded_llama_model, &model_serving_settings)
+                    .await
+                {
+                    ControlFlow::Continue(model_capabilities) => model_capabilities,
+                    ControlFlow::Break(interruption) => {
+                        return ControlFlow::Break(Box::new(ServingInterruption {
+                            interruption,
+                            loaded_llama_model,
+                        }));
+                    }
+                };
+                let capabilities_start = self
+                    .start_every_capability(
+                        &loaded_llama_model,
+                        &model_serving_settings,
+                        &model_capabilities,
+                    )
+                    .await;
 
-        match self
-            .start_capabilities(
-                &loaded_llama_model,
-                &model_serving_settings,
-                &model_capabilities,
-                capability_plans,
-            )
-            .await
-        {
+                Self::served_model_of(
+                    capabilities_start,
+                    loaded_llama_model,
+                    model_capabilities,
+                    model_serving_settings,
+                )
+            }
+        }
+    }
+
+    fn served_model_of(
+        capabilities_start: ControlFlow<CapabilityStartupInterruption, ServedCapabilities>,
+        loaded_llama_model: LoadedLlamaModel,
+        model_capabilities: Arc<EstablishedModelCapabilities>,
+        model_serving_settings: ModelServingSettings,
+    ) -> ControlFlow<Box<ServingInterruption>, ServedModel> {
+        match capabilities_start {
             ControlFlow::Continue(capabilities) => ControlFlow::Continue(ServedModel {
                 capabilities,
                 loaded_llama_model,
@@ -135,42 +165,62 @@ impl CapabilityStarter<'_> {
         }
     }
 
+    async fn complete_with_text_generation(
+        &self,
+        loaded_llama_model: &LoadedLlamaModel,
+        model_serving_settings: &ModelServingSettings,
+        model_capabilities: &Arc<EstablishedModelCapabilities>,
+        decisions: ServedDecisions,
+        embeddings: ServedEmbeddings,
+    ) -> ControlFlow<CapabilityStartupInterruption, ServedCapabilities> {
+        match self
+            .start_text_generation(
+                loaded_llama_model,
+                model_serving_settings,
+                model_capabilities,
+            )
+            .await
+        {
+            ControlFlow::Continue(text_generation) => ControlFlow::Continue(ServedCapabilities {
+                decisions,
+                embeddings,
+                text_generation,
+            }),
+            ControlFlow::Break(interruption) => {
+                decisions.shut_down().await;
+                embeddings.shut_down().await;
+
+                ControlFlow::Break(interruption)
+            }
+        }
+    }
+
     async fn establish_capabilities(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
         ModelServingSettings {
             model_capabilities, ..
         }: &ModelServingSettings,
-        established_capabilities: EstablishedCapabilitiesPlan,
     ) -> ControlFlow<CapabilityStartupInterruption, Arc<EstablishedModelCapabilities>> {
-        match established_capabilities {
-            EstablishedCapabilitiesPlan::Keep(model_capabilities) => {
-                ControlFlow::Continue(model_capabilities)
-            }
-            EstablishedCapabilitiesPlan::Establish => {
-                let loaded_llama_model = loaded_llama_model.clone();
-                let inference_runtime_context = self.inference_runtime_context.clone();
-                let model_capabilities_settings = model_capabilities.clone();
+        let loaded_llama_model = loaded_llama_model.clone();
+        let inference_runtime_context = self.inference_runtime_context.clone();
+        let model_capabilities_settings = model_capabilities.clone();
 
-                match spawn_blocking_resuming_panic(move || {
-                    EstablishedModelCapabilities::establish(
-                        &loaded_llama_model,
-                        &inference_runtime_context,
-                        model_capabilities_settings,
-                    )
-                })
-                .await
-                {
-                    Ok(model_capabilities) => ControlFlow::Continue(Arc::new(model_capabilities)),
-                    Err(establishment_error) => {
-                        ControlFlow::Break(startup_failure(establishment_error))
-                    }
-                }
-            }
+        match spawn_blocking_resuming_panic(move || {
+            EstablishedModelCapabilities::establish(
+                &loaded_llama_model,
+                &inference_runtime_context,
+                model_capabilities_settings,
+            )
+        })
+        .await
+        {
+            Ok(model_capabilities) => ControlFlow::Continue(Arc::new(model_capabilities)),
+            Err(establishment_error) => ControlFlow::Break(startup_failure(establishment_error)),
         }
     }
 
-    async fn establish_decisions(
+    async fn start_decisions(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
         ModelServingSettings {
@@ -178,11 +228,7 @@ impl CapabilityStarter<'_> {
             ..
         }: &ModelServingSettings,
         model_capabilities: &Arc<EstablishedModelCapabilities>,
-        decisions_plan: CapabilityPlan<ServedDecisions>,
     ) -> ControlFlow<CapabilityStartupInterruption, ServedDecisions> {
-        if let CapabilityPlan::Keep(served_decisions) = decisions_plan {
-            return ControlFlow::Continue(served_decisions);
-        }
         let DetectedDecisions::Supported(decision_model) = &model_capabilities.detected.decisions
         else {
             return ControlFlow::Continue(ServedDecisions::NotServed);
@@ -208,7 +254,7 @@ impl CapabilityStarter<'_> {
         .map_continue(ServedDecisions::Served)
     }
 
-    async fn establish_embeddings(
+    async fn start_embeddings(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
         ModelServingSettings {
@@ -217,11 +263,7 @@ impl CapabilityStarter<'_> {
             ..
         }: &ModelServingSettings,
         model_capabilities: &Arc<EstablishedModelCapabilities>,
-        embeddings_plan: CapabilityPlan<ServedEmbeddings>,
     ) -> ControlFlow<CapabilityStartupInterruption, ServedEmbeddings> {
-        if let CapabilityPlan::Keep(served_embeddings) = embeddings_plan {
-            return ControlFlow::Continue(served_embeddings);
-        }
         let EmbeddingsCapability::Supported = model_capabilities.detected.embeddings else {
             return ControlFlow::Continue(ServedEmbeddings::NotServed);
         };
@@ -238,7 +280,46 @@ impl CapabilityStarter<'_> {
         .map_continue(ServedEmbeddings::Served)
     }
 
-    async fn establish_text_generation(
+    async fn start_every_capability(
+        &self,
+        loaded_llama_model: &LoadedLlamaModel,
+        model_serving_settings: &ModelServingSettings,
+        model_capabilities: &Arc<EstablishedModelCapabilities>,
+    ) -> ControlFlow<CapabilityStartupInterruption, ServedCapabilities> {
+        let decisions = self
+            .start_decisions(
+                loaded_llama_model,
+                model_serving_settings,
+                model_capabilities,
+            )
+            .await?;
+        let embeddings = match self
+            .start_embeddings(
+                loaded_llama_model,
+                model_serving_settings,
+                model_capabilities,
+            )
+            .await
+        {
+            ControlFlow::Continue(embeddings) => embeddings,
+            ControlFlow::Break(interruption) => {
+                decisions.shut_down().await;
+
+                return ControlFlow::Break(interruption);
+            }
+        };
+
+        self.complete_with_text_generation(
+            loaded_llama_model,
+            model_serving_settings,
+            model_capabilities,
+            decisions,
+            embeddings,
+        )
+        .await
+    }
+
+    async fn start_text_generation(
         &self,
         loaded_llama_model: &LoadedLlamaModel,
         ModelServingSettings {
@@ -247,11 +328,7 @@ impl CapabilityStarter<'_> {
             ..
         }: &ModelServingSettings,
         model_capabilities: &Arc<EstablishedModelCapabilities>,
-        text_generation_plan: CapabilityPlan<ServedTextGeneration>,
     ) -> ControlFlow<CapabilityStartupInterruption, ServedTextGeneration> {
-        if let CapabilityPlan::Keep(served_text_generation) = text_generation_plan {
-            return ControlFlow::Continue(served_text_generation);
-        }
         let TextGenerationCapability::Supported = model_capabilities.detected.text_generation
         else {
             return ControlFlow::Continue(ServedTextGeneration::NotServed);
@@ -268,79 +345,5 @@ impl CapabilityStarter<'_> {
         .await
         .into_established_capability()
         .map_continue(ServedTextGeneration::Served)
-    }
-
-    async fn start_capabilities(
-        &self,
-        loaded_llama_model: &LoadedLlamaModel,
-        model_serving_settings: &ModelServingSettings,
-        model_capabilities: &Arc<EstablishedModelCapabilities>,
-        InferenceCapabilities {
-            decisions: decisions_plan,
-            embeddings: embeddings_plan,
-            text_generation: text_generation_plan,
-        }: InferenceCapabilities<
-            CapabilityPlan<ServedDecisions>,
-            CapabilityPlan<ServedEmbeddings>,
-            CapabilityPlan<ServedTextGeneration>,
-        >,
-    ) -> ControlFlow<CapabilityStartupInterruption, ServedCapabilities> {
-        let decisions = match self
-            .establish_decisions(
-                loaded_llama_model,
-                model_serving_settings,
-                model_capabilities,
-                decisions_plan,
-            )
-            .await
-        {
-            ControlFlow::Continue(decisions) => decisions,
-            ControlFlow::Break(interruption) => {
-                embeddings_plan.shut_down().await;
-                text_generation_plan.shut_down().await;
-
-                return ControlFlow::Break(interruption);
-            }
-        };
-        let embeddings = match self
-            .establish_embeddings(
-                loaded_llama_model,
-                model_serving_settings,
-                model_capabilities,
-                embeddings_plan,
-            )
-            .await
-        {
-            ControlFlow::Continue(embeddings) => embeddings,
-            ControlFlow::Break(interruption) => {
-                decisions.shut_down().await;
-                text_generation_plan.shut_down().await;
-
-                return ControlFlow::Break(interruption);
-            }
-        };
-        let text_generation = match self
-            .establish_text_generation(
-                loaded_llama_model,
-                model_serving_settings,
-                model_capabilities,
-                text_generation_plan,
-            )
-            .await
-        {
-            ControlFlow::Continue(text_generation) => text_generation,
-            ControlFlow::Break(interruption) => {
-                decisions.shut_down().await;
-                embeddings.shut_down().await;
-
-                return ControlFlow::Break(interruption);
-            }
-        };
-
-        ControlFlow::Continue(ServedCapabilities {
-            decisions,
-            embeddings,
-            text_generation,
-        })
     }
 }

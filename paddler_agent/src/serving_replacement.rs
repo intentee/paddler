@@ -75,10 +75,10 @@ impl ServingReplacement {
                 .await
             {
                 ControlFlow::Continue(loaded_llama_model) => {
-                    LoadedModelServingPlan::starting_every_capability(
-                        loaded_llama_model,
-                        desired_settings,
-                    )
+                    LoadedModelServingPlan::StartingEveryCapability {
+                        loaded_llama_model: loaded_llama_model,
+                        model_serving_settings: desired_settings,
+                    }
                 }
                 ControlFlow::Break(interruption) => {
                     return interruption.into_replacement_outcome(ModelServing::Idle);
