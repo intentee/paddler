@@ -5,6 +5,8 @@ use std::num::NonZeroU32;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use log::LevelFilter;
+use log::set_max_level;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
@@ -27,6 +29,8 @@ const SENTENCE: &str = "Paddler balances inference across agents. ";
 
 #[test]
 fn a_generation_whose_prompt_the_kv_cache_cannot_hold_fails_as_a_decode_failure() {
+    set_max_level(LevelFilter::Error);
+
     let mut runtime = LlamaRuntime::load(
         &qwen3_5_0_8b()
             .cached_path()
