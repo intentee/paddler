@@ -10,4 +10,5 @@ pub mod prepared_decision;
 pub mod question_answered_discriminant;
 pub mod sample_decision_answers_check;
 pub mod serving_decision_agent;
+pub mod snowy_weather_and_freezing_decision;
 pub mod snowy_weather_decision;
