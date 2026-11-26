@@ -26,6 +26,7 @@ use crate::dispatch_position::DispatchPosition;
 use crate::dispatch_requirement::DispatchRequirement;
 use crate::dispatch_waiting_line::DispatchWaitingLine;
 use crate::dispatched_agent::DispatchedAgent;
+use crate::waited_agent::WaitedAgent;
 use crate::waiting_line_place::WaitingLinePlace;
 
 pub struct AgentControllerPool {
@@ -106,7 +107,7 @@ impl AgentControllerPool {
         mut agent_availability_changed: Notified<'pool>,
         dispatch_requirement: DispatchRequirement,
         dispatch_position: DispatchPosition,
-    ) -> DispatchedAgent {
+    ) -> WaitedAgent {
         loop {
             agent_availability_changed.await;
             agent_availability_changed = self.agent_availability_changed();
@@ -114,7 +115,13 @@ impl AgentControllerPool {
             if let Some(dispatched_agent) =
                 self.take_least_busy_agent_controller(dispatch_requirement, dispatch_position)
             {
-                return dispatched_agent;
+                return WaitedAgent::Dispatched(dispatched_agent);
+            }
+
+            if let CapabilityAvailability::Lacking(cluster_lacks_capability) =
+                self.capability_availability(dispatch_requirement.requested_capability)
+            {
+                return WaitedAgent::CapabilityLacking(cluster_lacks_capability);
             }
         }
     }

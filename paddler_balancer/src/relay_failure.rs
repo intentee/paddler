@@ -2,12 +2,15 @@ use std::time::Duration;
 
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 
+use crate::cluster_lacks_capability::ClusterLacksCapability;
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum RelayFailure {
     AgentDisconnected,
     BalancerShuttingDown,
     BufferOverflow,
     BufferedRequestTimedOut,
+    ClusterLacksCapability(ClusterLacksCapability),
     ItemTimedOut { inference_item_timeout: Duration },
 }
 
@@ -19,6 +22,9 @@ impl RelayFailure {
             Self::BalancerShuttingDown => "balancer is shutting down".to_owned(),
             Self::BufferOverflow => "Buffered requests overflow".to_owned(),
             Self::BufferedRequestTimedOut => "Waiting for available slot timed out".to_owned(),
+            Self::ClusterLacksCapability(cluster_lacks_capability) => {
+                cluster_lacks_capability.to_string()
+            }
             Self::ItemTimedOut {
                 inference_item_timeout,
             } => {
@@ -37,7 +43,9 @@ impl RelayFailure {
         JsonRpcError {
             code: match self {
                 Self::AgentDisconnected => 502,
-                Self::BalancerShuttingDown | Self::BufferOverflow => 503,
+                Self::BalancerShuttingDown
+                | Self::BufferOverflow
+                | Self::ClusterLacksCapability(_) => 503,
                 Self::BufferedRequestTimedOut | Self::ItemTimedOut { .. } => 504,
             },
             description: self.description(),
@@ -49,7 +57,10 @@ impl RelayFailure {
 mod tests {
     use std::time::Duration;
 
+    use paddler_messaging::requested_capability::RequestedCapability;
+
     use super::RelayFailure;
+    use crate::cluster_lacks_capability::ClusterLacksCapability;
 
     #[test]
     fn every_relay_failure_reaches_the_client_as_its_jsonrpc_error() {
@@ -58,6 +69,12 @@ mod tests {
             (RelayFailure::BalancerShuttingDown, 503),
             (RelayFailure::BufferOverflow, 503),
             (RelayFailure::BufferedRequestTimedOut, 504),
+            (
+                RelayFailure::ClusterLacksCapability(ClusterLacksCapability {
+                    requested_capability: RequestedCapability::Decisions,
+                }),
+                503,
+            ),
             (
                 RelayFailure::ItemTimedOut {
                     inference_item_timeout: Duration::from_millis(250),

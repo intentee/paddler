@@ -5,7 +5,6 @@ pub mod template_data;
 
 use actix_web::App;
 use actix_web::web::Data;
-use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 use trzcina::service::Service;
 

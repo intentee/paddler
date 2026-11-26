@@ -4,7 +4,6 @@ pub mod statsd_udp_sink;
 use std::net::UdpSocket;
 use std::sync::Arc;
 
-use anyhow::Result;
 use cadence::StatsdClient;
 use log::error;
 use tokio::select;

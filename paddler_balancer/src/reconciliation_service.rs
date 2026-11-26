@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::Result;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use trzcina::service::Service;

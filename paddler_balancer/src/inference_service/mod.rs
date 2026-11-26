@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use actix_web::App;
 use actix_web::web::Data;
-use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 use trzcina::service::Service;
 

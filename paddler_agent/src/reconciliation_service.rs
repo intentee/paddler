@@ -2,7 +2,6 @@ use std::convert::Infallible;
 use std::mem::replace;
 use std::sync::Arc;
 
-use anyhow::Result;
 use log::error;
 use tokio::select;
 use tokio::sync::watch;

@@ -42,6 +42,7 @@ use crate::dispatchable_request::DispatchableRequest;
 use crate::inference_service::app_data::AppData;
 use crate::invalid_request_parameters_description::invalid_request_parameters_description;
 use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
+use crate::relay_failure::RelayFailure;
 use crate::respond_with_error::respond_with_error;
 use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 use crate::websocket_session_controller::WebSocketSessionController;
@@ -60,7 +61,7 @@ async fn handle_inference_request<TParams>(
         .capability_availability(TParams::REQUESTED_CAPABILITY)
     {
         respond_with_error(
-            cluster_lacks_capability.into_jsonrpc_error(),
+            RelayFailure::ClusterLacksCapability(cluster_lacks_capability).into_jsonrpc_error(),
             request_id,
             &mut websocket_session_controller,
         )

@@ -64,6 +64,11 @@ where
 
                 ControlFlow::Break(RelayFailure::BufferOverflow)
             }
+            BufferedRequestAgentWaitResult::CapabilityLacking(cluster_lacks_capability) => {
+                ControlFlow::Break(RelayFailure::ClusterLacksCapability(
+                    cluster_lacks_capability,
+                ))
+            }
             BufferedRequestAgentWaitResult::Timeout => {
                 warn!("A buffered request timed out waiting for an available slot");
 

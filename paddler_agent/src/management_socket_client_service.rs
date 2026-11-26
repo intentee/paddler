@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use anyhow::Result;
 use futures_util::StreamExt as _;
 use futures_util::stream::BoxStream;
 use futures_util::stream::SelectAll;

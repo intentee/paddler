@@ -83,6 +83,7 @@ pub mod static_files;
 pub mod statsd_service;
 pub mod transform_result;
 mod unbounded_stream_from_agent;
+pub mod waited_agent;
 pub mod waiting_line_admission;
 pub mod waiting_line_place;
 #[cfg(feature = "web_admin_panel")]
