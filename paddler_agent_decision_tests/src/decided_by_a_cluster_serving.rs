@@ -8,7 +8,7 @@ use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::collected_decision_results::CollectedDecisionResults;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 
 /// # Errors
 ///
@@ -18,7 +18,7 @@ pub async fn decided_by_a_cluster_serving(
     request: &DecisionRequest,
 ) -> Result<CollectedDecisionResults> {
     let cluster = Cluster::start_in_process(ClusterParams {
-        agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM.get()),
+        agents: AgentConfig::uniform(1, DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
         desired_state: ClusterDesiredState::Apply(Box::new(desired_state)),
         wait_for_slots_ready: true,
         ..ClusterParams::default()

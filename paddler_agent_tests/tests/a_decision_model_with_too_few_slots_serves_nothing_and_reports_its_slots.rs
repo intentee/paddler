@@ -6,7 +6,7 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
 const SLOTS_TOO_FEW_FOR_DECISIONS: u16 = 1;
@@ -33,7 +33,7 @@ async fn a_decision_model_with_too_few_slots_serves_nothing_and_reports_its_slot
             .contains(&AgentIssue::SlotsInsufficientForDecisions(
                 SlotsInsufficientForDecisionsParams {
                     desired_slots: SLOTS_TOO_FEW_FOR_DECISIONS,
-                    required_slots: DECISION_SLOTS_MINIMUM.get(),
+                    required_slots: DECISION_SLOTS_WITH_A_QUESTION_LANE.get(),
                 }
             ))
     );

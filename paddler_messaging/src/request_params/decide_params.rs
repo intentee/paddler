@@ -1,10 +1,8 @@
-use std::num::NonZeroU16;
-
 use llama_cpp_bindings_types::decision_request::DecisionRequest;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::constants::DECISION_SLOTS_MINIMUM;
+use crate::decision_slot_demand::DecisionSlotDemand;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -14,26 +12,24 @@ pub struct DecideParams {
 
 impl DecideParams {
     #[must_use]
-    pub fn slots_needed(&self) -> NonZeroU16 {
+    pub fn slot_demand(&self) -> DecisionSlotDemand {
         if self.request.questions.len() > 1 {
-            DECISION_SLOTS_MINIMUM
+            DecisionSlotDemand::SeveralQuestions
         } else {
-            NonZeroU16::MIN
+            DecisionSlotDemand::OneQuestion
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU16;
-
     use indexmap::IndexMap;
     use llama_cpp_bindings_types::decision_question::DecisionQuestion;
     use llama_cpp_bindings_types::decision_request::DecisionRequest;
     use serde_json::json;
 
     use super::DecideParams;
-    use crate::constants::DECISION_SLOTS_MINIMUM;
+    use crate::decision_slot_demand::DecisionSlotDemand;
 
     fn decision_with_questions(question_ids: &[&str]) -> DecideParams {
         DecideParams {
@@ -57,18 +53,18 @@ mod tests {
     }
 
     #[test]
-    fn a_decision_asking_one_question_needs_only_its_state_slot() {
+    fn a_decision_asking_one_question_demands_the_slots_of_one_question() {
         assert_eq!(
-            decision_with_questions(&["only"]).slots_needed(),
-            NonZeroU16::MIN
+            decision_with_questions(&["only"]).slot_demand(),
+            DecisionSlotDemand::OneQuestion
         );
     }
 
     #[test]
-    fn a_decision_asking_several_questions_needs_its_state_and_question_lane_slots() {
+    fn a_decision_asking_several_questions_demands_the_slots_of_several_questions() {
         assert_eq!(
-            decision_with_questions(&["first", "second"]).slots_needed(),
-            DECISION_SLOTS_MINIMUM
+            decision_with_questions(&["first", "second"]).slot_demand(),
+            DecisionSlotDemand::SeveralQuestions
         );
     }
 }

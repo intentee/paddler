@@ -1,5 +1,7 @@
 use std::num::NonZeroU16;
 
+use llama_cpp_decision::decision_model::DecisionModel;
+
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
@@ -12,14 +14,18 @@ pub struct DecisionSlots;
 impl DecisionSlots {
     /// # Errors
     ///
-    /// Returns [`DecisionError::SlotsInsufficient`] when the agent has fewer slots than a decision with a question lane needs, registering the issue.
+    /// Returns [`DecisionError::SlotsInsufficient`] when the agent has fewer slots than the decisions of its model take, registering the issue.
     pub fn allot(
         InferenceRuntimeContext {
             slot_aggregated_status,
             ..
         }: &InferenceRuntimeContext,
+        decision_model: &DecisionModel,
     ) -> Result<NonZeroU16, DecisionError> {
-        match DecisionSlotAllotment::of_desired_slots(slot_aggregated_status.desired_slots_total) {
+        match DecisionSlotAllotment::of_desired_slots(
+            slot_aggregated_status.desired_slots_total,
+            decision_model.shares_prompt_prefix(),
+        ) {
             DecisionSlotAllotment::Allotted(decision_slots) => Ok(decision_slots),
             DecisionSlotAllotment::Insufficient(slots_insufficient_for_decisions_params) => {
                 let SlotsInsufficientForDecisionsParams {

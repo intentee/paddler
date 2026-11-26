@@ -11,7 +11,7 @@ use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
@@ -29,8 +29,9 @@ async fn a_state_changing_only_its_sampling_keeps_serving_decisions_without_relo
             .expect("the swappable model file must be at an absolute path"),
         ..DecisionDesiredState::default().into_balancer_desired_state()
     };
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get())
-        .expect("the model downloader must start");
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
+            .expect("the model downloader must start");
 
     serving_pipeline_arbiter
         .serve(serving_decisions.clone())
@@ -68,7 +69,7 @@ async fn a_state_changing_only_its_sampling_keeps_serving_decisions_without_relo
                 ..
             },
             slots_total,
-        } if slots_total == u64::from(DECISION_SLOTS_MINIMUM.get())
+        } if slots_total == u64::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
     ));
 
     serving_pipeline_arbiter.shut_down().await;

@@ -10,7 +10,7 @@ use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
 use paddler_cluster_harness::system_one_request::system_one_request;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
 const QUESTIONS_OUTLASTING_A_DISCONNECT: usize = 96;
@@ -41,7 +41,10 @@ async fn typesafe_system_one_client_disconnecting_mid_decision_releases_its_sequ
     .expect("the System One request must be sent");
 
     cluster
-        .wait_for_slots_processing(&agent_id, u64::from(DECISION_SLOTS_MINIMUM.get()))
+        .wait_for_slots_processing(
+            &agent_id,
+            u64::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
+        )
         .await
         .expect("the agent must start deciding");
     half_closed_client

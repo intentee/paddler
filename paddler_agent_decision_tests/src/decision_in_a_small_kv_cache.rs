@@ -10,7 +10,7 @@ use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision::decision_error::DecisionError;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 use paddler_request_params_fixture::repeated_state_decision::repeated_state_decision;
 
@@ -31,7 +31,7 @@ impl DecisionInASmallKvCache {
     /// Returns an error when the kev decision model cannot load, when its decision context cannot be created, and when the decision is not prepared or admitted.
     pub fn final_advance(&self) -> Result<Result<DecisionAdvance, DecisionError>> {
         let sequences = if self.question_count > 1 {
-            DECISION_SLOTS_MINIMUM
+            DECISION_SLOTS_WITH_A_QUESTION_LANE
         } else {
             NonZeroU16::MIN
         };

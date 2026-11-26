@@ -7,7 +7,7 @@ use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
 use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
@@ -16,10 +16,14 @@ use paddler_request_params_fixture::sample_decision::sample_decision;
 #[test]
 fn a_decision_evaluates_every_input_token_exactly_once() {
     let decision_model_runtime =
-        DecisionModelRuntime::load(&kev_0_8b(), DECISION_SLOTS_MINIMUM.get())
+        DecisionModelRuntime::load(&kev_0_8b(), DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
             .expect("the kev decision model must load");
     let prepared_decision = decision_model_runtime
-        .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+        .prepared_decision(
+            sample_decision(),
+            DECISION_SLOTS_WITH_A_QUESTION_LANE,
+            u32::MAX,
+        )
         .expect("the decision must be prepared");
     let plan = &prepared_decision.request.plan;
     let shared_prefix_length = plan.shared_prefix_length;
@@ -30,7 +34,7 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
             tokens + prompt.tokens().len() - shared_prefix_length
         });
     let mut llama_context = decision_model_runtime
-        .create_llama_context(u32::from(DECISION_SLOTS_MINIMUM.get()))
+        .create_llama_context(u32::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()))
         .expect("the decision context must be created");
     let mut batch = LlamaBatch::new(llama_context.limits());
     let AdmittedDecision {
@@ -38,7 +42,7 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
         decision_result_rx: _decision_result_rx,
         decision_stop_tx: _decision_stop_tx,
     } = AdmittedDecision::admit(
-        &DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
+        &DecisionCapacityLedger::new(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
         prepared_decision,
     )
     .expect("the decision must be admitted");

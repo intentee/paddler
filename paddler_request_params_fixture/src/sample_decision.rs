@@ -4,15 +4,7 @@ use llama_cpp_bindings_types::decision_request::DecisionRequest;
 use serde_json::Value;
 use serde_json::json;
 
-fn choice(instructions: &str, options: &[&str]) -> DecisionQuestion {
-    DecisionQuestion::Choice {
-        criteria: options
-            .iter()
-            .map(|option| ((*option).to_owned(), Value::Null))
-            .collect(),
-        instructions: json!(instructions),
-    }
-}
+use crate::choice_question::choice_question;
 
 pub const SAMPLE_DECISION_STATE: &str = "Ada paid the invoice for order 1042 two days late and wrote that the delivery was slow, but the support team was friendly.";
 
@@ -41,7 +33,7 @@ pub fn sample_decision() -> DecisionRequest {
             ),
             (
                 "urgency".to_owned(),
-                choice(
+                choice_question(
                     "How urgent is the follow-up?",
                     &["none", "low", "medium", "high"],
                 ),

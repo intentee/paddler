@@ -9,7 +9,7 @@ use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
 use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 use paddler_request_params_fixture::sample_decision::sample_decision;
@@ -17,10 +17,14 @@ use paddler_request_params_fixture::sample_decision::sample_decision;
 #[test]
 fn a_decision_prompt_longer_than_its_batch_is_answered_from_its_last_batch() {
     let mut decision_model_runtime =
-        DecisionModelRuntime::load(&kev_0_8b(), DECISION_SLOTS_MINIMUM.get())
+        DecisionModelRuntime::load(&kev_0_8b(), DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
             .expect("the kev decision model must load");
     let prompts = decision_model_runtime
-        .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+        .prepared_decision(
+            sample_decision(),
+            DECISION_SLOTS_WITH_A_QUESTION_LANE,
+            u32::MAX,
+        )
         .expect("the decision must be prepared")
         .request
         .plan
@@ -47,7 +51,7 @@ fn a_decision_prompt_longer_than_its_batch_is_answered_from_its_last_batch() {
     );
 
     let mut llama_context = decision_model_runtime
-        .create_llama_context(u32::from(DECISION_SLOTS_MINIMUM.get()))
+        .create_llama_context(u32::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()))
         .expect("the decision context must be created");
     let mut batch = LlamaBatch::new(llama_context.limits());
     let AdmittedDecision {
@@ -55,9 +59,13 @@ fn a_decision_prompt_longer_than_its_batch_is_answered_from_its_last_batch() {
         mut decision_result_rx,
         decision_stop_tx: _decision_stop_tx,
     } = AdmittedDecision::admit(
-        &DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
+        &DecisionCapacityLedger::new(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
         decision_model_runtime
-            .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+            .prepared_decision(
+                sample_decision(),
+                DECISION_SLOTS_WITH_A_QUESTION_LANE,
+                u32::MAX,
+            )
             .expect("the decision must fit the batch holding its read span"),
     )
     .expect("the decision must be admitted");

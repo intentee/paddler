@@ -10,7 +10,7 @@ use llama_cpp_bindings_types::decision_request::DecisionRequest;
 use paddler_agent::pipeline_request::PipelineRequest;
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_runtime::agent_request::AgentRequest;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::validates::Validates as _;
 use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
@@ -26,7 +26,7 @@ impl ServingDecisionAgent {
     /// Returns an error when the model downloader cannot start, and when the kev desired state is not reconciled.
     pub async fn start() -> Result<Self> {
         ready(
-            ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get())
+            ServingPipelineArbiter::new(DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
                 .context("the serving pipeline arbiter must start"),
         )
         .and_then(Self::serving_the_decision_model)
@@ -60,7 +60,7 @@ impl ServingDecisionAgent {
                 .forward(PipelineRequest::Decide(AgentRequest {
                     slot_guard: self
                         .serving_pipeline_arbiter
-                        .slot_guard(DECISION_SLOTS_MINIMUM),
+                        .slot_guard(DECISION_SLOTS_WITH_A_QUESTION_LANE),
                     params: decide_params,
                     response_tx: decision_result_tx,
                     stop_rx: decision_stop_rx,

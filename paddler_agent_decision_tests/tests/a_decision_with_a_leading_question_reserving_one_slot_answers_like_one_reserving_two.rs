@@ -13,7 +13,7 @@ use paddler_agent_decision_tests::decision_scheduler_run::DecisionSchedulerRun;
 use paddler_agent_runtime::scheduler_inbox::SchedulerInbox;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 use paddler_request_params_fixture::sample_decision::sample_decision;
@@ -35,10 +35,14 @@ fn answers_of(
 #[test]
 fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserving_two() {
     let decision_model_runtime =
-        DecisionModelRuntime::load(&kev_0_8b(), DECISION_SLOTS_MINIMUM.get())
+        DecisionModelRuntime::load(&kev_0_8b(), DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
             .expect("the kev decision model must load");
     let decision_reserving_two_slots = decision_model_runtime
-        .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+        .prepared_decision(
+            sample_decision(),
+            DECISION_SLOTS_WITH_A_QUESTION_LANE,
+            u32::MAX,
+        )
         .expect("the decision reserving two slots must be prepared");
     let decision_reserving_one_slot = decision_model_runtime
         .prepared_decision(sample_decision(), NonZeroU16::MIN, u32::MAX)
@@ -60,10 +64,10 @@ fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserv
         .run_scheduler(DecisionSchedulerRun {
             active_requests: VecDeque::new(),
             agent_shutdown: CancellationToken::new(),
-            capacity_ledger: DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
+            capacity_ledger: DecisionCapacityLedger::new(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
             pending_requests: VecDeque::new(),
             scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-            sequences: DECISION_SLOTS_MINIMUM.get(),
+            sequences: DECISION_SLOTS_WITH_A_QUESTION_LANE.get(),
         })
         .expect("the decision context must be created");
 

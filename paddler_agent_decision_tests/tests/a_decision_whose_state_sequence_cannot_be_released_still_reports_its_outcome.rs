@@ -6,7 +6,7 @@ use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
 use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
 use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 use paddler_request_params_fixture::sample_decision::sample_decision;
@@ -25,7 +25,11 @@ fn a_decision_whose_state_sequence_cannot_be_released_still_reports_its_outcome(
     let capacity_ledger = DecisionCapacityLedger::new(SEQUENCES_THE_LEDGER_HANDS_OUT);
     let prepared_decision = || {
         decision_model_runtime
-            .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+            .prepared_decision(
+                sample_decision(),
+                DECISION_SLOTS_WITH_A_QUESTION_LANE,
+                u32::MAX,
+            )
             .expect("the decision must be prepared")
     };
     let _decision_holding_the_sequences_the_context_holds =

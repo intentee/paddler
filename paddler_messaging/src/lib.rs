@@ -27,6 +27,7 @@ pub mod conversation_tool_call;
 pub mod decision_final_result;
 pub mod decision_result;
 pub mod decision_slot_allotment;
+pub mod decision_slot_demand;
 pub mod decision_summary;
 pub mod desired_state_version;
 pub mod embedding;

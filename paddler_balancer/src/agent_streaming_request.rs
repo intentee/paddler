@@ -89,7 +89,7 @@ impl AgentStreamingRequest for DecideParams {
     }
 
     fn slot_demand(&self) -> SlotDemand {
-        SlotDemand::Exactly(self.slots_needed())
+        SlotDemand::Decision(self.slot_demand())
     }
 }
 
@@ -115,8 +115,8 @@ mod tests {
     use std::num::NonZeroU32;
 
     use paddler_inference_parameters::model_default_or::ModelDefaultOr;
-    use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
     use paddler_messaging::conversation_history::ConversationHistory;
+    use paddler_messaging::decision_slot_demand::DecisionSlotDemand;
     use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -188,7 +188,7 @@ mod tests {
             .dispatch_requirement(),
             DispatchRequirement {
                 requested_capability: RequestedCapability::Decisions,
-                slot_demand: SlotDemand::Exactly(DECISION_SLOTS_MINIMUM),
+                slot_demand: SlotDemand::Decision(DecisionSlotDemand::SeveralQuestions),
             }
         );
     }

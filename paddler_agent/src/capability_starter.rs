@@ -233,12 +233,13 @@ impl CapabilityStarter<'_> {
         else {
             return ControlFlow::Continue(ServedDecisions::NotServed);
         };
-        let decision_slots = match DecisionSlots::allot(self.inference_runtime_context) {
-            Ok(decision_slots) => decision_slots,
-            Err(slots_insufficient) => {
-                return ControlFlow::Break(startup_failure(slots_insufficient));
-            }
-        };
+        let decision_slots =
+            match DecisionSlots::allot(self.inference_runtime_context, decision_model) {
+                Ok(decision_slots) => decision_slots,
+                Err(slots_insufficient) => {
+                    return ControlFlow::Break(startup_failure(slots_insufficient));
+                }
+            };
 
         DecisionPipeline {
             decision_model: decision_model.clone(),

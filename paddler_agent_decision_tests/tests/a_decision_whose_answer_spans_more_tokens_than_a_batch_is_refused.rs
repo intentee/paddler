@@ -6,7 +6,7 @@ use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesi
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
@@ -14,7 +14,7 @@ use paddler_request_params_fixture::sample_decision::sample_decision;
 async fn a_decision_whose_answer_spans_more_tokens_than_a_batch_is_refused() {
     let cluster = DecisionClusterParams {
         desired_state: DecisionDesiredState {
-            n_batch: BatchSize::try_from(u32::from(DECISION_SLOTS_MINIMUM.get()))
+            n_batch: BatchSize::try_from(u32::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()))
                 .expect("a batch with one token per decision slot is valid"),
             ..DecisionDesiredState::default()
         },

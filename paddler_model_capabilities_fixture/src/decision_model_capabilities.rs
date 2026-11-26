@@ -11,7 +11,7 @@ use llama_cpp_bindings_types::text_generation_unsupported_reason::TextGeneration
 
 use crate::sampling_defaults_of_llama_cpp::model_defaults_of_llama_cpp;
 
-/// A decision-only model that answers decisions from text and generates no text.
+/// A decision-only model that answers decisions from text, sharing the prefix of its prompts, and generates no text.
 #[must_use]
 pub const fn decision_model_capabilities() -> ModelCapabilities {
     ModelCapabilities {
@@ -20,6 +20,7 @@ pub const fn decision_model_capabilities() -> ModelCapabilities {
         ),
         decisions: DecisionsCapability::Supported(DecisionCapabilities {
             reads_images: false,
+            shares_prompt_prefix: true,
         }),
         embeddings: EmbeddingsCapability::Unsupported(
             EmbeddingsUnsupportedReason::ModelDeclaresNoVectorPooling,

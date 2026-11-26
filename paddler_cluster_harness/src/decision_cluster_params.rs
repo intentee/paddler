@@ -3,7 +3,7 @@ use std::future::Future;
 use anyhow::Result;
 
 use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 
 use crate::agent_config::AgentConfig;
 use crate::cluster::Cluster;
@@ -46,7 +46,7 @@ impl DecisionClusterParams {
 impl Default for DecisionClusterParams {
     fn default() -> Self {
         Self {
-            agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM.get()),
+            agents: AgentConfig::uniform(1, DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
             desired_state: DecisionDesiredState::default(),
             wait_for_slots_ready: true,
         }

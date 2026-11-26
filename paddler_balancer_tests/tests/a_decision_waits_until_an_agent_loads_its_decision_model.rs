@@ -10,14 +10,14 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
 use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_waits_until_an_agent_loads_its_decision_model() {
     let mut cluster_with_a_downloading_agent =
         ClusterWithAnAgentDownloadingItsModel::start(ClusterParams {
-            agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM.get()),
+            agents: AgentConfig::uniform(1, DECISION_SLOTS_WITH_A_QUESTION_LANE.get()),
             ..ClusterParams::default()
         })
         .await

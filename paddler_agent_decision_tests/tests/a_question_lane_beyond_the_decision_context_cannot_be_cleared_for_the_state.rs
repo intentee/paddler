@@ -12,7 +12,7 @@ use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
 use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
 use paddler_capturing_logger::captured_record::CapturedRecord;
 use paddler_capturing_logger::capturing_logger::CapturingLogger;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
@@ -36,7 +36,11 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
     } = AdmittedDecision::admit(
         &DecisionCapacityLedger::new(SEQUENCES_THE_LEDGER_HANDS_OUT),
         decision_model_runtime
-            .prepared_decision(sample_decision(), DECISION_SLOTS_MINIMUM, u32::MAX)
+            .prepared_decision(
+                sample_decision(),
+                DECISION_SLOTS_WITH_A_QUESTION_LANE,
+                u32::MAX,
+            )
             .expect("the decision must be prepared"),
     )
     .expect("the decision must be admitted");
