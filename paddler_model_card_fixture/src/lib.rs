@@ -26,6 +26,7 @@ pub mod served_context_size;
 pub mod served_model_runtime_parameters;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;
+pub mod t5_small;
 pub mod tiny_granite_switch_4_1_8b_for_testing;
 pub mod ultravox_v0_5_llama_3_2_1b;
 pub mod ultravox_v0_5_llama_3_2_1b_mmproj;

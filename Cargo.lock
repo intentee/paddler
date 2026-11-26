@@ -2857,9 +2857,9 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "llama-cpp-backend"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f2e4739494888c7683cead5320e1e6f90c8945a617a3e480a93b13e3c2db00"
+checksum = "bec906a80b3565c3366e61d15772b1676dd0b1361dc01dfbfb11e3aa7fc865da"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-log-decoder",
@@ -2870,9 +2870,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2041df6d5d5d0f9acb8edb1ea3b5b9ec1d7cee2cfa75d46ad4d927b42f18e79e"
+checksum = "0c471e8d3835b72aa2c76390d4935f3a0a9b9a8ef11d881eeb04587f329e32a5"
 dependencies = [
  "encoding_rs",
  "llama-cpp-bindings-sys",
@@ -2887,9 +2887,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97385ea78568e6c69f875a38d97044f42da85771f7eb1e7a9992b4af2701379a"
+checksum = "993920a0d34a08ac7ac9fda6a78834b40a15cd4531878fb4ead9e28fb0adb309"
 dependencies = [
  "bindgen",
  "cc",
@@ -2904,9 +2904,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5feb434424ca6c612677fedf2480e8b5f9e46c61056441da2d3913c52f64f076"
+checksum = "00a5aa375cb8b2a7f4410e531d84c3a2a37776bdb83b9d0ea21498c83ef2f75d"
 dependencies = [
  "llama-cpp-bindings-build",
  "llama-cpp-native",
@@ -2914,9 +2914,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8aa48b4aa987627a9e063743aa2792b8a5e44dec8705492694900266e0f22d3a"
+checksum = "2fcc20f2bfd62f58715bc43e4a267704bace2a44fb4d11249175c7d770969709"
 dependencies = [
  "indexmap",
  "serde",
@@ -2926,9 +2926,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-chat"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75905225c834ce78f3cc383936880907de807c2ce60e96b20b63da832bb6163b"
+checksum = "ecbb368878f382940270cd769dcd9fe32b06bcd16c60d4c320af66a6387db3e2"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
@@ -2940,9 +2940,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-context"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c6033615c40fb9adf29651fa124765dd526a40ba4a6d7d6442a84ec9c733dd8"
+checksum = "5eee5f54846b0fd525ba651b21195f9c340998250a292f712f99d395bfb25454"
 dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
@@ -2954,9 +2954,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-context-memory"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f02b9b683e9ccfca4345eab35e61063cf8f4b764cdd288abd7256e35bb48016"
+checksum = "e13c4ec90e19255bda49a045d97ad6c76d3d03de599d049b3a342b8d4a11e214"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-context",
@@ -2966,9 +2966,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-decision"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "145ee4a64b525f4ee949cc2b428cc2f0e2ccb841ad5ec7a7d1519af5aa7b5b5d"
+checksum = "7555ce530896519a2867274491dcab895d06f2c62ba4f33bb926e7a143ecf514"
 dependencies = [
  "indexmap",
  "llama-cpp-bindings-sys",
@@ -2983,15 +2983,15 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-error-chain"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d01e182353f5676d07c48a21e017436116f585b6620b8018b023da52e205e3d"
+checksum = "5688c1e082a69007f3ede4a2ca452867775ddcb636c23a5cd4cbcbf139dd3899"
 
 [[package]]
 name = "llama-cpp-error-recorder"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "657e5f61ea17bf5157e6e31720a24ecef5d46d95ffe0e4b5c9e22cac43e8abe1"
+checksum = "84c5f8cddaeb342db700563f95543b0d225d67dacd01685f31a5ffde4c227141"
 dependencies = [
  "log",
  "thiserror",
@@ -2999,18 +2999,18 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-fault-injection"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80338eb02fd96e0c8301929fa09b7abe7e1215ef58a08bd637f19ac12adbaaa0"
+checksum = "4a1888f0f8c439f63de1b63a282488e01e3b5cf289853a265f43914e4b940df7"
 dependencies = [
  "llama-cpp-bindings-sys",
 ]
 
 [[package]]
 name = "llama-cpp-gbnf"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "694ac7b7d3ea0fc91acc35dd00eca7b070f627d48b6843e93d0a32431c0c55be"
+checksum = "0900b5846b0ce523130817d5b0144cb9938aa711bac39778cd4c9f61db6b03e1"
 dependencies = [
  "llama-cpp-bindings-sys",
  "thiserror",
@@ -3018,9 +3018,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-gguf"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "418c685a15a5fcc9e073fb6a3aace2d0a4fecbce803659a493f945a72f81a5a0"
+checksum = "b391ab38c595efd51fcf0084dd1bea4078069296ede377e83674a59b2541cee3"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-path-c-string",
@@ -3029,15 +3029,15 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-log-decoder"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01cbb40c5760c8d0894af41c2ad082b3f1c2152a7eb559c7c226a9d833ef3252"
+checksum = "bb27ca425a89d1eba926bef92096ffe071a3b00b49f59f8a284772d159c58bce"
 
 [[package]]
 name = "llama-cpp-model"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "493fccf05680077a9ccc3505bee22b01e2a99e68f5c68fd186f4c5eb0d7bde69"
+checksum = "364ac9c107467eeae481b64318a95c3914fd8e32b421441c1c8868cf4ea79b8f"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -3053,9 +3053,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-model-capabilities"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efd987834cb9368e7e0c6ccfa8b240a19735e6b2f3b2cac708fbba91e42defb9"
+checksum = "4fc498bf6f677913f47bdc2b41bf55b088c35f54df6771d951ecfe2324fa79f4"
 dependencies = [
  "enumflags2",
  "llama-cpp-bindings-sys",
@@ -3069,9 +3069,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-mtmd"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a70338e7a8552c124d2f03da123c4b5474a1d08884b06afcab60fd52a81c602a"
+checksum = "f43bad69fe00feac632455a0b97087013116db41eb776b97c559cc8015d65eb0"
 dependencies = [
  "enumflags2",
  "llama-cpp-backend",
@@ -3083,18 +3083,18 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-native"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d897c76d43a880fbf494d2a5f2ce5cc91f9713c5b61bda30e855d1a124b1451"
+checksum = "f2f2cbb876d71c5c729d52f89b0a220f09dcf7954ef22065d9f14cc4aaa34210"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-params"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adff5fead8a1a8740f026284e5cf5053759531e2630c7c809356e73c704f0a4b"
+checksum = "8e33cc5a401f85f405cc2dbaa1013a152e11b09b882812aced5fb74a91566f19"
 dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
@@ -3104,18 +3104,18 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-path-c-string"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4da4f5d133b5dfb1beddf6ec8816e198ef53e77bb75f0dfe64cc91863438fc3"
+checksum = "ddba269f8f5c10c3b08408b4f879bd2c3eb33694d1b4afbbbf6986f222aa065e"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "llama-cpp-sampler"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf8c71075f4aa44eec7c43562923a155e8a4eaf9c9dfaa369ba335bd23f405f7"
+checksum = "1e061dc1766cf4f0f6275181464b6cac7630eb588a117a9e8090319b752d343b"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-context",
@@ -3129,9 +3129,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-token-usage"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f376ecf3cf757eb425e3fd409e19bd470c5dcb58a224c14e697153bf1322cb3b"
+checksum = "2585d825de9c3cc15cd3f692adfaf6795c5e28c2027634c4a85332a8727189c1"
 dependencies = [
  "serde",
  "thiserror",
@@ -3139,9 +3139,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-wrapper-sources"
-version = "0.34.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74d007df1d6815963a963781f393d17ae930dfb0a133942df3ebbb0e627e176b"
+checksum = "80cdbe946cf10595f925ec06b8380718b8b8fc329117c56842cd5553f860550d"
 dependencies = [
  "llama-cpp-error-chain",
  "serde",

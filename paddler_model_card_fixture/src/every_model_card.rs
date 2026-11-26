@@ -23,6 +23,7 @@ use crate::qwen3_5_0_8b::qwen3_5_0_8b;
 use crate::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 use crate::smolvlm2_256m::smolvlm2_256m;
 use crate::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
+use crate::t5_small::t5_small;
 use crate::tiny_granite_switch_4_1_8b_for_testing::tiny_granite_switch_4_1_8b_for_testing;
 use crate::ultravox_v0_5_llama_3_2_1b::ultravox_v0_5_llama_3_2_1b;
 use crate::ultravox_v0_5_llama_3_2_1b_mmproj::ultravox_v0_5_llama_3_2_1b_mmproj;
@@ -54,6 +55,7 @@ pub fn every_model_card() -> Vec<ModelCard> {
         qwen3_5_0_8b_mmproj(),
         smolvlm2_256m(),
         smolvlm2_256m_mmproj(),
+        t5_small(),
         tiny_granite_switch_4_1_8b_for_testing(),
         ultravox_v0_5_llama_3_2_1b(),
         ultravox_v0_5_llama_3_2_1b_mmproj(),
