@@ -3879,7 +3879,6 @@ dependencies = [
 name = "paddler_agent_status"
 version = "5.0.0"
 dependencies = [
- "dashmap",
  "llama-cpp-bindings-types",
  "paddler_messaging",
  "paddler_model_capabilities_fixture",
