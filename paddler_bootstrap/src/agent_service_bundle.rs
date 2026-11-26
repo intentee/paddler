@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use nanoid::nanoid;
 use tokio::sync::watch;
-use trzcina::ServiceManager;
+use trzcina::service_manager::ServiceManager;
 
 use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
 use paddler_agent::balancer_message_context::BalancerMessageContext;

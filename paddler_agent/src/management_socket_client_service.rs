@@ -1,5 +1,6 @@
+use std::convert::Infallible;
+
 use anyhow::Result;
-use async_trait::async_trait;
 use futures_util::StreamExt as _;
 use futures_util::stream::BoxStream;
 use futures_util::stream::SelectAll;
@@ -19,7 +20,7 @@ use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use paddler_error_chain::error_chain::ErrorChain;
 use paddler_frame_writer::frame_writing_end::FrameWritingEnd;
@@ -229,13 +230,14 @@ impl ManagementSocketClientService {
     }
 }
 
-#[async_trait]
 impl Service for ManagementSocketClientService {
+    type Error = Infallible;
+
     fn name(&self) -> &'static str {
         "agent::management_socket_client_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), Infallible> {
         self.reconnect_to_the_balancer_until_shutdown(shutdown)
             .await;
 

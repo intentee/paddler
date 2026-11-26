@@ -6,9 +6,8 @@ pub mod template_data;
 use actix_web::App;
 use actix_web::web::Data;
 use anyhow::Result;
-use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use crate::balancer_error::BalancerError;
 use crate::http_listener::HttpListener;
@@ -51,14 +50,15 @@ impl WebAdminPanelService {
     }
 }
 
-#[async_trait]
 impl Service for WebAdminPanelService {
+    type Error = BalancerError;
+
     fn name(&self) -> &'static str {
         "balancer::web_admin_panel_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        Ok(self.serve_until_shutdown(shutdown).await?)
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), BalancerError> {
+        self.serve_until_shutdown(shutdown).await
     }
 }
 
@@ -67,14 +67,13 @@ mod tests {
     use std::net::SocketAddr;
     use std::time::Duration;
 
-    use anyhow::Result;
     use tokio::join;
     use tokio_util::sync::CancellationToken;
-    use trzcina::Service as _;
+    use trzcina::service::Service as _;
 
     use super::WebAdminPanelService;
+    use crate::balancer_error::BalancerError;
     use crate::http_listener::HttpListener;
-
     use crate::resolved_socket_addr::ResolvedSocketAddr;
     use crate::web_admin_panel_service::template_data::TemplateData;
 
@@ -98,7 +97,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn run_stops_cleanly_when_shutdown_is_requested() -> Result<()> {
+    async fn run_stops_cleanly_when_shutdown_is_requested() -> Result<(), BalancerError> {
         let service = Box::new(build_service());
         let shutdown = CancellationToken::new();
         let requested_shutdown = shutdown.clone();

@@ -8,9 +8,8 @@ use std::sync::Arc;
 use actix_web::App;
 use actix_web::web::Data;
 use anyhow::Result;
-use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -94,13 +93,14 @@ impl ManagementService {
     }
 }
 
-#[async_trait]
 impl Service for ManagementService {
+    type Error = BalancerError;
+
     fn name(&self) -> &'static str {
         "balancer::management_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        Ok(self.serve_until_shutdown(shutdown).await?)
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), BalancerError> {
+        self.serve_until_shutdown(shutdown).await
     }
 }

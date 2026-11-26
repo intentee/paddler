@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
+use trzcina::service_shutdown_options::ServiceShutdownOptions;
 
 use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
 use paddler_bootstrap::agent_runner_params::AgentRunnerParams;

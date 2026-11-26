@@ -13,7 +13,6 @@ doctest = false
 
 [dependencies]
 anyhow = { workspace = true }
-async-trait = { workspace = true }
 futures-util = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 llama-cpp-model = { workspace = true }

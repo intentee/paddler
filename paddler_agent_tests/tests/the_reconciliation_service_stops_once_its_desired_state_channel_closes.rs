@@ -3,7 +3,7 @@ use std::sync::Arc;
 use log::Level;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service as _;
+use trzcina::service::Service as _;
 
 use paddler_agent::delivered_desired_state::DeliveredDesiredState;
 use paddler_agent::desired_state_reconciler::DesiredStateReconciler;

@@ -1,4 +1,4 @@
-use trzcina::ServiceShutdownOptions;
+use trzcina::service_shutdown_options::ServiceShutdownOptions;
 
 use crate::longer_than_any_test_run::longer_than_any_test_run;
 

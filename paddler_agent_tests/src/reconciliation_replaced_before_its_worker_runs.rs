@@ -1,7 +1,7 @@
+use std::convert::Infallible;
 use std::io::Result as IoResult;
 use std::sync::Arc;
 
-use anyhow::Result as AnyhowResult;
 use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
 use tempfile::TempDir;
@@ -9,7 +9,7 @@ use tokio::spawn;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service as _;
+use trzcina::service::Service as _;
 
 use paddler_agent::delivered_desired_state::DeliveredDesiredState;
 use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
@@ -58,7 +58,7 @@ struct ReplacementDownloading {
     delivered_desired_state_tx: watch::Sender<DeliveredDesiredState>,
     reconciled_state_holder: Arc<ReconciledStateHolder>,
     cache_dir: TempDir,
-    reconciliation: JoinHandle<AnyhowResult<()>>,
+    reconciliation: JoinHandle<Result<(), Infallible>>,
     shutdown: CancellationToken,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
     stalled_model_server: LocalHttpFixture,
@@ -90,10 +90,7 @@ impl ReplacementDownloading {
 
         let stopped = reconciliation
             .map_err(AgentTestsError::ReconciliationServicePanicked)
-            .and_then(|service_outcome| {
-                ready(service_outcome.map_err(AgentTestsError::ReconciliationServiceFailed))
-            })
-            .and_then(|()| {
+            .and_then(|Ok(())| {
                 stalled_model_server
                     .stop()
                     .map_err(AgentTestsError::StalledModelServerPanicked)
@@ -120,7 +117,7 @@ struct ReplacementPending {
     reconciled_state_holder: Arc<ReconciledStateHolder>,
     cache_dir: TempDir,
     occupied_blocking_thread: OccupiedBlockingThread,
-    reconciliation: JoinHandle<AnyhowResult<()>>,
+    reconciliation: JoinHandle<Result<(), Infallible>>,
     shutdown: CancellationToken,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
     stalled_model_server: LocalHttpFixture,
@@ -232,7 +229,7 @@ pub struct ReconciliationReplacedBeforeItsWorkerRuns {
 impl ReconciliationReplacedBeforeItsWorkerRuns {
     /// # Errors
     ///
-    /// Returns [`AgentTestsError::TestRuntimeUnbuildable`] when the single blocking thread runtime cannot be built, [`AgentTestsError::DownloadCacheUncreatable`] when the download cache cannot be created, [`AgentTestsError::StalledModelServerUnstartable`] when the stalled model server cannot start, [`AgentTestsError::ModelDownloaderUnstartable`] or [`AgentTestsError::HuggingFaceClientUnstartable`] when the model resolver cannot start, [`AgentTestsError::ReplacedDesiredStateNeverBegun`] when the agent never begins the replaced desired state, [`AgentTestsError::BlockingThreadOccupantUnreleased`] when the blocking thread occupant cannot be released, [`AgentTestsError::ReplacementDownloadNeverStarted`] when the replacement never starts downloading, [`AgentTestsError::ReconciliationServicePanicked`] or [`AgentTestsError::ReconciliationServiceFailed`] when the reconciliation service does not stop cleanly, and [`AgentTestsError::StalledModelServerPanicked`] or [`AgentTestsError::StalledModelServerFailed`] when the stalled model server does not stop cleanly.
+    /// Returns [`AgentTestsError::TestRuntimeUnbuildable`] when the single blocking thread runtime cannot be built, [`AgentTestsError::DownloadCacheUncreatable`] when the download cache cannot be created, [`AgentTestsError::StalledModelServerUnstartable`] when the stalled model server cannot start, [`AgentTestsError::ModelDownloaderUnstartable`] or [`AgentTestsError::HuggingFaceClientUnstartable`] when the model resolver cannot start, [`AgentTestsError::ReplacedDesiredStateNeverBegun`] when the agent never begins the replaced desired state, [`AgentTestsError::BlockingThreadOccupantUnreleased`] when the blocking thread occupant cannot be released, [`AgentTestsError::ReplacementDownloadNeverStarted`] when the replacement never starts downloading, [`AgentTestsError::ReconciliationServicePanicked`] when the reconciliation service panics, and [`AgentTestsError::StalledModelServerPanicked`] or [`AgentTestsError::StalledModelServerFailed`] when the stalled model server does not stop cleanly.
     pub fn run(self) -> Result<ReconciliationAfterReplacement, AgentTestsError> {
         single_blocking_thread_runtime()
             .map_err(AgentTestsError::TestRuntimeUnbuildable)

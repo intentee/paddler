@@ -1,7 +1,7 @@
 use std::io::stdout;
 
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
+use trzcina::service_shutdown_options::ServiceShutdownOptions;
 
 use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_bootstrap::registers_services::RegistersServices;

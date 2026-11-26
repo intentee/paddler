@@ -1,13 +1,13 @@
+use std::convert::Infallible;
 use std::mem::replace;
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use log::error;
 use tokio::select;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use crate::delivered_desired_state::DeliveredDesiredState;
 use crate::desired_state_reconciler::DesiredStateReconciler;
@@ -102,13 +102,14 @@ impl ReconciliationService {
     }
 }
 
-#[async_trait]
 impl Service for ReconciliationService {
+    type Error = Infallible;
+
     fn name(&self) -> &'static str {
         "agent::reconciliation_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), Infallible> {
         self.reconcile_desired_states_until_shutdown(shutdown).await;
 
         Ok(())
@@ -125,7 +126,7 @@ mod tests {
     use tokio::sync::watch;
     use tokio::time::Instant;
     use tokio_util::sync::CancellationToken;
-    use trzcina::Service as _;
+    use trzcina::service::Service as _;
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_cache_dir::cache_dir::CacheDir;

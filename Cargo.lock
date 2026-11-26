@@ -3642,7 +3642,6 @@ name = "paddler_agent"
 version = "5.0.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "futures-util",
  "http 1.5.0",
  "llama-cpp-bindings-types",
@@ -4013,7 +4012,6 @@ dependencies = [
  "actix-ws",
  "anyhow",
  "askama",
- "async-trait",
  "bytes",
  "cadence",
  "dashmap",
@@ -6510,17 +6508,26 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "trzcina"
-version = "0.4.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0105cd7bb068e2c2befb3910c55ccf33b07b7ce0592161be5044cc6233366d4f"
+checksum = "d255ab3f63be848559c5d31cdfb586b95963244b7c4d947fd2ad9bea38091a35"
 dependencies = [
- "anyhow",
- "async-trait",
  "futures-util",
  "log",
  "thiserror",
  "tokio",
  "tokio-util",
+ "trzcina_tokio_safe_delay",
+]
+
+[[package]]
+name = "trzcina_tokio_safe_delay"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a450c4061484aa835eba18ab54e9de720a1c9e0ec2b363ea936477d78d6f1ee"
+dependencies = [
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]

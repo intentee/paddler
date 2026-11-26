@@ -1,10 +1,10 @@
+use std::convert::Infallible;
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_outbox::outbox::Outbox;
@@ -69,13 +69,14 @@ impl LlamaCppArbiterService {
     }
 }
 
-#[async_trait]
 impl Service for LlamaCppArbiterService {
+    type Error = Infallible;
+
     fn name(&self) -> &'static str {
         "agent::llamacpp_arbiter_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), Infallible> {
         self.arbitrate_pipelines_until_shutdown(shutdown).await;
 
         Ok(())
@@ -87,7 +88,7 @@ mod tests {
     use std::sync::Arc;
 
     use tokio_util::sync::CancellationToken;
-    use trzcina::Service;
+    use trzcina::service::Service;
 
     use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
     use paddler_agent_runtime::inference_runtime_context_params::InferenceRuntimeContextParams;

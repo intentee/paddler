@@ -85,9 +85,7 @@ mod tests {
 
     use log::Level;
     use tokio_util::sync::CancellationToken;
-    use trzcina::ServiceShutdownError;
-    use trzcina::ServiceShutdownOutcome;
-    use trzcina::ServiceShutdownOutcomeWithServiceName;
+    use trzcina::service_shutdown_error::ServiceShutdownError;
 
     use paddler_capturing_logger::captured_record::CapturedRecord;
     use paddler_capturing_logger::capturing_logger::CapturingLogger;
@@ -99,10 +97,9 @@ mod tests {
 
     fn aborted_service_run() -> BootstrapError {
         BootstrapError::ServiceRunFailed {
-            source: ServiceShutdownError::new(vec![ServiceShutdownOutcomeWithServiceName {
-                name: ABORTED_SERVICE_NAME,
-                outcome: ServiceShutdownOutcome::AbortedByShutdownDeadline,
-            }]),
+            failures: vec![ServiceShutdownError::AbortedByShutdownDeadline {
+                service_name: ABORTED_SERVICE_NAME,
+            }],
         }
     }
 
@@ -166,12 +163,12 @@ mod tests {
 
         assert!(matches!(
             completion_error,
-            BootstrapError::ServiceRunFailed { source }
-                if source
-                    .failed_outcomes()
-                    .iter()
-                    .map(|failed_outcome| failed_outcome.name)
-                    .eq([ABORTED_SERVICE_NAME])
+            BootstrapError::ServiceRunFailed { failures }
+                if matches!(
+                    failures.as_slice(),
+                    [ServiceShutdownError::AbortedByShutdownDeadline { service_name }]
+                        if *service_name == ABORTED_SERVICE_NAME
+                )
         ));
     }
 

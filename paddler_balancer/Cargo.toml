@@ -19,7 +19,6 @@ actix-web-lab = { workspace = true }
 actix-ws = { workspace = true }
 anyhow = { workspace = true }
 askama = { workspace = true, optional = true }
-async-trait = { workspace = true }
 bytes = { workspace = true }
 cadence = { workspace = true }
 dashmap = { workspace = true }

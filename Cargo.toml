@@ -614,7 +614,7 @@ tokio-test = "0.4"
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 thiserror = "2.0"
-trzcina = "0.4"
+trzcina = "0.6"
 url = { version = "2.5", features = ["serde"] }
 yaml-rust2 = "0.13"
 paddler_agent = { version = "5.0", path = "paddler_agent" }

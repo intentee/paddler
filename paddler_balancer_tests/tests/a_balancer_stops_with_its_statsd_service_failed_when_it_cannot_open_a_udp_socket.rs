@@ -7,8 +7,7 @@ use seccompiler::SeccompCmpArgLen;
 use seccompiler::SeccompCmpOp;
 use seccompiler::SeccompCondition;
 use seccompiler::SeccompRule;
-use trzcina::ServiceShutdownOutcome;
-use trzcina::ServiceShutdownOutcomeWithServiceName;
+use trzcina::service_shutdown_error::ServiceShutdownError;
 
 use paddler_balancer::balancer_error::BalancerError;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
@@ -69,12 +68,12 @@ async fn a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_u
             .wait_for_completion()
             .await
             .expect_err("a balancer whose statsd service fails must stop with an error"),
-        BootstrapError::ServiceRunFailed { source }
+        BootstrapError::ServiceRunFailed { failures }
             if matches!(
-                source.failed_outcomes(),
-                [ServiceShutdownOutcomeWithServiceName {
-                    name: "balancer::statsd_service",
-                    outcome: ServiceShutdownOutcome::Errored(service_error),
+                failures.as_slice(),
+                [ServiceShutdownError::Errored {
+                    service_name: "balancer::statsd_service",
+                    source: service_error,
                 }] if matches!(
                     service_error.downcast_ref::<BalancerError>(),
                     Some(BalancerError::StatsdSocketUnbindable(socket_error))
