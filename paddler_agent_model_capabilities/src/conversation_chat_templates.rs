@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use llama_cpp_model::chat_templates::ChatTemplates;
 use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
 use llama_cpp_model::llama_model::LlamaModel;
@@ -11,8 +13,7 @@ use crate::agent_model_capabilities_error::AgentModelCapabilitiesError;
 
 pub enum ConversationChatTemplates {
     Absent,
-    EmbeddedInModel,
-    Override(ChatTemplates),
+    Present(Arc<ChatTemplates>),
 }
 
 impl ConversationChatTemplates {
@@ -25,7 +26,7 @@ impl ConversationChatTemplates {
     ) -> Result<Self, AgentModelCapabilitiesError> {
         match chat_template_source {
             ChatTemplateSource::EmbeddedInModel => match model.chat_templates() {
-                Ok(_embedded_chat_templates) => Ok(Self::EmbeddedInModel),
+                Ok(embedded_chat_templates) => Ok(Self::Present(embedded_chat_templates)),
                 Err(ModelError::ModelHasNoChatTemplate) => Ok(Self::Absent),
                 Err(compile_error) => Err(AgentModelCapabilitiesError::ChatTemplateDoesNotCompile(
                     compile_error,
@@ -36,22 +37,16 @@ impl ConversationChatTemplates {
                     &LlamaChatTemplate::new(content)
                         .map_err(AgentModelCapabilitiesError::ChatTemplateContainsNul)?,
                 )
-                .map(Self::Override)
+                .map(|override_chat_templates| Self::Present(Arc::new(override_chat_templates)))
                 .map_err(AgentModelCapabilitiesError::ChatTemplateDoesNotCompile),
         }
     }
 
-    /// # Errors
-    ///
-    /// Returns the [`ModelError`] llama.cpp reports when it cannot prepare the chat templates embedded in the model.
-    pub fn of_model<'model>(
-        &'model self,
-        model: &'model LlamaModel,
-    ) -> Result<ConversationTemplates<'model>, ModelError> {
+    #[must_use]
+    pub fn conversation_templates(&self) -> ConversationTemplates<'_> {
         match self {
-            Self::Absent => Ok(ConversationTemplates::Absent),
-            Self::EmbeddedInModel => model.chat_templates().map(ConversationTemplates::Present),
-            Self::Override(chat_templates) => Ok(ConversationTemplates::Present(chat_templates)),
+            Self::Absent => ConversationTemplates::Absent,
+            Self::Present(chat_templates) => ConversationTemplates::Present(chat_templates),
         }
     }
 }

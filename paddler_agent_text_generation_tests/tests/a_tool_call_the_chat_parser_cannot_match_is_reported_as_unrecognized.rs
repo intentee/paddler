@@ -31,7 +31,7 @@ fn a_tool_call_the_chat_parser_cannot_match_is_reported_as_unrecognized() {
     let model = &runtime.loaded_llama_model.model;
     let reading = weather_chat_session(
         model,
-        model
+        &model
             .chat_templates()
             .expect("the model must embed a chat template"),
     )

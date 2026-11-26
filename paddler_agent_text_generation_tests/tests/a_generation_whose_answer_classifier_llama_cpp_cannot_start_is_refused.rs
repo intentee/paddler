@@ -65,7 +65,7 @@ fn a_generation_whose_answer_classifier_llama_cpp_cannot_start_is_refused() {
     scheduler_message_tx
         .send(SchedulerMessage::Command(PreparedGenerationRequest {
             token_classification: TokenClassification::ChatSession(
-                weather_chat_session(model, chat_templates)
+                weather_chat_session(model, &chat_templates)
                     .expect("the model's template must serve the weather question"),
             ),
             ..request_preparer

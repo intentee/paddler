@@ -78,7 +78,7 @@ pub struct GenerationRequestPreparer {
 impl GenerationRequestPreparer {
     /// # Errors
     ///
-    /// Returns [`TextGenerationError::ChatTemplateDoesNotCompile`] when the chat templates cannot be prepared, [`TextGenerationError::ConversationUnsupported`] when the model serves no chat template, [`TextGenerationError::ThinkingUnsupported`] or [`TextGenerationError::ToolCallingUnsupported`] when the request asks for a feature its chat template lacks, [`TextGenerationError::GrammarIncompatibleWithThinking`] when a grammar is requested with thinking, [`TextGenerationError::ToolSchemaInvalid`] when a tool schema cannot be compiled, [`TextGenerationError::MultimodalNotSupported`] when images are sent without a multimodal projection, [`TextGenerationError::ChatSessionCreationFailed`] when the chat session cannot be created, [`TextGenerationError::ImageDecodingFailed`] or [`TextGenerationError::ImageBitmapCreationFailed`] when an image cannot be decoded, [`TextGenerationError::ChatPromptUnreadable`], [`TextGenerationError::ChatPromptTokenizationFailed`], [`TextGenerationError::PromptTokenizedToNothing`] or [`TextGenerationError::PromptExceedsContextSize`] when the prompt cannot be served, [`TextGenerationError::GrammarInvalid`], [`TextGenerationError::GrammarConversionFailed`], [`TextGenerationError::GrammarSamplerInitializationFailed`] or [`TextGenerationError::ChatSessionGrammarUnavailable`] when the grammar cannot be resolved, and [`TextGenerationError::SamplerChainCreationFailed`] when the sampler chain cannot be created.
+    /// Returns [`TextGenerationError::ConversationUnsupported`] when the model serves no chat template, [`TextGenerationError::ThinkingUnsupported`] or [`TextGenerationError::ToolCallingUnsupported`] when the request asks for a feature its chat template lacks, [`TextGenerationError::GrammarIncompatibleWithThinking`] when a grammar is requested with thinking, [`TextGenerationError::ToolSchemaInvalid`] when a tool schema cannot be compiled, [`TextGenerationError::MultimodalNotSupported`] when images are sent without a multimodal projection, [`TextGenerationError::ChatSessionCreationFailed`] when the chat session cannot be created, [`TextGenerationError::ImageDecodingFailed`] or [`TextGenerationError::ImageBitmapCreationFailed`] when an image cannot be decoded, [`TextGenerationError::ChatPromptUnreadable`], [`TextGenerationError::ChatPromptTokenizationFailed`], [`TextGenerationError::PromptTokenizedToNothing`] or [`TextGenerationError::PromptExceedsContextSize`] when the prompt cannot be served, [`TextGenerationError::GrammarInvalid`], [`TextGenerationError::GrammarConversionFailed`], [`TextGenerationError::GrammarSamplerInitializationFailed`] or [`TextGenerationError::ChatSessionGrammarUnavailable`] when the grammar cannot be resolved, and [`TextGenerationError::SamplerChainCreationFailed`] when the sampler chain cannot be created.
     pub fn prepare_conversation_history(
         &self,
         AgentRequest {
@@ -105,8 +105,7 @@ impl GenerationRequestPreparer {
         let ConversationTemplates::Present(chat_templates) = self
             .model_capabilities
             .chat_templates
-            .of_model(model)
-            .map_err(TextGenerationError::ChatTemplateDoesNotCompile)?
+            .conversation_templates()
         else {
             return Err(TextGenerationError::ConversationUnsupported);
         };

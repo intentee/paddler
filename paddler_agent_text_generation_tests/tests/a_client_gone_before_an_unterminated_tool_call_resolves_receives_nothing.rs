@@ -71,7 +71,7 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
             generated_tokens_tx: gone_client_tx,
             max_tokens: NonZeroU32::MIN,
             token_classification: TokenClassification::ChatSession(
-                weather_chat_session(model, chat_templates)
+                weather_chat_session(model, &chat_templates)
                     .expect("the model's template must serve the weather question"),
             ),
             token_sampling: TokenSampling {

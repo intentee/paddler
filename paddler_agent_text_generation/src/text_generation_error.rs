@@ -55,9 +55,6 @@ pub enum TextGenerationError {
     #[error("the model has no chat template, so it cannot continue a conversation")]
     ConversationUnsupported,
 
-    #[error("llama.cpp cannot prepare the chat template")]
-    ChatTemplateDoesNotCompile(#[source] ModelError),
-
     #[error("the chat template cannot render the conversation")]
     ChatSessionCreationFailed(#[source] ChatError),
 
@@ -272,9 +269,9 @@ impl TextGenerationError {
             Self::ToolCallingUnsupported => {
                 conversation_feature_not_supported(ConversationFeature::ToolCalling, message)
             }
-            Self::ChatTemplateDoesNotCompile(_)
-            | Self::ChatSessionCreationFailed(_)
-            | Self::ChatPromptUnreadable(_) => GeneratedTokenResult::ChatTemplateError(message),
+            Self::ChatSessionCreationFailed(_) | Self::ChatPromptUnreadable(_) => {
+                GeneratedTokenResult::ChatTemplateError(message)
+            }
             Self::AnswerClassifierUnavailable(_) | Self::AnswerClassificationFailed(_) => {
                 GeneratedTokenResult::AnswerClassificationFailed(message)
             }
@@ -459,7 +456,6 @@ mod tests {
         assert_each_reported_as(
             GeneratedTokenResult::ChatTemplateError,
             [
-                TextGenerationError::ChatTemplateDoesNotCompile(ModelError::ModelHasNoChatTemplate),
                 TextGenerationError::ChatSessionCreationFailed(
                     ChatError::TemplateCannotServeRequest {
                         message: "roles must alternate".to_owned(),

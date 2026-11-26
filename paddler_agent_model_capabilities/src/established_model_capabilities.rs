@@ -132,9 +132,6 @@ impl EstablishedModelCapabilities {
                     return Err(template_failure);
                 }
             };
-        let conversation_templates = chat_templates
-            .of_model(llama_model)
-            .map_err(AgentModelCapabilitiesError::ChatTemplateDoesNotCompile)?;
         let projector = ModelProjector::load(
             &settings.multimodal_projection,
             loaded_llama_model,
@@ -143,7 +140,7 @@ impl EstablishedModelCapabilities {
         let detected = projector
             .with_multimodal_context(|multimodal_context| {
                 DetectedModelCapabilities::detect(ModelCapabilitiesSources {
-                    conversation_templates,
+                    conversation_templates: chat_templates.conversation_templates(),
                     embedding_pooling: AgentPoolingType(settings.embedding_pooling.clone())
                         .embedding_pooling_choice(),
                     model: llama_model,
