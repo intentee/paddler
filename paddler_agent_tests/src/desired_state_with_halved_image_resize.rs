@@ -4,7 +4,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 
-const HALF: NonZeroU32 = NonZeroU32::new(2).unwrap();
+const HALF: NonZeroU32 = NonZeroU32::MIN.saturating_add(2 - 1);
 
 #[must_use]
 pub fn desired_state_with_halved_image_resize(

@@ -14,7 +14,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
-const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::MIN.saturating_add(10 - 1);
 
 #[must_use]
 pub fn conversation_with_a_tool_requiring_an_undeclared_property()

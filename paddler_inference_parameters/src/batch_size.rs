@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::invalid_inference_parameters::InvalidInferenceParameters;
 
-const DEFAULT_TOKENS: NonZeroU16 = NonZeroU16::new(2048).unwrap();
+const DEFAULT_TOKENS: NonZeroU16 = NonZeroU16::MIN.saturating_add(2048 - 1);
 const MAX_TOKENS: u32 = i32::MAX.unsigned_abs();
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

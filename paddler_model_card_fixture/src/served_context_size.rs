@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-const SERVED_CONTEXT_SIZE: NonZeroU32 = NonZeroU32::new(8192).unwrap();
+const SERVED_CONTEXT_SIZE: NonZeroU32 = NonZeroU32::MIN.saturating_add(8192 - 1);
 
 #[must_use]
 pub const fn served_context_size() -> NonZeroU32 {

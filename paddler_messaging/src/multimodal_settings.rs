@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::agent_desired_model::AgentDesiredModel;
 
-const DEFAULT_IMAGE_RESIZE_TO_FIT: NonZeroU32 = NonZeroU32::new(1024).unwrap();
+const DEFAULT_IMAGE_RESIZE_TO_FIT: NonZeroU32 = NonZeroU32::MIN.saturating_add(1024 - 1);
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

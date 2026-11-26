@@ -7,7 +7,7 @@ use crate::invalid_inference_parameters::InvalidInferenceParameters;
 use crate::pooling_type::PoolingType;
 use crate::raw_embedding_parameters::RawEmbeddingParameters;
 
-const DEFAULT_EMBEDDING_BATCH_SIZE: NonZeroUsize = NonZeroUsize::new(256).unwrap();
+const DEFAULT_EMBEDDING_BATCH_SIZE: NonZeroUsize = NonZeroUsize::MIN.saturating_add(256 - 1);
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(try_from = "RawEmbeddingParameters")]
