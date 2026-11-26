@@ -1,41 +1,30 @@
 use tokio::sync::watch;
 
-use paddler_messaging::desired_state_version::DesiredStateVersion;
-
 use crate::reconciled_state::ReconciledState;
+use crate::reconciliation_progress::ReconciliationProgress;
 
 #[derive(Default)]
 pub struct ReconciledStateHolder {
-    reconciled_state_tx: watch::Sender<ReconciledState>,
+    reconciliation_progress_tx: watch::Sender<ReconciliationProgress>,
 }
 
 impl ReconciledStateHolder {
-    pub fn acknowledge(&self, desired_state_version: DesiredStateVersion) {
-        self.reconciled_state_tx.send_modify(
-            |ReconciledState {
-                 desired_state_version: reconciled_version,
-                 ..
-             }| {
-                *reconciled_version = desired_state_version;
-            },
-        );
-    }
-
     #[must_use]
-    pub fn get_reconciled_state(&self) -> ReconciledState {
-        self.reconciled_state_tx.borrow().clone()
+    pub fn get_reconciliation_progress(&self) -> ReconciliationProgress {
+        self.reconciliation_progress_tx.borrow().clone()
     }
 
     pub fn set_reconciled_state(&self, reconciled_state: ReconciledState) {
-        self.reconciled_state_tx.send_replace(reconciled_state);
+        self.reconciliation_progress_tx
+            .send_replace(ReconciliationProgress::Reconciled(reconciled_state));
     }
 
     #[must_use]
-    pub fn subscribe(&self) -> watch::Receiver<ReconciledState> {
-        let mut reconciled_state_rx = self.reconciled_state_tx.subscribe();
+    pub fn subscribe(&self) -> watch::Receiver<ReconciliationProgress> {
+        let mut reconciliation_progress_rx = self.reconciliation_progress_tx.subscribe();
 
-        reconciled_state_rx.mark_changed();
+        reconciliation_progress_rx.mark_changed();
 
-        reconciled_state_rx
+        reconciliation_progress_rx
     }
 }

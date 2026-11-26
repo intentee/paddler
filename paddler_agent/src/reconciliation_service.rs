@@ -53,13 +53,18 @@ impl ReconciliationService {
                         .desired_state
                         == delivered_desired_state.desired_state;
 
-                    match reconciliation_phase {
-                        ReconciliationPhase::Reconciled if delivers_the_same_desired_state => {
-                            reconciled_state_holder.acknowledge(delivered_desired_state.version);
+                    match &reconciliation_phase {
+                        ReconciliationPhase::Reconciled(reconciled_applicable_state)
+                            if delivers_the_same_desired_state =>
+                        {
+                            reconciled_state_holder.set_reconciled_state(ReconciledState {
+                                agent_applicable_state: reconciled_applicable_state.clone(),
+                                desired_state_version: delivered_desired_state.version,
+                            });
                         }
                         ReconciliationPhase::Reconciling if delivers_the_same_desired_state => {}
                         ReconciliationPhase::NotStarted
-                        | ReconciliationPhase::Reconciled
+                        | ReconciliationPhase::Reconciled(_)
                         | ReconciliationPhase::Reconciling => {
                             reconciliation_attempt.abandon().await;
                             desired_state_reconciler
@@ -87,10 +92,11 @@ impl ReconciliationService {
                         }
                         DesiredStateReconciliation::Reconciled(agent_applicable_state) => {
                             reconciled_state_holder.set_reconciled_state(ReconciledState {
-                                agent_applicable_state: *agent_applicable_state,
+                                agent_applicable_state: (*agent_applicable_state).clone(),
                                 desired_state_version: delivered_desired_state.version,
                             });
-                            reconciliation_phase = ReconciliationPhase::Reconciled;
+                            reconciliation_phase =
+                                ReconciliationPhase::Reconciled(*agent_applicable_state);
                         }
                     }
                 }
@@ -144,7 +150,9 @@ mod tests {
     use super::ReconciliationService;
     use crate::delivered_desired_state::DeliveredDesiredState;
     use crate::desired_state_reconciler::DesiredStateReconciler;
+    use crate::reconciled_state::ReconciledState;
     use crate::reconciled_state_holder::ReconciledStateHolder;
+    use crate::reconciliation_progress::ReconciliationProgress;
 
     fn reconciliation_service_caching_in(
         cache_dir: &TempDir,
@@ -311,10 +319,13 @@ mod tests {
         });
         reconciled_state_rx.changed().await.unwrap();
 
-        assert_eq!(
-            reconciled_state_rx.borrow().desired_state_version,
-            DesiredStateVersion::Version(2)
-        );
+        assert!(matches!(
+            *reconciled_state_rx.borrow(),
+            ReconciliationProgress::Reconciled(ReconciledState {
+                desired_state_version: DesiredStateVersion::Version(2),
+                ..
+            })
+        ));
         assert!(!status_updates.has_changed().unwrap());
 
         shutdown.cancel();

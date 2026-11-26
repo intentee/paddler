@@ -30,6 +30,7 @@ pub mod pipeline_response_stream;
 pub mod reconciled_state;
 pub mod reconciled_state_holder;
 pub mod reconciliation_phase;
+pub mod reconciliation_progress;
 pub mod reconciliation_service;
 pub mod replacement_outcome;
 pub mod retained_serving;

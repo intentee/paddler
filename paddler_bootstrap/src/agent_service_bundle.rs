@@ -40,10 +40,8 @@ impl AgentServiceBundle {
                 },
         }: AgentBootstrapConfig,
     ) -> Self {
-        let (delivered_desired_state_tx, mut delivered_desired_state_rx) =
+        let (delivered_desired_state_tx, delivered_desired_state_rx) =
             watch::channel(DeliveredDesiredState::default());
-
-        delivered_desired_state_rx.mark_changed();
 
         let pipeline_requests = Arc::new(Outbox::default());
 

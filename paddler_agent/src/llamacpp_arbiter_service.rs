@@ -15,6 +15,7 @@ use crate::pipeline_arbiter_params::PipelineArbiterParams;
 use crate::pipeline_request::PipelineRequest;
 use crate::reconciled_state::ReconciledState;
 use crate::reconciled_state_holder::ReconciledStateHolder;
+use crate::reconciliation_progress::ReconciliationProgress;
 
 pub struct LlamaCppArbiterService {
     pub inference_runtime_context: InferenceRuntimeContext,
@@ -45,17 +46,22 @@ impl LlamaCppArbiterService {
                 biased;
                 () = shutdown.cancelled() => break,
                 Ok(()) = reconciled_state_rx.changed() => {
-                    let ReconciledState {
-                        agent_applicable_state,
-                        desired_state_version,
-                    } = reconciled_state_rx.borrow_and_update().clone();
+                    let reconciliation_progress = reconciled_state_rx.borrow_and_update().clone();
 
-                    if !arbitrated_state.arbitrates(&agent_applicable_state) {
-                        pipeline_arbiter.apply(agent_applicable_state.clone());
-                        arbitrated_state = ArbitratedState::Arbitrating(agent_applicable_state);
+                    match reconciliation_progress {
+                        ReconciliationProgress::NothingReconciled => {}
+                        ReconciliationProgress::Reconciled(ReconciledState {
+                            agent_applicable_state,
+                            desired_state_version,
+                        }) => {
+                            if !arbitrated_state.arbitrates(&agent_applicable_state) {
+                                pipeline_arbiter.apply(agent_applicable_state.clone());
+                                arbitrated_state = ArbitratedState::Arbitrating(agent_applicable_state);
+                            }
+
+                            slot_aggregated_status.acknowledge_desired_state_version(desired_state_version);
+                        }
                     }
-
-                    slot_aggregated_status.acknowledge_desired_state_version(desired_state_version);
                 }
                 finished_serving_startup = pipeline_arbiter.next_finished_startup() => {
                     pipeline_arbiter.conclude(finished_serving_startup);

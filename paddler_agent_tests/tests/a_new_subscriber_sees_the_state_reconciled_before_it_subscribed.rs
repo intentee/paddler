@@ -1,5 +1,6 @@
 use paddler_agent::reconciled_state::ReconciledState;
 use paddler_agent::reconciled_state_holder::ReconciledStateHolder;
+use paddler_agent::reconciliation_progress::ReconciliationProgress;
 use paddler_agent_tests::state_overriding_the_chat_template::state_overriding_the_chat_template;
 use paddler_messaging::desired_state_version::DesiredStateVersion;
 
@@ -16,5 +17,8 @@ fn a_new_subscriber_sees_the_state_reconciled_before_it_subscribed() {
     let reconciled_state_rx = holder.subscribe();
 
     assert!(reconciled_state_rx.has_changed().unwrap());
-    assert_eq!(*reconciled_state_rx.borrow(), reconciled_state);
+    assert_eq!(
+        *reconciled_state_rx.borrow(),
+        ReconciliationProgress::Reconciled(reconciled_state)
+    );
 }
