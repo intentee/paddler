@@ -56,11 +56,11 @@ fn start_prompt(
     decoder: &DecisionDecoder,
     question_lane: &mut QuestionLane,
     state_sequence: &SequenceIdGuard,
-    prompt_position: DecisionPromptPosition,
+    DecisionPromptPosition { is_first, is_last }: DecisionPromptPosition,
     agent_name: Option<&str>,
 ) -> Result<(), DecisionError> {
     match question_lane {
-        QuestionLane::Reserved(lane) if !prompt_position.is_last => {
+        QuestionLane::Reserved(lane) if !is_last => {
             decoder.copy_sequence(state_sequence.sequence_id(), lane.sequence_id())
         }
         QuestionLane::Reserved(_) => {
@@ -68,7 +68,7 @@ fn start_prompt(
 
             Ok(())
         }
-        QuestionLane::Released if prompt_position.is_first => Ok(()),
+        QuestionLane::Released if is_first => Ok(()),
         QuestionLane::Released => decoder.remove_sequence(state_sequence.sequence_id()),
     }
 }

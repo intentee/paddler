@@ -23,7 +23,7 @@ impl DecisionPlan {
     pub fn required_cells(&self) -> usize {
         self.prompts
             .iter()
-            .map(|planned_prompt| planned_prompt.prompt.tokens().len())
+            .map(|PlannedDecisionPrompt { prompt, .. }| prompt.tokens().len())
             .fold(0, usize::max)
     }
 }

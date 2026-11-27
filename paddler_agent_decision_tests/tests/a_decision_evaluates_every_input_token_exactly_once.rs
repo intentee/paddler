@@ -5,6 +5,7 @@ use llama_cpp_context::llama_batch::LlamaBatch;
 use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
+use paddler_agent_decision::planned_decision_prompt::PlannedDecisionPrompt;
 use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
 use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
 use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
@@ -27,12 +28,12 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
         .expect("the decision must be prepared");
     let plan = &prepared_decision.request.plan;
     let shared_prefix_length = plan.shared_prefix_length;
-    let every_input_token_once =
-        plan.prompts
-            .iter()
-            .fold(shared_prefix_length, |tokens, planned_prompt| {
-                tokens + planned_prompt.prompt.tokens().len() - shared_prefix_length
-            });
+    let every_input_token_once = plan.prompts.iter().fold(
+        shared_prefix_length,
+        |tokens, PlannedDecisionPrompt { prompt, .. }| {
+            tokens + prompt.tokens().len() - shared_prefix_length
+        },
+    );
     let mut llama_context = decision_model_runtime
         .create_llama_context(u32::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()))
         .expect("the decision context must be created");

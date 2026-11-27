@@ -5,6 +5,7 @@ use llama_cpp_context::llama_batch::LlamaBatch;
 use paddler_agent_decision::decision_advance::DecisionAdvance;
 use paddler_agent_decision::decision_capacity_ledger::DecisionCapacityLedger;
 use paddler_agent_decision::decision_decoder::DecisionDecoder;
+use paddler_agent_decision::planned_decision_prompt::PlannedDecisionPrompt;
 use paddler_agent_decision_tests::admitted_decision::AdmittedDecision;
 use paddler_agent_decision_tests::decision_model_runtime::DecisionModelRuntime;
 use paddler_inference_parameters::batch_size::BatchSize;
@@ -31,13 +32,13 @@ fn a_decision_prompt_longer_than_its_batch_is_answered_from_its_last_batch() {
         .prompts;
     let longest_read_span = prompts
         .iter()
-        .map(|planned_prompt| {
-            planned_prompt.prompt.tokens().len() - planned_prompt.prompt.first_read_position()
+        .map(|PlannedDecisionPrompt { prompt, .. }| {
+            prompt.tokens().len() - prompt.first_read_position()
         })
         .fold(0, usize::max);
     let longest_prompt = prompts
         .iter()
-        .map(|planned_prompt| planned_prompt.prompt.tokens().len())
+        .map(|PlannedDecisionPrompt { prompt, .. }| prompt.tokens().len())
         .fold(0, usize::max);
 
     assert!(longest_read_span < longest_prompt);
