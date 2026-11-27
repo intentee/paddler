@@ -1,51 +1,62 @@
 use indexmap::IndexMap;
 use llama_cpp_bindings_types::decision_answer::DecisionAnswer;
-use serde_json::Map;
+use serde::Serialize;
 use serde_json::Value;
-use serde_json::json;
 
 use crate::round_probability::round_probability;
 
-fn rounded_probabilities(probabilities: IndexMap<String, f64>) -> Map<String, Value> {
+fn rounded_probabilities(probabilities: IndexMap<String, f64>) -> IndexMap<String, f64> {
     probabilities
         .into_iter()
-        .map(|(key, probability)| (key, Value::from(round_probability(probability))))
+        .map(|(key, probability)| (key, round_probability(probability)))
         .collect()
 }
 
-pub struct SystemOneAnswer {
-    pub decision_answer: DecisionAnswer,
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum SystemOneAnswer {
+    Choice {
+        choice: String,
+        confidence: f64,
+        probabilities: IndexMap<String, f64>,
+    },
+    Noul {
+        noul: f64,
+    },
+    Score {
+        score: f64,
+        legend: IndexMap<String, Value>,
+        probabilities: IndexMap<String, f64>,
+        confidence: f64,
+    },
 }
 
-impl SystemOneAnswer {
-    #[must_use]
-    pub fn into_value(self) -> Value {
-        match self.decision_answer {
+impl From<DecisionAnswer> for SystemOneAnswer {
+    fn from(decision_answer: DecisionAnswer) -> Self {
+        match decision_answer {
             DecisionAnswer::Choice {
                 choice,
                 confidence,
                 probabilities,
-            } => json!({
-                "type": "choice",
-                "choice": choice,
-                "confidence": round_probability(confidence),
-                "probabilities": rounded_probabilities(probabilities),
-            }),
-            DecisionAnswer::Noul { noul } => {
-                json!({ "type": "noul", "noul": round_probability(noul) })
-            }
+            } => Self::Choice {
+                choice,
+                confidence: round_probability(confidence),
+                probabilities: rounded_probabilities(probabilities),
+            },
+            DecisionAnswer::Noul { noul } => Self::Noul {
+                noul: round_probability(noul),
+            },
             DecisionAnswer::Score {
                 confidence,
                 legend,
                 probabilities,
                 score,
-            } => json!({
-                "type": "score",
-                "score": round_probability(score),
-                "legend": legend,
-                "probabilities": rounded_probabilities(probabilities),
-                "confidence": round_probability(confidence),
-            }),
+            } => Self::Score {
+                score: round_probability(score),
+                legend,
+                probabilities: rounded_probabilities(probabilities),
+                confidence: round_probability(confidence),
+            },
         }
     }
 }

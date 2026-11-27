@@ -1,4 +1,4 @@
-use serde_json::Map;
+use indexmap::IndexMap;
 
 use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_summary::DecisionSummary;
@@ -26,7 +26,7 @@ impl SystemOneResponseLayout {
             processing_milliseconds,
         }: &DecisionSummary,
     ) -> Result<SystemOneResponse, TypeSafeTranslationError> {
-        let mut answers = Map::new();
+        let mut answers = IndexMap::new();
         let mut answered_questions = answered_questions.into_iter();
 
         for question_id in &self.question_ids {
@@ -43,13 +43,7 @@ impl SystemOneResponseLayout {
                 });
             }
 
-            answers.insert(
-                id,
-                SystemOneAnswer {
-                    decision_answer: answer,
-                }
-                .into_value(),
-            );
+            answers.insert(id, SystemOneAnswer::from(answer));
         }
 
         Ok(SystemOneResponse {
