@@ -31,11 +31,13 @@ fn a_decision_prompt_longer_than_its_batch_is_answered_from_its_last_batch() {
         .prompts;
     let longest_read_span = prompts
         .iter()
-        .map(|prompt| prompt.tokens().len() - prompt.first_read_position())
+        .map(|planned_prompt| {
+            planned_prompt.prompt.tokens().len() - planned_prompt.prompt.first_read_position()
+        })
         .fold(0, usize::max);
     let longest_prompt = prompts
         .iter()
-        .map(|prompt| prompt.tokens().len())
+        .map(|planned_prompt| planned_prompt.prompt.tokens().len())
         .fold(0, usize::max);
 
     assert!(longest_read_span < longest_prompt);

@@ -23,6 +23,7 @@ use crate::decision_error::DecisionError;
 use crate::decision_plan::DecisionPlan;
 use crate::decision_prompt_cursor::DecisionPromptCursor;
 use crate::decision_prompt_outputs_request::DecisionPromptOutputsRequest;
+use crate::decision_prompt_position::DecisionPromptPosition;
 use crate::decision_prompt_span::DecisionPromptSpan;
 use crate::decision_request_phase::DecisionRequestPhase;
 use crate::question_lane::QuestionLane;
@@ -55,11 +56,11 @@ fn start_prompt(
     decoder: &DecisionDecoder,
     question_lane: &mut QuestionLane,
     state_sequence: &SequenceIdGuard,
-    is_last_prompt: bool,
+    prompt_position: DecisionPromptPosition,
     agent_name: Option<&str>,
 ) -> Result<(), DecisionError> {
     match question_lane {
-        QuestionLane::Reserved(lane) if !is_last_prompt => {
+        QuestionLane::Reserved(lane) if !prompt_position.is_last => {
             decoder.copy_sequence(state_sequence.sequence_id(), lane.sequence_id())
         }
         QuestionLane::Reserved(_) => {
@@ -67,8 +68,23 @@ fn start_prompt(
 
             Ok(())
         }
+        QuestionLane::Released if prompt_position.is_first => Ok(()),
         QuestionLane::Released => decoder.remove_sequence(state_sequence.sequence_id()),
     }
+}
+
+fn forward_answers(
+    answered_questions: impl IntoIterator<Item = AnsweredDecisionQuestion>,
+    decision_result_tx: &mpsc::UnboundedSender<DecisionResult>,
+) -> Result<(), DecisionError> {
+    answered_questions
+        .into_iter()
+        .try_for_each(|answered_question| {
+            decision_result_tx
+                .send(DecisionResult::QuestionAnswered(answered_question))
+                .map_err(Box::new)
+                .map_err(DecisionError::ClientDisconnected)
+        })
 }
 
 fn final_outputs_of(prompt: &DecisionPrompt) -> DecisionPromptOutputsRequest {
@@ -154,7 +170,7 @@ impl ActiveDecisionRequest {
             prompts,
             shared_prefix_length,
         } = plan;
-        let Some(prompt) = prompts.get(*prompt_index) else {
+        let Some(planned_prompt) = prompts.get(*prompt_index) else {
             return Ok(DecisionAdvance::Completed);
         };
         let (cursor, step) = match *phase {
@@ -163,7 +179,7 @@ impl ActiveDecisionRequest {
                     end: *shared_prefix_length,
                     final_outputs: DecisionPromptOutputsRequest::None,
                     projector,
-                    prompt,
+                    planned_prompt,
                     sequence_id: state_sequence.sequence_id(),
                 }
                 .decode_step(decoder, cursor)?;
@@ -182,24 +198,25 @@ impl ActiveDecisionRequest {
                 (cursor, step)
             }
             DecisionRequestPhase::DecodingPrompt(cursor) => {
-                let is_last_prompt = prompt_index.saturating_add(1) == prompts.len();
+                let prompt_position = DecisionPromptPosition::among(*prompt_index, prompts.len());
 
                 if cursor == *prompts_start {
                     start_prompt(
                         decoder,
                         question_lane,
                         state_sequence,
-                        is_last_prompt,
+                        prompt_position,
                         agent_name,
                     )?;
                 }
 
-                let sequence_id = prompt_sequence_id(question_lane, state_sequence, is_last_prompt);
+                let sequence_id =
+                    prompt_sequence_id(question_lane, state_sequence, prompt_position.is_last);
                 let step = DecisionPromptSpan {
-                    end: prompt.tokens().len(),
-                    final_outputs: final_outputs_of(prompt),
+                    end: planned_prompt.prompt.tokens().len(),
+                    final_outputs: final_outputs_of(&planned_prompt.prompt),
                     projector,
-                    prompt,
+                    planned_prompt,
                     sequence_id,
                 }
                 .decode_step(decoder, cursor)?;
@@ -214,7 +231,7 @@ impl ActiveDecisionRequest {
                     } => {
                         let answers = prepared
                             .read_answers(
-                                prompt,
+                                &planned_prompt.prompt,
                                 decoder.llama_context,
                                 DecisionPromptOutputs {
                                     batch_indices: output_batch_indices,
@@ -223,15 +240,12 @@ impl ActiveDecisionRequest {
                             )
                             .map_err(DecisionError::AnswersUnreadable)?;
 
-                        for (id, answer) in answers {
-                            decision_result_tx
-                                .send(DecisionResult::QuestionAnswered(AnsweredDecisionQuestion {
-                                    answer,
-                                    id,
-                                }))
-                                .map_err(Box::new)
-                                .map_err(DecisionError::ClientDisconnected)?;
-                        }
+                        forward_answers(
+                            answers
+                                .into_iter()
+                                .map(|(id, answer)| AnsweredDecisionQuestion { answer, id }),
+                            decision_result_tx,
+                        )?;
 
                         *prompt_index = prompt_index.saturating_add(1);
 

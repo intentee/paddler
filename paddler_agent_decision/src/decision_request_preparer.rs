@@ -15,6 +15,7 @@ use paddler_messaging::request_params::decide_params::DecideParams;
 
 use crate::decision_error::DecisionError;
 use crate::decision_plan::DecisionPlan;
+use crate::planned_decision_prompt::PlannedDecisionPrompt;
 use crate::reports_decision_outcome::ReportsDecisionOutcome as _;
 use crate::scheduled_decision_request::ScheduledDecisionRequest;
 
@@ -44,7 +45,15 @@ impl DecisionRequestPreparer {
 
         Ok(DecisionPlan {
             prepared,
-            prompts,
+            prompts: self
+                .model_capabilities
+                .projector
+                .with_multimodal_context(|projector| {
+                    prompts
+                        .into_iter()
+                        .map(|prompt| PlannedDecisionPrompt::new(prompt, projector))
+                        .collect()
+                }),
             shared_prefix_length,
         })
     }

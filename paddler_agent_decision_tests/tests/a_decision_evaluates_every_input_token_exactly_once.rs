@@ -27,12 +27,12 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
         .expect("the decision must be prepared");
     let plan = &prepared_decision.request.plan;
     let shared_prefix_length = plan.shared_prefix_length;
-    let every_input_token_once = plan
-        .prompts
-        .iter()
-        .fold(shared_prefix_length, |tokens, prompt| {
-            tokens + prompt.tokens().len() - shared_prefix_length
-        });
+    let every_input_token_once =
+        plan.prompts
+            .iter()
+            .fold(shared_prefix_length, |tokens, planned_prompt| {
+                tokens + planned_prompt.prompt.tokens().len() - shared_prefix_length
+            });
     let mut llama_context = decision_model_runtime
         .create_llama_context(u32::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get()))
         .expect("the decision context must be created");

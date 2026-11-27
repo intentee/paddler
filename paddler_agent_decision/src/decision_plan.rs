@@ -1,11 +1,11 @@
-use llama_cpp_decision::decision_prompt::DecisionPrompt;
 use llama_cpp_decision::prepared_decision_request::PreparedDecisionRequest;
 
+use crate::planned_decision_prompt::PlannedDecisionPrompt;
 use crate::question_lane_demand::QuestionLaneDemand;
 
 pub struct DecisionPlan {
     pub prepared: PreparedDecisionRequest,
-    pub prompts: Vec<DecisionPrompt>,
+    pub prompts: Vec<PlannedDecisionPrompt>,
     pub shared_prefix_length: usize,
 }
 
@@ -23,7 +23,7 @@ impl DecisionPlan {
     pub fn required_cells(&self) -> usize {
         self.prompts
             .iter()
-            .map(|prompt| prompt.tokens().len())
+            .map(|planned_prompt| planned_prompt.prompt.tokens().len())
             .fold(0, usize::max)
     }
 }

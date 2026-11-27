@@ -1,4 +1,3 @@
-use llama_cpp_decision::decision_prompt::DecisionPrompt;
 use llama_cpp_mtmd::mtmd_context::MtmdContext;
 use llama_cpp_mtmd::mtmd_input_chunk_view::MtmdInputChunkView;
 
@@ -10,12 +9,13 @@ use crate::decision_error::DecisionError;
 use crate::decision_prompt_cursor::DecisionPromptCursor;
 use crate::decision_prompt_outputs_request::DecisionPromptOutputsRequest;
 use crate::decoded_text::DecodedText;
+use crate::planned_decision_prompt::PlannedDecisionPrompt;
 
 pub struct DecisionPromptSpan<'prompt, 'projector> {
     pub end: usize,
     pub final_outputs: DecisionPromptOutputsRequest,
     pub projector: Option<&'projector MtmdContext>,
-    pub prompt: &'prompt DecisionPrompt,
+    pub planned_prompt: &'prompt PlannedDecisionPrompt,
     pub sequence_id: SequenceId,
 }
 
@@ -36,7 +36,9 @@ impl DecisionPromptSpan<'_, '_> {
                 .map(DecisionDecodeStep::Advanced);
         }
 
-        let text_end = self.text_end_after(cursor.token_index);
+        let text_end = self
+            .planned_prompt
+            .text_end_after(cursor.token_index, self.end);
         let batch_tokens = decoder.batch_tokens();
 
         if text_end == self.end && self.end.saturating_sub(cursor.token_index) <= batch_tokens {
@@ -44,7 +46,7 @@ impl DecisionPromptSpan<'_, '_> {
                 next_cursor,
                 output_batch_indices,
             } = decoder.decode_text(
-                self.prompt,
+                &self.planned_prompt.prompt,
                 self.sequence_id,
                 cursor,
                 cursor.token_index..self.end,
@@ -66,7 +68,7 @@ impl DecisionPromptSpan<'_, '_> {
 
         decoder
             .decode_text(
-                self.prompt,
+                &self.planned_prompt.prompt,
                 self.sequence_id,
                 cursor,
                 cursor.token_index..chunk_end,
@@ -76,15 +78,10 @@ impl DecisionPromptSpan<'_, '_> {
     }
 
     fn media_chunk_at(&self, token_index: usize) -> Option<MtmdInputChunkView<'_, '_>> {
-        self.projector
-            .and_then(|projector| self.prompt.media_chunk(token_index, projector))
-    }
-
-    fn text_end_after(&self, token_index: usize) -> usize {
-        self.projector.map_or(self.end, |projector| {
-            (token_index.saturating_add(1)..self.end)
-                .find(|media_start| self.prompt.media_chunk(*media_start, projector).is_some())
-                .unwrap_or(self.end)
+        self.projector.and_then(|projector| {
+            self.planned_prompt
+                .prompt
+                .media_chunk(token_index, projector)
         })
     }
 }

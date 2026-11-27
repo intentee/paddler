@@ -33,12 +33,13 @@ fn a_decision_decoding_more_tokens_than_its_batch_holds_fails_as_batch_assembly(
     let prepared_decision = decision_model_runtime
         .prepared_decision(snowy_weather_decision(), NonZeroU16::MIN, u32::MAX)
         .expect("the decision must be prepared");
-    let prompt = prepared_decision
+    let prompt = &prepared_decision
         .request
         .plan
         .prompts
         .first()
-        .expect("the decision must have a prompt");
+        .expect("the decision must have a prompt")
+        .prompt;
     let mut llama_context = decision_model_runtime
         .create_llama_context(1)
         .expect("the decision context must be created");
