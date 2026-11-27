@@ -12,7 +12,7 @@ use crate::responses_reasoning_part::ResponsesReasoningPart;
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum ResponsesOutputItem {
     FunctionCall {
-        arguments: String,
+        arguments: EncodedOnceText,
         call_id: String,
         id: String,
         name: String,
@@ -39,7 +39,7 @@ impl ResponsesOutputItem {
         GeneratedToolCall {
             id: call_id, name, ..
         }: &GeneratedToolCall,
-        arguments: String,
+        arguments: EncodedOnceText,
     ) -> Self {
         Self::FunctionCall {
             arguments,
@@ -78,7 +78,7 @@ impl ResponsesOutputItem {
         }: &GeneratedToolCall,
     ) -> Self {
         Self::FunctionCall {
-            arguments: String::new(),
+            arguments: EncodedOnceText::new(String::new()),
             call_id: call_id.clone(),
             id,
             name: name.clone(),

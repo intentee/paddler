@@ -17,7 +17,7 @@ use crate::responses_usage::ResponsesUsage;
 pub struct ResponsesResponseHeader {
     pub created_at: u64,
     pub id: String,
-    pub instructions: Option<String>,
+    pub instructions: Option<EncodedOnceText>,
     pub model: String,
     pub temperature: ModelDefaultOr<f32>,
     pub top_p: ModelDefaultOr<f32>,
@@ -105,7 +105,7 @@ impl CompletesGeneration for ResponsesResponseHeader {
             output.push(ResponsesOutputItem::completed_function_call(
                 ResponsesOutputItemKind::FunctionCall.item_id(),
                 parsed_call,
-                arguments_to_tool_call_string(&parsed_call.arguments),
+                EncodedOnceText::new(arguments_to_tool_call_string(&parsed_call.arguments)),
             ));
         }
 

@@ -293,7 +293,7 @@ impl ResponsesStream {
         for call in parsed_calls {
             let output_index = self.output_index();
             let item_id = ResponsesOutputItemKind::FunctionCall.item_id();
-            let arguments = arguments_to_tool_call_string(&call.arguments);
+            let arguments = EncodedOnceText::new(arguments_to_tool_call_string(&call.arguments));
 
             self.add_item(
                 events,

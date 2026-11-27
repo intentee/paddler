@@ -14,6 +14,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::validates::Validates;
 
 use crate::constants::DEFAULT_MAX_TOKENS;
+use crate::encoded_once_text::EncodedOnceText;
 use crate::openai_translation_error::OpenAITranslationError;
 use crate::responses_delivery::ResponsesDelivery;
 use crate::responses_input::ResponsesInput;
@@ -102,7 +103,7 @@ impl ResponsesRequest {
         let header = ResponsesResponseHeader {
             created_at,
             id: format!("resp_{}", nanoid!()),
-            instructions,
+            instructions: instructions.map(EncodedOnceText::new),
             model,
             temperature: *temperature,
             top_p: *top_p,

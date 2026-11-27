@@ -3,6 +3,7 @@ use serde::Serializer;
 
 use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 
+use crate::encoded_once_text::EncodedOnceText;
 use crate::responses_output_item::ResponsesOutputItem;
 use crate::responses_response_progress::ResponsesResponseProgress;
 use crate::responses_response_status::ResponsesResponseStatus;
@@ -86,7 +87,7 @@ struct SerializedResponse<'response> {
     id: &'response str,
     object: &'static str,
     created_at: u64,
-    instructions: Option<&'response str>,
+    instructions: Option<&'response EncodedOnceText>,
     model: &'response str,
     tools: [u8; 0],
     parallel_tool_calls: bool,
@@ -103,7 +104,7 @@ struct SerializedResponse<'response> {
 pub struct ResponsesResponse {
     pub created_at: u64,
     pub id: String,
-    pub instructions: Option<String>,
+    pub instructions: Option<EncodedOnceText>,
     pub model: String,
     pub progress: ResponsesResponseProgress,
     pub temperature: ModelDefaultOr<f32>,
@@ -132,7 +133,7 @@ impl Serialize for ResponsesResponse {
             id,
             object: "response",
             created_at: *created_at,
-            instructions: instructions.as_deref(),
+            instructions: instructions.as_ref(),
             model,
             tools: [],
             parallel_tool_calls: true,
