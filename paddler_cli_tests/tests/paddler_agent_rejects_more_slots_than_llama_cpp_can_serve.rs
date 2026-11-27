@@ -1,7 +1,7 @@
 use std::process::Command;
 
-use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
-use paddler_cli_tests::constants::SLOTS_BEYOND_WHAT_LLAMA_CPP_CAN_SERVE;
+use crate::constants::CLAP_USAGE_ERROR_EXIT_CODE;
+use crate::constants::SLOTS_BEYOND_WHAT_LLAMA_CPP_CAN_SERVE;
 
 #[test]
 fn paddler_agent_rejects_more_slots_than_llama_cpp_can_serve() {

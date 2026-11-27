@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use paddler_agent_text_generation::chat_template_tool::ChatTemplateTool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
+use paddler_request_params_fixture::weather_tool_question::weather_tool_question;
 
 use crate::get_weather_tool::get_weather_tool;
 
@@ -27,7 +27,7 @@ pub fn weather_chat_session(
         chat_templates,
         &[ChatMessage::Message {
             role: "user".to_owned(),
-            content: ChatMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
+            content: ChatMessageContent::Text(weather_tool_question()),
             reasoning_content: None,
         }],
         &[ChatTemplateTool(Tool::<Value>::from(get_weather_tool())).into_chat_tool()],

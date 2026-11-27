@@ -11,7 +11,8 @@ use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -25,12 +26,16 @@ async fn agent_rejects_raw_prompt_exceeding_sequence_context() {
     let cluster = Cluster::start_in_process(ClusterParams {
         agents: vec![AgentConfig::single(1)],
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                context_size: NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)
-                    .expect("the value must fit its target type"),
-                n_batch: BatchSize::default().at_most(
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                context_size: ModelDefaultOr::Explicit(
                     NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)
                         .expect("the value must fit its target type"),
+                ),
+                n_batch: ModelDefaultOr::Explicit(
+                    BatchSize::default().at_most(
+                        NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)
+                            .expect("the value must fit its target type"),
+                    ),
                 ),
                 ..desired_state.model_runtime_parameters
             },

@@ -1,6 +1,6 @@
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
+use trzcina::service_shutdown_options::ServiceShutdownOptions;
 
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;

@@ -1,12 +1,13 @@
 use std::io;
 use std::io::ErrorKind;
 
-use paddler_cli_tests::constants::MISSING_BINARY_PATH;
 use paddler_cli_tests::pausable_agent::PausableAgent;
 use paddler_cli_tests::pausable_agent_params::PausableAgentParams;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+
+use crate::constants::MISSING_BINARY_PATH;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn pausable_agent_reports_a_binary_that_cannot_be_spawned() {

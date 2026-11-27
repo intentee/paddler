@@ -1,7 +1,5 @@
 pub mod active_embedding_request;
-pub mod agent_pooling_type;
 pub mod batched_embedding_input;
-pub mod converts_to_llama_pooling_type;
 pub mod embedding_batch_capacity;
 pub mod embedding_batch_preparer;
 pub mod embedding_batch_processor;

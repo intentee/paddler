@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::constants::ASSISTANT_ROLE;
 use crate::conversation_message_content::ConversationMessageContent;
+use crate::conversation_role::ConversationRole;
 use crate::conversation_tool_call::ConversationToolCall;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -38,7 +38,7 @@ impl ConversationMessage {
     pub fn is_assistant_reply(&self) -> bool {
         match self {
             Self::AssistantToolCalls { .. } => true,
-            Self::Message { role, .. } => role == ASSISTANT_ROLE,
+            Self::Message { role, .. } => role == ConversationRole::Assistant.name(),
             Self::AssistantReasoning { .. } | Self::ToolResult { .. } => false,
         }
     }

@@ -15,8 +15,8 @@ use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 
 use crate::agent_config::AgentConfig;
 use crate::cluster_desired_state::ClusterDesiredState;
-use crate::constants::EPHEMERAL_LOOPBACK_ADDR;
-use crate::constants::LONGER_THAN_ANY_TEST_RUN;
+use crate::ephemeral_loopback_addr::ephemeral_loopback_addr;
+use crate::longer_than_any_test_run::longer_than_any_test_run;
 use crate::unexpiring_shutdown_options::unexpiring_shutdown_options;
 
 pub struct ClusterParams {
@@ -59,24 +59,24 @@ impl ClusterParams {
             bootstrap_config: BalancerBootstrapConfig {
                 buffered_request_timeout: *buffered_request_timeout,
                 inference_service_configuration: InferenceServiceConfiguration {
-                    addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+                    addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
                     cors_allowed_hosts: inference_cors_allowed_hosts.clone(),
                     inference_item_timeout: *inference_item_timeout,
                 },
                 management_service_configuration: ManagementServiceConfiguration {
-                    addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+                    addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
                     cors_allowed_hosts: management_cors_allowed_hosts.clone(),
                 },
                 max_buffered_requests: *max_buffered_requests,
                 openai_service_configuration: Some(CompatibilityServiceConfiguration {
-                    addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+                    addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
                 }),
                 state_database_type: StateDatabaseType::from_str(state_database_url)
                     .context("failed to parse state_database_url")?,
                 statsd_prefix: "paddler_cluster_harness_".to_owned(),
                 statsd_service_configuration: None,
                 typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
-                    addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+                    addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
                 }),
                 #[cfg(feature = "web_admin_panel")]
                 web_admin_panel_service_configuration: None,
@@ -91,10 +91,10 @@ impl Default for ClusterParams {
     fn default() -> Self {
         Self {
             agents: AgentConfig::uniform(1, 4),
-            buffered_request_timeout: LONGER_THAN_ANY_TEST_RUN,
+            buffered_request_timeout: longer_than_any_test_run(),
             desired_state: ClusterDesiredState::Apply(Box::default()),
             inference_cors_allowed_hosts: Vec::new(),
-            inference_item_timeout: LONGER_THAN_ANY_TEST_RUN,
+            inference_item_timeout: longer_than_any_test_run(),
             management_cors_allowed_hosts: Vec::new(),
             max_buffered_requests: 10,
             state_database_url: "memory://".to_owned(),

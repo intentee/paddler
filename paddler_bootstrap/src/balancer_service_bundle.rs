@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use trzcina::ServiceManager;
+use trzcina::service_manager::ServiceManager;
 
 use paddler_balancer::agent_controller_pool::AgentControllerPool;
 use paddler_balancer::balancer_addresses::BalancerAddresses;

@@ -1,0 +1,8 @@
+.clusterModelCapabilities {
+  border: 2px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--spacing-base);
+  padding: var(--spacing-base);
+  row-gap: var(--spacing-half);
+}

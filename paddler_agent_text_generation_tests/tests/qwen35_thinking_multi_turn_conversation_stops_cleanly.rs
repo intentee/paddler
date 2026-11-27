@@ -9,6 +9,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
@@ -29,11 +31,11 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() {
         agents: vec![AgentConfig::single(1)],
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             text_generation: BalancerTextGenerationSettings {
-                sampling_parameters: SamplingParameters {
+                sampling_parameters: DesiredSamplingParameters::from(SamplingParameters {
                     penalty_last_n: LLAMA_CPP_DEFAULT_PENALTY_WINDOW,
                     penalty_presence: QWEN3_5_THINKING_PRESENCE_PENALTY,
                     ..SamplingParameters::deterministic()
-                },
+                }),
                 ..qwen3_5_desired_state.text_generation.clone()
             },
             ..qwen3_5_desired_state
@@ -68,9 +70,10 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() {
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
                 conversation_history,
-                enable_thinking: true,
+                enable_thinking: ModelDefaultOr::Explicit(true),
                 grammar: None,
                 max_tokens: NonZeroU32::new(1000).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

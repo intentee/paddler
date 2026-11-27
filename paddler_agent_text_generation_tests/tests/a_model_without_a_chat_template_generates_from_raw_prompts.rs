@@ -4,13 +4,13 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_text_generation_tests::qwen3_without_a_chat_template::Qwen3WithoutAChatTemplate;
+use paddler_agent_text_generation_tests::qwen3_with_a_patched_chat_template::Qwen3WithAPatchedChatTemplate;
 use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_model_without_a_chat_template_generates_from_raw_prompts() {
-    let qwen3_without_a_chat_template = Qwen3WithoutAChatTemplate::write()
+    let qwen3_without_a_chat_template = Qwen3WithAPatchedChatTemplate::without_a_chat_template()
         .expect("the model without a chat template must be written");
     let cluster = start_single_agent_cluster_with_desired_state(
         qwen3_without_a_chat_template

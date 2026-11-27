@@ -3,7 +3,6 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_waiting_for_its_first_agent_to_serve_reports_that_the_agent_left() {
@@ -31,7 +30,7 @@ async fn cluster_harness_waiting_for_its_first_agent_to_serve_reports_that_the_a
 
     assert!(matches!(
         cluster
-            .wait_for_first_agent_to_serve(AgentDecisionsServing::NotServed)
+            .wait_for_first_agent_to_serve()
             .await
             .err(),
         Some(ClusterHarnessError::AgentLeftThePool { agent_id }) if agent_id == awaited_agent_id

@@ -100,7 +100,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_writer_abandons_the_writes_its_peer_does_not_read_once_the_connection_closes() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let OpenedWebSocketSession {
             handshake_response: _unread_handshake_response,
@@ -128,7 +128,8 @@ mod tests {
             FrameWritingEnd::ConnectionClosed
         ));
         assert!(
-            CapturingLogger::records_for("paddler_balancer::write_websocket_session")
+            capturing_logger
+                .records_for("paddler_balancer::write_websocket_session")
                 .iter()
                 .any(|CapturedRecord { level, .. }| *level == Level::Debug)
         );

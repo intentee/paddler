@@ -5,17 +5,25 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_model_card_fixture::tiny_granite_switch_4_1_8b_for_testing::tiny_granite_switch_4_1_8b_for_testing;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_decisions_also_serves_completions() {
-    let cluster = DecisionClusterParams::default()
-        .start_cluster()
-        .await
-        .expect("a decision cluster must start");
+    let cluster = DecisionClusterParams {
+        desired_state: DecisionDesiredState {
+            model_card: tiny_granite_switch_4_1_8b_for_testing(),
+            ..DecisionDesiredState::default()
+        },
+        ..DecisionClusterParams::default()
+    }
+    .start_cluster()
+    .await
+    .expect("a cluster serving a model that decides and generates text must start");
 
     let decided = cluster
         .decide(CancellationToken::new(), &sample_decision())

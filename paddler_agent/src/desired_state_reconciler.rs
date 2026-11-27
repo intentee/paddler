@@ -64,8 +64,8 @@ mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
-    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+    use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
     use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_model_source::model_source::ModelSource;
 
@@ -82,7 +82,7 @@ mod tests {
     fn desired_state_reconciler() -> DesiredStateReconciler {
         DesiredStateReconciler {
             desired_model_resolver: DesiredModelResolver::from_process_env(
-                HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                HuggingFaceEndpoint::HubDefault,
             )
             .unwrap(),
             slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),

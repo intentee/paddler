@@ -7,10 +7,11 @@ use paddler_balancer::agent_relay::AgentRelay;
 use paddler_balancer::agent_relay_conclusion::AgentRelayConclusion;
 use paddler_balancer::agent_relay_step::AgentRelayStep;
 use paddler_balancer::agent_streaming_request::AgentStreamingRequest;
+use paddler_balancer::capability_availability::CapabilityAvailability;
 use paddler_balancer::compatibility::compatibility_app_data::CompatibilityAppData;
-use paddler_balancer::decisions_serving::DecisionsServing;
 use paddler_error_chain::error_chain::ErrorChain;
 use paddler_messaging::decision_result::DecisionResult;
+use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 use paddler_typesafe_translation::system_one_response_layout::SystemOneResponseLayout;
 use paddler_typesafe_translation::translated_system_one_request::TranslatedSystemOneRequest;
@@ -41,7 +42,7 @@ where
                         typesafe_decision_failure.into_http_response()
                     }
                     DecisionOutcome::Finished(summary) => {
-                        match response_layout.respond(&answers, &summary) {
+                        match response_layout.respond(answers, &summary) {
                             Ok(system_one_response) => HttpResponse::Ok().json(system_one_response),
                             Err(translation_error) => {
                                 TypeSafeDecisionFailure::from(translation_error)
@@ -70,10 +71,11 @@ async fn respond(
     app_data: web::Data<CompatibilityAppData>,
     system_one_request: web::Json<SystemOneRequest>,
 ) -> HttpResponse {
-    if let DecisionsServing::NotServed(cluster_serves_no_decisions) =
-        app_data.agent_controller_pool.decisions_serving()
+    if let CapabilityAvailability::Lacking(cluster_lacks_capability) = app_data
+        .agent_controller_pool
+        .capability_availability(DecideParams::REQUESTED_CAPABILITY)
     {
-        return TypeSafeDecisionFailure::from(cluster_serves_no_decisions).into_http_response();
+        return TypeSafeDecisionFailure::from(cluster_lacks_capability).into_http_response();
     }
 
     match system_one_request.into_inner().translate() {

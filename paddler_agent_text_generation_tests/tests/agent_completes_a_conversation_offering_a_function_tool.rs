@@ -9,6 +9,7 @@ use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::generation_done_discriminant::generation_done_discriminant;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -31,9 +32,10 @@ async fn agent_completes_a_conversation_offering_a_function_tool() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: true,
+                enable_thinking: ModelDefaultOr::Explicit(true),
                 grammar: None,
                 max_tokens: NonZeroU32::new(50).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: true,
                 tools: vec![get_weather_tool()],
             },

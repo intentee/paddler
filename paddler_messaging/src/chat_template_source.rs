@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::chat_template::ChatTemplate;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum ChatTemplateSource {
     #[default]

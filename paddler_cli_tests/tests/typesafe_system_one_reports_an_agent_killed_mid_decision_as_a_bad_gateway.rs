@@ -7,7 +7,7 @@ use paddler_cli_tests::pausable_agent_cluster::PausableAgentCluster;
 use paddler_cli_tests::pausable_agent_cluster_params::PausableAgentClusterParams;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -18,8 +18,8 @@ async fn typesafe_system_one_reports_an_agent_killed_mid_decision_as_a_bad_gatew
     } = PausableAgentCluster::start(PausableAgentClusterParams {
         binary_path: env!("CARGO_BIN_EXE_paddler_cluster_node").to_owned(),
         desired_state: ClusterDesiredState::Apply(Box::new(kev_0_8b().into_desired_state())),
-        expected_slots_total: DECISION_SLOTS_MINIMUM.get(),
-        slot_count: DECISION_SLOTS_MINIMUM.get(),
+        expected_slots_total: DECISION_SLOTS_WITH_A_QUESTION_LANE.get(),
+        slot_count: DECISION_SLOTS_WITH_A_QUESTION_LANE.get(),
     })
     .await
     .expect("a decision cluster must start");

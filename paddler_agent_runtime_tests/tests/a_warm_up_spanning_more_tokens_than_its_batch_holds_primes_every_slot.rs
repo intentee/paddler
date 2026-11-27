@@ -8,6 +8,7 @@ use llama_cpp_model::sampled_token::SampledToken;
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const SLOTS: u16 = 2;
@@ -22,8 +23,9 @@ fn a_warm_up_spanning_more_tokens_than_its_batch_holds_primes_every_slot() {
     )
     .expect("the kev model must load");
 
-    runtime.model_runtime_parameters.n_batch =
-        BatchSize::try_from(u32::from(SLOTS)).expect("a batch of one token per slot is valid");
+    runtime.model_runtime_parameters.n_batch = ModelDefaultOr::Explicit(
+        BatchSize::try_from(u32::from(SLOTS)).expect("a batch of one token per slot is valid"),
+    );
 
     let mut llama_context = runtime
         .create_text_generation_llama_context(u32::from(SLOTS))

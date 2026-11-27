@@ -2,7 +2,6 @@ pub mod agent_exited_before_ready_with_code;
 pub mod agent_socket_of_a_vanished_balancer;
 pub mod cluster_with_a_missing_agent_binary;
 pub mod connect_subprocess_balancer;
-pub mod constants;
 pub mod ephemeral_balancer_arguments;
 pub mod paddler_command;
 pub mod pausable_agent;

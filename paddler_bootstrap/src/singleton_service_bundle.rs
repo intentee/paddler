@@ -3,7 +3,7 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::net::SocketAddr;
 
-use trzcina::ServiceManager;
+use trzcina::service_manager::ServiceManager;
 
 use crate::agent_bootstrap_config::AgentBootstrapConfig;
 use crate::agent_service_bundle::AgentServiceBundle;

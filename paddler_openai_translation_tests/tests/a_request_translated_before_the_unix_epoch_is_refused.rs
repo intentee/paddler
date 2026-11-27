@@ -6,7 +6,7 @@ use std::time::UNIX_EPOCH;
 use serde_json::from_value;
 use serde_json::json;
 
-use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 use paddler_openai_translation::responses_request::ResponsesRequest;
@@ -32,7 +32,7 @@ fn a_request_translated_before_the_unix_epoch_is_refused() {
 
     let chat_completion_error = chat_completion_request.translate(before_unix_epoch).err();
     let responses_error = responses_request
-        .translate(before_unix_epoch, &SamplingParameters::default())
+        .translate(before_unix_epoch, &DesiredSamplingParameters::default())
         .err();
 
     assert!(matches!(

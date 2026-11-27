@@ -2,6 +2,7 @@ import { deepStrictEqual } from "node:assert/strict";
 import { test } from "node:test";
 
 import { AgentSchema } from "../../../src/schemas/Agent";
+import { chatModelCapabilities } from "./chatModelCapabilities";
 
 test("AgentSchema parses an agent that is downloading its model", function () {
   const parsed = AgentSchema.parse({
@@ -10,6 +11,7 @@ test("AgentSchema parses an agent that is downloading its model", function () {
     slots_processing: 1,
     status: {
       desired_slots_total: 4,
+      desired_state_version: "Nothing",
       download_status: {
         Downloading: {
           downloaded_bytes: 100,
@@ -21,7 +23,7 @@ test("AgentSchema parses an agent that is downloading its model", function () {
       model_path: "/models/qwen.gguf",
       runtime: {
         Serving: {
-          decisions: "NotServed",
+          capabilities: chatModelCapabilities,
           slots_total: 4,
         },
       },

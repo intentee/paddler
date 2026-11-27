@@ -18,8 +18,8 @@ use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_status::slot_guard::SlotGuard;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
 use paddler_model_source::model_source_error::ModelSourceError;
 
 use crate::agent_inference_runtime_context::agent_inference_runtime_context;
@@ -38,7 +38,7 @@ impl ServingPipelineArbiter {
     pub fn new(slots: u16) -> Result<Self, ModelSourceError> {
         let inference_runtime_context = agent_inference_runtime_context(slots);
 
-        DesiredModelResolver::from_process_env(HUGGINGFACE_DEFAULT_ENDPOINT.to_owned()).map(
+        DesiredModelResolver::from_process_env(HuggingFaceEndpoint::HubDefault).map(
             |desired_model_resolver| Self {
                 desired_state_reconciler: DesiredStateReconciler {
                     desired_model_resolver,

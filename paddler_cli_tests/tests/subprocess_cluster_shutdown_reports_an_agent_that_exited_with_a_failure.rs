@@ -2,11 +2,12 @@ use std::mem::discriminant;
 use std::os::unix::process::ExitStatusExt as _;
 use std::process::ExitStatus;
 
-use paddler_cli_tests::constants::SLOTS_BEYOND_WHAT_LLAMA_CPP_CAN_SERVE;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+
+use crate::constants::SLOTS_BEYOND_WHAT_LLAMA_CPP_CAN_SERVE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_cluster_shutdown_reports_an_agent_that_exited_with_a_failure() {

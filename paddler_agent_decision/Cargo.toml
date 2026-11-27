@@ -12,15 +12,16 @@ version.workspace = true
 doctest = false
 
 [dependencies]
-icu_normalizer = { workspace = true }
 llama-cpp-context = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
+llama-cpp-decision = { workspace = true }
 llama-cpp-model = { workspace = true }
-llama-cpp-params = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+paddler_agent_model_capabilities = { workspace = true }
 paddler_agent_runtime = { workspace = true }
 paddler_agent_status = { workspace = true }
 paddler_inference_parameters = { workspace = true }
@@ -28,9 +29,9 @@ paddler_messaging = { workspace = true }
 
 [features]
 default = []
-cuda = ["paddler_agent_runtime/cuda"]
-metal = ["paddler_agent_runtime/metal"]
-vulkan = ["paddler_agent_runtime/vulkan"]
+cuda = ["paddler_agent_model_capabilities/cuda", "paddler_agent_runtime/cuda"]
+metal = ["paddler_agent_model_capabilities/metal", "paddler_agent_runtime/metal"]
+vulkan = ["paddler_agent_model_capabilities/vulkan", "paddler_agent_runtime/vulkan"]
 
 [lints]
 workspace = true

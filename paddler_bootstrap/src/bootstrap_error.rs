@@ -2,9 +2,10 @@ use std::io;
 use std::net::SocketAddr;
 
 use thiserror::Error;
-use trzcina::ServiceShutdownError;
+use trzcina::service_shutdown_error::ServiceShutdownError;
 
 use paddler_balancer::balancer_error::BalancerError;
+use paddler_error_chain::error_chains::ErrorChains;
 
 #[derive(Debug, Error)]
 pub enum BootstrapError {
@@ -32,11 +33,8 @@ pub enum BootstrapError {
         #[source]
         source: io::Error,
     },
-    #[error("A Paddler service stopped with an error")]
-    ServiceRunFailed {
-        #[source]
-        source: ServiceShutdownError,
-    },
+    #[error("Paddler services stopped with errors: {}", ErrorChains { errors: failures })]
+    ServiceRunFailed { failures: Vec<ServiceShutdownError> },
     #[error("A Paddler service thread panicked")]
     ServiceThreadPanicked,
     #[error("The statsd reporting interval must be longer than zero")]

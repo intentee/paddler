@@ -4,10 +4,8 @@ use nanoid::nanoid;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY;
-use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
-use paddler_messaging::constants::API_PATH_DECIDE;
-use paddler_messaging::constants::API_PATH_GENERATE_EMBEDDING_BATCH;
+use llama_cpp_bindings_types::decision_request::DecisionRequest;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
@@ -15,7 +13,6 @@ use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::client_inference_params::ClientInferenceParams;
@@ -88,7 +85,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            API_PATH_CONTINUE_FROM_CONVERSATION_HISTORY,
+            ApiPath::continue_from_conversation_history(),
             params,
         )
         .await
@@ -104,7 +101,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            API_PATH_CONTINUE_FROM_RAW_PROMPT,
+            ApiPath::continue_from_raw_prompt(),
             params,
         )
         .await
@@ -116,9 +113,9 @@ impl ClientInference {
     pub async fn post_decide(
         &self,
         cancellation_token: CancellationToken,
-        params: &RawDecideParams,
+        params: &DecisionRequest,
     ) -> Result<InferenceMessageStream> {
-        self.post_streaming(cancellation_token, API_PATH_DECIDE, params)
+        self.post_streaming(cancellation_token, ApiPath::decide(), params)
             .await
     }
 
@@ -132,7 +129,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            API_PATH_GENERATE_EMBEDDING_BATCH,
+            ApiPath::generate_embedding_batch(),
             params,
         )
         .await
@@ -187,6 +184,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use url::Url;
 
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -219,9 +217,10 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
         ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(Vec::new()),
-            enable_thinking: false,
+            enable_thinking: ModelDefaultOr::Explicit(false),
             grammar: None,
             max_tokens: NonZeroU32::new(16).unwrap(),
+            parallel_tool_calls: ModelDefaultOr::ModelDefault,
             parse_tool_calls: false,
             tools: Vec::new(),
         }

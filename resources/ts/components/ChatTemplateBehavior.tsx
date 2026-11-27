@@ -57,7 +57,7 @@ export function ChatTemplateBehavior() {
             </p>
             <p>
               Most models support this, but not all. If the model does not have
-              a chat template, it will fail to load.
+              a chat template, agents serve it without conversations.
             </p>
           </div>
         </label>

@@ -12,7 +12,8 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_model_card_fixture::gemma_3_4b_it::gemma_3_4b_it;
@@ -20,7 +21,9 @@ use paddler_model_card_fixture::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_multimodal_prompt_carries_one_bos_whether_or_not_its_template_renders_it() {
-    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
+    let image_data_uri = ImageFixture::LlamasJpeg
+        .data_uri()
+        .expect("the test image must load");
     let conversations = [
         image_description_conversation(image_data_uri.clone()),
         SingleImageQuestion {
@@ -56,9 +59,10 @@ async fn a_multimodal_prompt_carries_one_bos_whether_or_not_its_template_renders
                         &ContinueFromConversationHistoryParams {
                             add_generation_prompt: true,
                             conversation_history: conversation_history.clone(),
-                            enable_thinking: false,
+                            enable_thinking: ModelDefaultOr::Explicit(false),
                             grammar: None,
                             max_tokens: NonZeroU32::MIN,
+                            parallel_tool_calls: ModelDefaultOr::ModelDefault,
                             parse_tool_calls: false,
                             tools: vec![],
                         },

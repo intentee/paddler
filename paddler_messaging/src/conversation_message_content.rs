@@ -19,7 +19,8 @@ impl ConversationMessageContent {
                 .iter()
                 .filter_map(|part| match part {
                     ConversationMessageContentPart::Text { text } => Some(text.as_str()),
-                    ConversationMessageContentPart::ImageUrl { .. } => None,
+                    ConversationMessageContentPart::ImageUrl { .. }
+                    | ConversationMessageContentPart::InputAudio { .. } => None,
                 })
                 .collect::<Vec<&str>>()
                 .join(""),
@@ -29,9 +30,11 @@ impl ConversationMessageContent {
 
 #[cfg(test)]
 mod tests {
+    use crate::audio_format::AudioFormat;
     use crate::conversation_message_content::ConversationMessageContent;
     use crate::conversation_message_content_part::ConversationMessageContentPart;
     use crate::image_url::ImageUrl;
+    use crate::input_audio::InputAudio;
 
     #[test]
     fn text_content_of_a_text_variant_is_its_text() {
@@ -41,7 +44,7 @@ mod tests {
     }
 
     #[test]
-    fn text_content_from_parts_joins_text_and_skips_images() {
+    fn text_content_from_parts_joins_text_and_skips_media() {
         let content = ConversationMessageContent::Parts(vec![
             ConversationMessageContentPart::Text {
                 text: "hello ".to_owned(),
@@ -49,6 +52,12 @@ mod tests {
             ConversationMessageContentPart::ImageUrl {
                 image_url: ImageUrl {
                     url: "http://example.com/img.png".to_owned(),
+                },
+            },
+            ConversationMessageContentPart::InputAudio {
+                input_audio: InputAudio {
+                    data: "UklGRg==".to_owned(),
+                    format: AudioFormat::Wav,
                 },
             },
             ConversationMessageContentPart::Text {

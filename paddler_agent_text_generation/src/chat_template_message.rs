@@ -1,12 +1,12 @@
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
 use paddler_messaging::conversation_message::ConversationMessage;
-use paddler_messaging::image_url::ImageUrl;
+use paddler_messaging::conversation_role::ConversationRole;
 
 use crate::chat_template_message_content::ChatTemplateMessageContent;
 use crate::chat_template_tool_call::ChatTemplateToolCall;
+use crate::conversation_media::ConversationMedia;
 use crate::media_marker::MediaMarker;
 
 pub struct ChatTemplateMessage(pub ConversationMessage);
@@ -15,12 +15,12 @@ impl ChatTemplateMessage {
     pub fn into_chat_message(
         self,
         media_marker: &MediaMarker,
-        image_urls: &mut Vec<ImageUrl>,
+        media: &mut Vec<ConversationMedia>,
         preceding_reasoning_content: Option<String>,
     ) -> ChatMessage {
         match self.0 {
             ConversationMessage::AssistantReasoning { reasoning_content } => ChatMessage::Message {
-                role: ASSISTANT_ROLE.to_owned(),
+                role: ConversationRole::Assistant.name().to_owned(),
                 content: ChatMessageContent::Text(String::new()),
                 reasoning_content: Some(reasoning_content),
             },
@@ -29,7 +29,7 @@ impl ChatTemplateMessage {
                 tool_calls,
             } => ChatMessage::AssistantToolCalls {
                 content: ChatTemplateMessageContent(content)
-                    .into_chat_message_content(media_marker, image_urls),
+                    .into_chat_message_content(media_marker, media),
                 reasoning_content: preceding_reasoning_content,
                 tool_calls: tool_calls
                     .into_iter()
@@ -39,7 +39,7 @@ impl ChatTemplateMessage {
             ConversationMessage::Message { content, role } => ChatMessage::Message {
                 role,
                 content: ChatTemplateMessageContent(content)
-                    .into_chat_message_content(media_marker, image_urls),
+                    .into_chat_message_content(media_marker, media),
                 reasoning_content: preceding_reasoning_content,
             },
             ConversationMessage::ToolResult {
@@ -47,7 +47,7 @@ impl ChatTemplateMessage {
                 tool_call_id,
             } => ChatMessage::ToolResult {
                 content: ChatTemplateMessageContent(content)
-                    .into_chat_message_content(media_marker, image_urls),
+                    .into_chat_message_content(media_marker, media),
                 tool_call_id,
             },
         }

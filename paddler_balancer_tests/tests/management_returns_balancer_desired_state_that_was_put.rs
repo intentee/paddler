@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_client::client_management::ClientManagement;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
@@ -35,7 +36,9 @@ async fn management_returns_balancer_desired_state_that_was_put() {
 
     let desired_state = BalancerDesiredState {
         text_generation: BalancerTextGenerationSettings {
-            sampling_parameters: SamplingParameters::deterministic(),
+            sampling_parameters: DesiredSamplingParameters::from(
+                SamplingParameters::deterministic(),
+            ),
             ..BalancerTextGenerationSettings::default()
         },
         ..BalancerDesiredState::default()

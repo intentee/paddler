@@ -4,15 +4,13 @@ pub mod statsd_udp_sink;
 use std::net::UdpSocket;
 use std::sync::Arc;
 
-use anyhow::Result;
-use async_trait::async_trait;
 use cadence::StatsdClient;
 use log::error;
 use tokio::select;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_error::BalancerError;
@@ -61,13 +59,14 @@ impl StatsdService {
     }
 }
 
-#[async_trait]
 impl Service for StatsdService {
+    type Error = BalancerError;
+
     fn name(&self) -> &'static str {
         "balancer::statsd_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        Ok(self.report_metrics_until_shutdown(shutdown).await?)
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), BalancerError> {
+        self.report_metrics_until_shutdown(shutdown).await
     }
 }

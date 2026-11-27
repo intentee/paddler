@@ -1,41 +1,30 @@
-use std::collections::BTreeSet;
 use std::num::NonZeroU16;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 
-use dashmap::DashSet;
 use parking_lot::RwLock;
 use tokio::sync::Notify;
 use tokio::sync::watch;
 
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::atomic_value::AtomicValue;
+use paddler_messaging::desired_state_version::DesiredStateVersion;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
 use crate::agent_issue_fix::AgentIssueFix;
+use crate::agent_status_record::AgentStatusRecord;
 use crate::dispenses_slots::DispensesSlots;
 use crate::serving_report::ServingReport;
 
 pub struct SlotAggregatedStatus {
     pub desired_slots_total: u16,
-    desired_state_issues: DashSet<AgentIssue>,
-    download_status: RwLock<ModelDownloadStatus>,
-    model_path: RwLock<Option<String>>,
-    pipeline_issues: DashSet<AgentIssue>,
-    runtime: RwLock<AgentRuntimeStatus>,
-    serving_issues: RwLock<BTreeSet<AgentIssue>>,
+    record: RwLock<AgentStatusRecord>,
     slots_processing: AtomicValue<AtomicU64>,
     slots_released: Notify,
-    state_application_status: RwLock<AgentStateApplicationStatus>,
     update_tx: watch::Sender<()>,
-    uses_chat_template_override: AtomicValue<AtomicBool>,
-    version: AtomicValue<AtomicU64>,
 }
 
 impl SlotAggregatedStatus {
@@ -45,152 +34,82 @@ impl SlotAggregatedStatus {
 
         Self {
             desired_slots_total,
-            desired_state_issues: DashSet::new(),
-            download_status: RwLock::new(ModelDownloadStatus::NotDownloading),
-            model_path: RwLock::new(None),
-            pipeline_issues: DashSet::new(),
-            runtime: RwLock::new(AgentRuntimeStatus::Idle),
-            serving_issues: RwLock::new(BTreeSet::new()),
-            state_application_status: RwLock::new(AgentStateApplicationStatus::Fresh),
+            record: RwLock::new(AgentStatusRecord::default()),
             slots_processing: AtomicValue::<AtomicU64>::new(0),
             slots_released: Notify::new(),
             update_tx,
-            uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
-            version: AtomicValue::<AtomicU64>::new(0),
         }
     }
 
+    pub fn acknowledge_desired_state_version(&self, desired_state_version: DesiredStateVersion) {
+        self.record_change_when(|record| {
+            record.acknowledge_desired_state_version(desired_state_version)
+        });
+    }
+
     pub fn begin_desired_state(&self) {
-        self.desired_state_issues.clear();
-        *self.download_status.write() = ModelDownloadStatus::NotDownloading;
-        self.announce_change();
+        self.record_change(AgentStatusRecord::begin_desired_state);
     }
 
     pub fn begin_pipeline(&self) {
-        self.pipeline_issues.clear();
-        *self.state_application_status.write() = AgentStateApplicationStatus::Fresh;
-        self.announce_change();
+        self.record_change(AgentStatusRecord::begin_pipeline);
     }
 
     pub fn fail_download(&self, issue: AgentIssue) {
-        *self.download_status.write() = ModelDownloadStatus::NotDownloading;
-        self.desired_state_issues.insert(issue);
-        self.announce_change();
+        self.record_change(|record| record.fail_download(issue));
     }
 
     pub fn get_state_application_status(&self) -> AgentStateApplicationStatus {
-        *self.state_application_status.read()
+        self.record.read().state_application_status()
     }
 
     pub fn has_issue(&self, issue: &AgentIssue) -> bool {
-        self.desired_state_issues.contains(issue)
-            || self.pipeline_issues.contains(issue)
-            || self.serving_issues.read().contains(issue)
+        self.record.read().has_issue(issue)
     }
 
     pub fn has_issue_like<TFunction>(&self, issue_like: TFunction) -> bool
     where
         TFunction: Fn(&AgentIssue) -> bool,
     {
-        self.desired_state_issues
-            .iter()
-            .chain(self.pipeline_issues.iter())
-            .any(|ref_multi| issue_like(ref_multi.key()))
-            || self.serving_issues.read().iter().any(issue_like)
+        self.record.read().issues().any(issue_like)
     }
 
     pub fn register_desired_state_issue(&self, issue: AgentIssue) {
-        if self.desired_state_issues.insert(issue) {
-            self.announce_change();
-        }
+        self.record_change_when(|record| record.register_desired_state_issue(issue));
     }
 
     pub fn register_fix(&self, fix: &AgentIssueFix) {
-        let desired_state_issues_before = self.desired_state_issues.len();
-        let pipeline_issues_before = self.pipeline_issues.len();
-
-        self.desired_state_issues
-            .retain(|issue| !fix.can_fix(issue));
-        self.pipeline_issues.retain(|issue| !fix.can_fix(issue));
-
-        if self.desired_state_issues.len() < desired_state_issues_before
-            || self.pipeline_issues.len() < pipeline_issues_before
-        {
-            self.announce_change();
-        }
+        self.record_change_when(|record| record.fix_issues(fix));
     }
 
     pub fn register_pipeline_issue(&self, issue: AgentIssue) {
-        if self.pipeline_issues.insert(issue) {
-            self.announce_change();
-        }
+        self.record_change_when(|record| record.register_pipeline_issue(issue));
     }
 
     pub fn retry_pipeline(&self) {
-        {
-            let mut state_application_status = self.state_application_status.write();
-
-            *state_application_status = match *state_application_status {
-                AgentStateApplicationStatus::AttemptedAndRetrying
-                | AgentStateApplicationStatus::Stuck => AgentStateApplicationStatus::Stuck,
-                AgentStateApplicationStatus::Applied | AgentStateApplicationStatus::Fresh => {
-                    AgentStateApplicationStatus::AttemptedAndRetrying
-                }
-            };
-        }
-
-        self.announce_change();
+        self.record_change(AgentStatusRecord::retry_pipeline);
     }
 
     pub fn serve_nothing(&self, uses_chat_template_override: bool) {
-        *self.model_path.write() = None;
-        *self.runtime.write() = AgentRuntimeStatus::Idle;
-        self.serving_issues.write().clear();
-        *self.state_application_status.write() = AgentStateApplicationStatus::Applied;
-        self.uses_chat_template_override
-            .set(uses_chat_template_override);
-        self.announce_change();
+        self.record_change(|record| record.serve_nothing(uses_chat_template_override));
     }
 
     pub fn set_download_status(&self, download_status: ModelDownloadStatus) {
-        *self.download_status.write() = download_status;
-        self.announce_change();
+        self.record_change(|record| record.set_download_status(download_status));
     }
 
     pub fn set_downloaded_bytes(&self, downloaded_bytes: u64) {
-        self.download_status
-            .write()
-            .set_downloaded_bytes(downloaded_bytes);
-        self.announce_change();
+        self.record_change(|record| record.set_downloaded_bytes(downloaded_bytes));
     }
 
     pub fn slots_processing_count(&self) -> u64 {
         self.slots_processing.get()
     }
 
-    pub fn start_serving(
-        &self,
-        ServingReport {
-            decisions,
-            model_path,
-            serving_issues,
-            uses_chat_template_override,
-        }: ServingReport,
-    ) {
-        for slot_index in 0..u32::from(self.desired_slots_total) {
-            self.register_fix(&AgentIssueFix::SlotStarted(slot_index));
-        }
+    pub fn start_serving(&self, serving_report: ServingReport) {
+        let desired_slots_total = self.desired_slots_total;
 
-        *self.model_path.write() = Some(model_path);
-        *self.runtime.write() = AgentRuntimeStatus::Serving {
-            decisions,
-            slots_total: u64::from(self.desired_slots_total),
-        };
-        *self.serving_issues.write() = serving_issues;
-        *self.state_application_status.write() = AgentStateApplicationStatus::Applied;
-        self.uses_chat_template_override
-            .set(uses_chat_template_override);
-        self.announce_change();
+        self.record_change(|record| record.start_serving(serving_report, desired_slots_total));
     }
 
     pub async fn wait_until_no_slots_are_processing(&self) {
@@ -206,15 +125,38 @@ impl SlotAggregatedStatus {
     }
 
     pub fn withdraw_serving(&self) {
-        *self.model_path.write() = None;
-        *self.runtime.write() = AgentRuntimeStatus::Idle;
-        self.serving_issues.write().clear();
-        self.announce_change();
+        self.record_change(AgentStatusRecord::withdraw_serving);
     }
 
-    fn announce_change(&self) {
-        self.version.add(1);
-        self.update_tx.send_replace(());
+    fn record_change<TChange>(&self, change: TChange)
+    where
+        TChange: FnOnce(&mut AgentStatusRecord),
+    {
+        self.record_change_when(|record| {
+            change(record);
+
+            true
+        });
+    }
+
+    fn record_change_when<TChange>(&self, change: TChange)
+    where
+        TChange: FnOnce(&mut AgentStatusRecord) -> bool,
+    {
+        let record_changed = {
+            let mut record = self.record.write();
+            let changed = change(&mut record);
+
+            if changed {
+                record.count_change();
+            }
+
+            changed
+        };
+
+        if record_changed {
+            self.update_tx.send_replace(());
+        }
     }
 }
 
@@ -239,24 +181,7 @@ impl ProducesSnapshot for SlotAggregatedStatus {
     type Snapshot = SlotAggregatedStatusSnapshot;
 
     fn make_snapshot(&self) -> Self::Snapshot {
-        SlotAggregatedStatusSnapshot {
-            status: AgentStatus {
-                desired_slots_total: self.desired_slots_total,
-                download_status: self.download_status.read().clone(),
-                issues: self
-                    .desired_state_issues
-                    .iter()
-                    .chain(self.pipeline_issues.iter())
-                    .map(|issue| issue.clone())
-                    .chain(self.serving_issues.read().iter().cloned())
-                    .collect(),
-                model_path: self.model_path.read().clone(),
-                runtime: *self.runtime.read(),
-                state_application_status: self.get_state_application_status(),
-                uses_chat_template_override: self.uses_chat_template_override.get(),
-            },
-            version: self.version.get(),
-        }
+        self.record.read().snapshot(self.desired_slots_total)
     }
 }
 
@@ -268,7 +193,6 @@ mod tests {
 
     use tokio_test::task::spawn;
 
-    use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
@@ -279,26 +203,18 @@ mod tests {
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
+    use paddler_model_capabilities_fixture::chat_model_capabilities::chat_model_capabilities;
+
     use super::SlotAggregatedStatus;
     use crate::agent_issue_fix::AgentIssueFix;
     use crate::dispenses_slots::DispensesSlots;
     use crate::serving_report::ServingReport;
 
-    fn serving_report(decisions: AgentDecisionsServing) -> ServingReport {
+    fn serving_report() -> ServingReport {
         ServingReport {
-            decisions,
+            capabilities: chat_model_capabilities(),
             model_path: "model".to_owned(),
-            serving_issues: BTreeSet::new(),
             uses_chat_template_override: false,
-        }
-    }
-
-    fn serving_without_a_chat_template() -> ServingReport {
-        ServingReport {
-            serving_issues: BTreeSet::from([AgentIssue::UnableToFindChatTemplate(
-                ModelPath::from("model"),
-            )]),
-            ..serving_report(AgentDecisionsServing::NotServed)
         }
     }
 
@@ -392,7 +308,7 @@ mod tests {
             }));
         }
 
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
+        status.start_serving(serving_report());
 
         assert!(!status.has_issue_like(is_slot_cannot_start));
     }
@@ -401,7 +317,7 @@ mod tests {
     fn serving_nothing_makes_the_agent_idle() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
+        status.start_serving(serving_report());
         status.serve_nothing(false);
 
         assert_eq!(
@@ -411,10 +327,10 @@ mod tests {
     }
 
     #[test]
-    fn starting_to_serve_reports_the_model_its_slots_its_decisions_and_the_applied_state() {
+    fn starting_to_serve_reports_the_model_its_slots_its_capabilities_and_the_applied_state() {
         let status = SlotAggregatedStatus::new(4);
 
-        status.start_serving(serving_report(AgentDecisionsServing::Served));
+        status.start_serving(serving_report());
 
         let snapshot = status.make_snapshot();
 
@@ -423,7 +339,7 @@ mod tests {
         assert_eq!(
             snapshot.status.runtime,
             AgentRuntimeStatus::Serving {
-                decisions: AgentDecisionsServing::Served,
+                capabilities: chat_model_capabilities(),
                 slots_total: 4,
             }
         );
@@ -502,7 +418,7 @@ mod tests {
     fn serving_nothing_forgets_the_model_but_keeps_requests_in_flight() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
+        status.start_serving(serving_report());
         status.take_slots(NonZeroU16::MIN);
 
         status.serve_nothing(false);
@@ -599,7 +515,7 @@ mod tests {
 
         status.start_serving(ServingReport {
             uses_chat_template_override: true,
-            ..serving_report(AgentDecisionsServing::NotServed)
+            ..serving_report()
         });
 
         assert!(status.make_snapshot().status.uses_chat_template_override);
@@ -607,42 +523,6 @@ mod tests {
         status.serve_nothing(false);
 
         assert!(!status.make_snapshot().status.uses_chat_template_override);
-    }
-
-    #[test]
-    fn serving_issues_stay_reported_while_a_new_pipeline_begins() {
-        let status = SlotAggregatedStatus::new(2);
-        let serving_issue = AgentIssue::UnableToFindChatTemplate(ModelPath::from("model"));
-
-        status.start_serving(serving_without_a_chat_template());
-        status.begin_pipeline();
-
-        assert!(status.has_issue(&serving_issue));
-        assert!(status.has_issue_like(|agent_issue| *agent_issue == serving_issue));
-        assert_eq!(
-            status.make_snapshot().status.issues,
-            BTreeSet::from([serving_issue])
-        );
-    }
-
-    #[test]
-    fn serving_again_replaces_the_previous_serving_issues() {
-        let status = SlotAggregatedStatus::new(2);
-
-        status.start_serving(serving_without_a_chat_template());
-        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
-
-        assert_eq!(status.make_snapshot().status.issues, BTreeSet::new());
-    }
-
-    #[test]
-    fn serving_nothing_clears_the_serving_issues() {
-        let status = SlotAggregatedStatus::new(2);
-
-        status.start_serving(serving_without_a_chat_template());
-        status.serve_nothing(false);
-
-        assert_eq!(status.make_snapshot().status.issues, BTreeSet::new());
     }
 
     #[test]

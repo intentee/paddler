@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde::Serializer;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::conversation_role::ConversationRole;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::chat_completion_tool_call::ChatCompletionToolCall;
@@ -78,14 +78,14 @@ impl Serialize for ChatCompletion {
     {
         let message = if self.tool_calls.is_empty() {
             SerializedMessage::Content {
-                role: ASSISTANT_ROLE,
+                role: ConversationRole::Assistant.name(),
                 content: &self.content,
                 refusal: (),
                 annotations: [],
             }
         } else {
             SerializedMessage::ToolCalls {
-                role: ASSISTANT_ROLE,
+                role: ConversationRole::Assistant.name(),
                 content: (!self.content.is_empty()).then_some(self.content.as_str()),
                 refusal: (),
                 annotations: [],

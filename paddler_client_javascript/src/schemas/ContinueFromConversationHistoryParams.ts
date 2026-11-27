@@ -8,9 +8,10 @@ export const ContinueFromConversationHistoryParamsSchema = z
   .object({
     add_generation_prompt: z.boolean(),
     conversation_history: z.array(ConversationMessageSchema),
-    enable_thinking: z.boolean(),
+    enable_thinking: z.boolean().nullable().optional(),
     grammar: GrammarConstraintSchema.nullable().optional(),
     max_tokens: z.number().int().min(1),
+    parallel_tool_calls: z.boolean().nullable().optional(),
     parse_tool_calls: z.boolean().optional(),
     tools: z.array(ToolSchema).optional(),
   })

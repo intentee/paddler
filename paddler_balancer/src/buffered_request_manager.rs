@@ -15,6 +15,7 @@ use crate::buffered_request_counter::BufferedRequestCounter;
 use crate::dispatch_position::DispatchPosition;
 use crate::dispatch_requirement::DispatchRequirement;
 use crate::dispatched_agent::DispatchedAgent;
+use crate::waited_agent::WaitedAgent;
 
 pub struct BufferedRequestManager {
     agent_controller_pool: Arc<AgentControllerPool>,
@@ -79,7 +80,12 @@ impl BufferedRequestManager {
         )
         .await
         {
-            Ok(dispatched_agent) => BufferedRequestAgentWaitResult::Found(dispatched_agent),
+            Ok(WaitedAgent::CapabilityLacking(cluster_lacks_capability)) => {
+                BufferedRequestAgentWaitResult::CapabilityLacking(cluster_lacks_capability)
+            }
+            Ok(WaitedAgent::Dispatched(dispatched_agent)) => {
+                BufferedRequestAgentWaitResult::Found(dispatched_agent)
+            }
             Err(Elapsed { .. }) => BufferedRequestAgentWaitResult::Timeout,
         }
     }
@@ -113,21 +119,37 @@ mod tests {
     use std::time::Duration;
 
     use futures::FutureExt as _;
+    use tokio::join;
     use tokio::pin;
     use tokio::runtime::Builder;
     use tokio::select;
     use tokio::sync::mpsc;
+    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+    use paddler_messaging::agent_status::AgentStatus;
     use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::decision_slot_demand::DecisionSlotDemand;
+    use paddler_messaging::desired_state_version::DesiredStateVersion;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+    use paddler_messaging::requested_capability::RequestedCapability;
+    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
     use super::BufferedRequestManager;
+    use crate::agent_controller::AgentController;
+    use crate::agent_controller_params::AgentControllerParams;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::agent_controller_update_result::AgentControllerUpdateResult;
     use crate::agent_streaming_request::AgentStreamingRequest as _;
+    use crate::balancer_applicable_state::BalancerApplicableState;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
+    use crate::cluster_lacks_capability::ClusterLacksCapability;
     use crate::dispatch_requirement::DispatchRequirement;
+    use crate::slot_demand::SlotDemand;
 
     const BUFFER_CAPACITY: u64 = 1;
     const RACE_ROUNDS: usize = 64;
@@ -280,5 +302,61 @@ mod tests {
             discriminant(&BufferedRequestAgentWaitResult::BufferOverflow)
         );
         assert_eq!(agent_availability_changed.now_or_never(), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_buffered_request_is_refused_once_its_agent_settles_without_the_capability() {
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
+        let buffered_request_manager = BufferedRequestManager::new(
+            agent_controller_pool.clone(),
+            Duration::MAX,
+            BUFFER_CAPACITY,
+        );
+        let agent_controller = Arc::new(AgentController::new(AgentControllerParams {
+            connection_close: CancellationToken::new(),
+            id: "settling-agent".to_owned(),
+            name: None,
+            reported_status: SlotAggregatedStatusSnapshot::default(),
+        }));
+        let (_balancer_applicable_state_tx, balancer_applicable_state_rx) =
+            watch::channel(Arc::new(BalancerApplicableState::initial(
+                BalancerDesiredState::default(),
+            )));
+
+        assert!(agent_controller_pool.try_insert_agent_controller(
+            &agent_controller,
+            &BalancerApplicableStateHolder::new(balancer_applicable_state_rx),
+        ));
+
+        let (wait_result, ()) = join!(
+            buffered_request_manager.wait_for_available_agent(DispatchRequirement {
+                requested_capability: RequestedCapability::Decisions,
+                slot_demand: SlotDemand::Decision(DecisionSlotDemand::OneQuestion),
+            }),
+            async {
+                assert_eq!(
+                    agent_controller.update_from_slot_aggregated_status_snapshot(
+                        SlotAggregatedStatusSnapshot {
+                            status: AgentStatus {
+                                desired_state_version: DesiredStateVersion::Version(0),
+                                state_application_status: AgentStateApplicationStatus::Applied,
+                                ..AgentStatus::default()
+                            },
+                            version: 1,
+                        },
+                    ),
+                    AgentControllerUpdateResult::Updated
+                );
+
+                agent_controller_pool.signal_update();
+            }
+        );
+
+        assert!(matches!(
+            wait_result,
+            BufferedRequestAgentWaitResult::CapabilityLacking(ClusterLacksCapability {
+                requested_capability: RequestedCapability::Decisions,
+            })
+        ));
     }
 }

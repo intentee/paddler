@@ -78,7 +78,7 @@ impl WeatherAnswerClassificationFailingAfterReads {
                     self.reads_that_succeed,
                 );
 
-                weather_chat_session(model, chat_templates)
+                weather_chat_session(model, &chat_templates)
                     .context("the model's template must serve the weather question")
                     .and_then(|chat_session| {
                         LlamaSampler::greedy()

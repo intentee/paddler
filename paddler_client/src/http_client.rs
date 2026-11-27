@@ -125,12 +125,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use url::Url;
 
-    use paddler_messaging::constants::API_PATH_AGENTS;
-    use paddler_messaging::constants::API_PATH_AGENTS_STREAM;
-    use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
-    use paddler_messaging::constants::API_PATH_CONTINUE_FROM_RAW_PROMPT;
-    use paddler_messaging::constants::API_PATH_HEALTH;
-    use paddler_messaging::constants::API_PATH_METRICS;
+    use paddler_messaging::api_path::ApiPath;
 
     use super::HttpClient;
     use super::response_text;
@@ -154,7 +149,7 @@ mod tests {
     async fn an_unreachable_server_maps_to_the_connect_variant() {
         assert!(matches!(
             unreachable_client()
-                .get(CancellationToken::new(), API_PATH_HEALTH)
+                .get(CancellationToken::new(), ApiPath::health())
                 .await,
             Err(Error::Connect { url, .. }) if url == format!("{UNREACHABLE_BASE_URL}/health")
         ));
@@ -164,9 +159,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_json_request() {
         assert!(matches!(
             unreachable_client()
-                .get_json::<String>(cancelled_token(), API_PATH_AGENTS)
+                .get_json::<String>(cancelled_token(), ApiPath::agents())
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_AGENTS}")
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::agents())
         ));
     }
 
@@ -174,9 +169,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_server_sent_event_request() {
         assert!(matches!(
             unreachable_client()
-                .get_sse_json::<String>(cancelled_token(), API_PATH_AGENTS_STREAM)
+                .get_sse_json::<String>(cancelled_token(), ApiPath::agents_stream())
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_AGENTS_STREAM}")
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::agents_stream())
         ));
     }
 
@@ -184,7 +179,7 @@ mod tests {
     async fn a_cancelled_token_rejects_a_text_request() {
         assert!(matches!(
             unreachable_client()
-                .get_text(cancelled_token(), API_PATH_METRICS)
+                .get_text(cancelled_token(), ApiPath::metrics())
                 .await,
             Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}/metrics")
         ));
@@ -196,11 +191,11 @@ mod tests {
             unreachable_client()
                 .post_json(
                     cancelled_token(),
-                    API_PATH_CONTINUE_FROM_RAW_PROMPT,
+                    ApiPath::continue_from_raw_prompt(),
                     "body"
                 )
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_CONTINUE_FROM_RAW_PROMPT}")
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::continue_from_raw_prompt())
         ));
     }
 
@@ -208,9 +203,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_put_request() {
         assert!(matches!(
             unreachable_client()
-                .put_json(cancelled_token(), API_PATH_BALANCER_DESIRED_STATE, "body")
+                .put_json(cancelled_token(), ApiPath::balancer_desired_state(), "body")
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{API_PATH_BALANCER_DESIRED_STATE}")
+            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::balancer_desired_state())
         ));
     }
 

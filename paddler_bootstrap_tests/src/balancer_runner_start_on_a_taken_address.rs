@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_error::BootstrapError;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 use crate::bootstrap_tests_error::BootstrapTestsError;
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
@@ -29,7 +29,7 @@ impl BalancerRunnerStartOnATakenAddress {
         serve_on_the_taken_addr: impl FnOnce(&mut BalancerRunnerParams, SocketAddr),
     ) -> Result<Self, BootstrapTestsError> {
         ready(
-            TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
+            TcpListener::bind(ephemeral_loopback_addr())
                 .map_err(BootstrapTestsError::OccupyingListenerBindFailed),
         )
         .and_then(|occupying_listener| {

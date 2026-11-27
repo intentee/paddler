@@ -5,17 +5,25 @@ use std::num::NonZeroU32;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
+use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
 use paddler_balancer_tests::slot_held_by_an_unending_generation::SlotHeldByAnUnendingGeneration;
 use paddler_cluster_harness::decision_cluster_params::DecisionClusterParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_model_card_fixture::tiny_granite_switch_4_1_8b_for_testing::tiny_granite_switch_4_1_8b_for_testing;
 use paddler_request_params_fixture::sample_decision::sample_decision;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_decision_leaving_the_waiting_line_lets_the_completion_behind_it_dispatch() {
-    let mut cluster = DecisionClusterParams::default()
-        .start_cluster()
-        .await
-        .expect("a decision cluster must start");
+    let mut cluster = DecisionClusterParams {
+        desired_state: DecisionDesiredState {
+            model_card: tiny_granite_switch_4_1_8b_for_testing(),
+            ..DecisionDesiredState::default()
+        },
+        ..DecisionClusterParams::default()
+    }
+    .start_cluster()
+    .await
+    .expect("a decision cluster must start");
     let slot_held_by_an_unending_generation = SlotHeldByAnUnendingGeneration::hold(&mut cluster)
         .await
         .expect("the unending generation must hold a slot");

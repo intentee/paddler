@@ -5,4 +5,4 @@ paths:
 
 # Paddler Agent Decision Tests Context
 
-- `paddler_agent_decision_tests` tests the decision pipeline of the agent (kev decision models, scoring, tokenization parity, decision scheduling)
+- `paddler_agent_decision_tests` tests the decision pipeline of the agent (prompt scheduling, shared prompt prefixes, question lanes, KV cache handling, refusals, and the answers of the decision models llama.cpp serves)

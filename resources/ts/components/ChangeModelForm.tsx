@@ -116,13 +116,6 @@ export function ChangeModelForm() {
             <code>
               https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/mmproj-F16.gguf
             </code>
-            <p>
-              Agents serve decisions when the model is a kev decision model,
-              for example:
-            </p>
-            <code>
-              https://huggingface.co/ggml-org/Kev-0.8B-GGUF/blob/main/Kev-0.8B-BF16.gguf
-            </code>
           </dd>
           <dt>Local File</dt>
           <dd>
@@ -139,6 +132,11 @@ export function ChangeModelForm() {
             <code>agent:///path/to/your/model.gguf</code>
           </dd>
         </dl>
+        <p>
+          Once an agent loads the model, it reports what the model supports:
+          conversations, text generation, embeddings, and decisions. The
+          dashboard shows the capabilities of every agent.
+        </p>
       </aside>
       <main className={changeModelForm__main}>
         <form className={changeModelForm__form} onSubmit={onSubmit}>

@@ -1,7 +1,8 @@
-use paddler_cli_tests::constants::UNREACHABLE_MANAGEMENT_ADDR;
 use paddler_cli_tests::signalled_subprocess::SignalledSubprocess;
 use paddler_cli_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
+
+use crate::constants::UNREACHABLE_MANAGEMENT_ADDR;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn signalling_a_subprocess_refuses_one_already_reaped() {

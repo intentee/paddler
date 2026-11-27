@@ -3,10 +3,10 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
-use paddler_cluster_harness::constants::SMALL_DECISION_CONTEXT_SIZE;
 use paddler_cluster_harness::noul_system_one_request_about::noul_system_one_request_about;
 use paddler_cluster_harness::small_context_decision_cluster_params::small_context_decision_cluster_params;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_cluster_harness::small_decision_context_size::small_decision_context_size;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_request_params_fixture::oversized_text::oversized_text;
 
 const TOKENS_REQUIRED_BY_THE_OVERSIZED_STATE_DECISION: usize = 410;
@@ -33,7 +33,7 @@ async fn typesafe_system_one_reports_a_decision_exceeding_the_context_as_unproce
             json!({
                 "detail": format!(
                     "the request needs {TOKENS_REQUIRED_BY_THE_OVERSIZED_STATE_DECISION} tokens in the cache, more than the {} the context holds",
-                    SMALL_DECISION_CONTEXT_SIZE.get() / u32::from(DECISION_SLOTS_MINIMUM.get())
+                    small_decision_context_size().get() / u32::from(DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
                 )
             })
         )

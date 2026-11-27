@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::ministral3_cluster_params::Ministral3ClusterParams;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -32,9 +33,10 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: true,
+                enable_thinking: ModelDefaultOr::Explicit(true),
                 grammar: None,
                 max_tokens: NonZeroU32::new(200).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

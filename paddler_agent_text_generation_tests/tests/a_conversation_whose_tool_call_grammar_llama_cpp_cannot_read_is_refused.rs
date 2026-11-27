@@ -9,15 +9,15 @@ use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_pipeline_harness::conversation_generation::ConversationGeneration;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
-use paddler_agent_text_generation::conversation_chat_templates::ConversationChatTemplates;
-use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
-use paddler_agent_text_generation_tests::chat_templates_request_preparer::ChatTemplatesRequestPreparer;
+use paddler_agent_text_generation_tests::default_model_capabilities_settings::default_model_capabilities_settings;
 use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
 use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
+use paddler_agent_text_generation_tests::model_capabilities_request_preparer::ModelCapabilitiesRequestPreparer;
 use paddler_agent_text_generation_tests::weather_question_conversation::weather_question_conversation;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
+use paddler_model_card_fixture::served_context_size::served_context_size;
 
 #[test]
 fn a_conversation_whose_tool_call_grammar_llama_cpp_cannot_read_is_refused() {
@@ -42,13 +42,13 @@ fn a_conversation_whose_tool_call_grammar_llama_cpp_cannot_read_is_refused() {
             .slot_aggregated_status
             .clone(),
     );
-    let request_preparer = ChatTemplatesRequestPreparer {
-        chat_templates: ConversationChatTemplates::EmbeddedInModel,
-        image_input: ImageInput::Unsupported,
+    let request_preparer = ModelCapabilitiesRequestPreparer {
         llama_runtime: &runtime,
-        sequence_context_size: runtime.model_runtime_parameters.context_size.get(),
+        model_capabilities_settings: default_model_capabilities_settings(),
+        sequence_context_size: served_context_size().get(),
     }
-    .into_generation_request_preparer();
+    .into_generation_request_preparer()
+    .expect("the capabilities of the model must be established");
     let _grammar_cannot_be_read =
         ArmedFault::at(LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8);
 

@@ -5,6 +5,7 @@ import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { type ModelDownloadStatus } from "@intentee/paddler-client/schemas/ModelDownloadStatus";
 import { AgentIssuesPreviewButton } from "./AgentIssuesPreviewButton";
 import { AgentListAgentStatus } from "./AgentListAgentStatus";
+import { AgentModelCapabilities } from "./AgentModelCapabilities";
 import { ModelChatTemplateOverridePreviewButton } from "./ModelChatTemplateOverridePreviewButton";
 import { ModelMetadataPreviewButton } from "./ModelMetadataPreviewButton";
 
@@ -13,6 +14,7 @@ import {
   agentList,
   agentList__agent,
   agentList__agentHasIssues,
+  agentList__agent__capabilities,
   agentList__agent__download,
   agentList__agent__issues,
   agentList__agent__issues__list,
@@ -86,6 +88,7 @@ export function AgentList({
             download_status,
             issues,
             model_path,
+            runtime,
             uses_chat_template_override,
           },
         } = agent;
@@ -141,6 +144,9 @@ export function AgentList({
             )}
             <div className={agentList__agent__status}>
               <AgentListAgentStatus agent={agent} />
+            </div>
+            <div className={agentList__agent__capabilities}>
+              <AgentModelCapabilities runtime={runtime} />
             </div>
           </div>
         );

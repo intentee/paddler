@@ -2,11 +2,12 @@ use std::os::unix::process::ExitStatusExt as _;
 use std::process::ExitStatus;
 use std::process::Stdio;
 
-use paddler_cli_tests::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 use paddler_cli_tests::paddler_command::paddler_command;
 use paddler_cli_tests::subprocess_cluster_error::SubprocessClusterError;
 use paddler_cli_tests::subprocess_process::SubprocessProcess;
 use paddler_cluster_harness::managed_process::ManagedProcess;
+
+use crate::constants::CLAP_USAGE_ERROR_EXIT_CODE;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn subprocess_shutdown_reports_a_failed_exit() {

@@ -1,6 +1,5 @@
 use std::io;
 
-use anyhow::Error as AnyhowError;
 use hf_hub::HFError;
 use reqwest::Error as ReqwestError;
 use tokio::sync::watch::error::RecvError;
@@ -19,9 +18,6 @@ pub enum AgentTestsError {
 
     #[error("unable to start the model downloader: {0}")]
     ModelDownloaderUnstartable(#[source] ReqwestError),
-
-    #[error("the reconciliation service did not stop cleanly: {0}")]
-    ReconciliationServiceFailed(#[source] AnyhowError),
 
     #[error("the reconciliation service panicked: {0}")]
     ReconciliationServicePanicked(#[source] JoinError),

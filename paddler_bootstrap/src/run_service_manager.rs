@@ -1,6 +1,6 @@
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceManager;
-use trzcina::ServiceShutdownOptions;
+use trzcina::service_manager::ServiceManager;
+use trzcina::service_shutdown_options::ServiceShutdownOptions;
 
 use crate::bootstrap_error::BootstrapError;
 use crate::registers_services::RegistersServices;
@@ -21,5 +21,5 @@ pub async fn run_service_manager<TServices: RegistersServices>(
         .run_to_completion(shutdown_options)
         .await
         .into_result()
-        .map_err(|source| BootstrapError::ServiceRunFailed { source })
+        .map_err(|failures| BootstrapError::ServiceRunFailed { failures })
 }

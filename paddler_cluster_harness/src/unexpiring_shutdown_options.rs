@@ -1,11 +1,11 @@
-use trzcina::ServiceShutdownOptions;
+use trzcina::service_shutdown_options::ServiceShutdownOptions;
 
-use crate::constants::LONGER_THAN_ANY_TEST_RUN;
+use crate::longer_than_any_test_run::longer_than_any_test_run;
 
 #[must_use]
 pub const fn unexpiring_shutdown_options() -> ServiceShutdownOptions {
     ServiceShutdownOptions {
-        abort_deadline: LONGER_THAN_ANY_TEST_RUN,
-        cooperative_deadline: LONGER_THAN_ANY_TEST_RUN,
+        abort_deadline: longer_than_any_test_run(),
+        cooperative_deadline: longer_than_any_test_run(),
     }
 }

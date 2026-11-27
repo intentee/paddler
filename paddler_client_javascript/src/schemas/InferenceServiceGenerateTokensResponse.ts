@@ -41,6 +41,26 @@ const OversizedPromptDetailsSchema = z.object({
   sequence_context_size: z.number(),
 });
 
+const UnsupportedConversationFeatureSchema = z
+  .object({
+    description: z.string(),
+    feature: z.enum([
+      "AudioInput",
+      "ChatTemplate",
+      "ParallelToolCalling",
+      "Thinking",
+      "ToolCalling",
+    ]),
+  })
+  .strict();
+
+const UndecodableMediaSchema = z
+  .object({
+    description: z.string(),
+    media: z.enum(["Audio", "Image"]),
+  })
+  .strict();
+
 const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
   z.object({ DecodeFailed: z.string() }),
@@ -51,11 +71,14 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ UndeterminableToken: z.string() }),
   z.object({ Done: GenerationSummarySchema }),
   z.object({ ChatTemplateError: z.string() }),
+  z.object({
+    ConversationFeatureNotSupported: UnsupportedConversationFeatureSchema,
+  }),
   z.object({ GrammarIncompatibleWithThinking: z.string() }),
   z.object({ GrammarInitializationFailed: z.string() }),
   z.object({ GrammarRejectedModelOutput: z.string() }),
   z.object({ GrammarSyntaxError: z.string() }),
-  z.object({ ImageDecodingFailed: z.string() }),
+  z.object({ MediaDecodingFailed: UndecodableMediaSchema }),
   z.object({ MediaExceedsMicroBatch: OversizedMediaDetailsSchema }),
   z.object({ ModelNotLoaded: z.string() }),
   z.object({ MultimodalNotSupported: z.string() }),
@@ -71,6 +94,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ SamplingCandidatesExhausted: z.string() }),
   z.object({ SchedulerUnavailable: z.string() }),
   z.object({ SamplerError: z.string() }),
+  z.object({ TextGenerationNotServed: z.string() }),
   z.object({ ToolCallParsed: z.array(GeneratedToolCallSchema) }),
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
@@ -524,12 +548,12 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
-    if ("ImageDecodingFailed" in variant) {
+    if ("MediaDecodingFailed" in variant) {
       return terminalError(
         request_id,
         generated_by,
         400,
-        variant.ImageDecodingFailed,
+        variant.MediaDecodingFailed.description,
       );
     }
 
@@ -568,6 +592,24 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         400,
         variant.MultimodalNotSupported,
+      );
+    }
+
+    if ("ConversationFeatureNotSupported" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.ConversationFeatureNotSupported.description,
+      );
+    }
+
+    if ("TextGenerationNotServed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.TextGenerationNotServed,
       );
     }
 

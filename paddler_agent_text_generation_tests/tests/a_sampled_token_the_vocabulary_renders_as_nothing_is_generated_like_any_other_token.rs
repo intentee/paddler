@@ -10,13 +10,14 @@ use paddler_agent_text_generation::continuous_batch_terminal_outcome::Continuous
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
-use paddler_agent_text_generation_tests::constants::QWEN3_0_6B_UNUSED_PADDING_TOKEN;
 use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::token_usage::TokenUsage;
 use paddler_model_card_fixture::qwen3_0_6b::qwen3_0_6b;
+
+const QWEN3_0_6B_UNUSED_PADDING_TOKEN: u32 = 151_669;
 
 const PROMPT: &str = "Paddler balances";
 

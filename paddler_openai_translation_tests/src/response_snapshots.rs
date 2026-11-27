@@ -5,7 +5,8 @@ use serde_json::from_value;
 use serde_json::json;
 use serde_json::to_value;
 
-use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_inference_parameters::desired_sampling_parameters::DesiredSamplingParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::token_usage::TokenUsage;
@@ -56,10 +57,10 @@ fn response_snapshots_of_delivery(
 }
 
 fn response_snapshots_of(request: Value) -> Result<Vec<Value>, OpenAITranslationTestsError> {
-    let sampling_parameters = SamplingParameters {
-        temperature: 0.25,
-        top_p: 0.5,
-        ..SamplingParameters::default()
+    let sampling_parameters = DesiredSamplingParameters {
+        temperature: ModelDefaultOr::Explicit(0.25),
+        top_p: ModelDefaultOr::Explicit(0.5),
+        ..DesiredSamplingParameters::default()
     };
 
     from_value::<ResponsesRequest>(request)

@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+import { AgentIssueModelCapabilityFailureSchema } from "./AgentIssueModelCapabilityFailure";
 import { AgentIssueModelPathSchema } from "./AgentIssueModelPath";
+import { ChatTemplateSourceSchema } from "./ChatTemplateSource";
 import { HuggingFaceDownloadLockSchema } from "./HuggingFaceDownloadLock";
 import { InferenceCapabilitySchema } from "./InferenceCapability";
 
@@ -24,17 +26,17 @@ export const AgentIssueSchema = z.union([
     CacheStorageIsFull: AgentIssueModelPathSchema,
   }),
   z.object({
+    ChatTemplateCapabilitiesUnreadable: AgentIssueModelCapabilityFailureSchema,
+  }),
+  z.object({
     ChatTemplateDoesNotCompile: z.object({
       error: z.string(),
       model_path: AgentIssueModelPathSchema,
-      template_content: z.string(),
+      template_source: ChatTemplateSourceSchema,
     }),
   }),
   z.object({
-    DecisionModelIsMalformed: AgentIssueModelPathSchema,
-  }),
-  z.object({
-    DecisionTypeIsUnsupported: AgentIssueModelPathSchema,
+    DecisionModelCannotBeServed: AgentIssueModelCapabilityFailureSchema,
   }),
   z.object({
     DownloadServerDeniedAccess: AgentIssueModelPathSchema,
@@ -53,6 +55,9 @@ export const AgentIssueSchema = z.union([
   }),
   z.object({
     DownloadUrlIsMalformed: AgentIssueModelPathSchema,
+  }),
+  z.object({
+    EmbeddingPoolingProducesNoVectors: AgentIssueModelPathSchema,
   }),
   z.object({
     HuggingFaceCannotAcquireLock: HuggingFaceDownloadLockSchema,
@@ -91,10 +96,16 @@ export const AgentIssueSchema = z.union([
     ModelCannotBeLoaded: AgentIssueModelPathSchema,
   }),
   z.object({
+    ModelDeclaresAnUnknownPoolingType: AgentIssueModelCapabilityFailureSchema,
+  }),
+  z.object({
     ModelDoesNotExistAtUrl: AgentIssueModelPathSchema,
   }),
   z.object({
     ModelFileDoesNotExist: AgentIssueModelPathSchema,
+  }),
+  z.object({
+    ModelTrainingContextIsUnrepresentable: AgentIssueModelPathSchema,
   }),
   z.object({
     ModelUriIsUnparseable: AgentIssueModelPathSchema,
@@ -114,9 +125,6 @@ export const AgentIssueSchema = z.union([
       desired_slots: z.number(),
       required_slots: z.number(),
     }),
-  }),
-  z.object({
-    UnableToFindChatTemplate: AgentIssueModelPathSchema,
   }),
 ]);
 

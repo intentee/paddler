@@ -46,8 +46,14 @@ mod tests {
     #[test]
     fn chain_honors_configured_top_k() {
         let sampling_parameters = SamplingParameters {
+            min_p: 0.0,
+            penalty_frequency: 0.0,
+            penalty_last_n: 0,
+            penalty_presence: 0.0,
+            penalty_repeat: 1.0,
+            temperature: 1.0,
             top_k: 1,
-            ..SamplingParameters::default()
+            top_p: 1.0,
         };
         let sampler_chain = SamplerChainFactory {
             sampling_parameters,

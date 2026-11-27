@@ -8,7 +8,8 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -21,14 +22,17 @@ async fn agent_reports_a_document_exceeding_its_batch_and_embeds_the_rest() {
     let cluster = Cluster::start_in_process(
         EmbeddingClusterParams {
             agents: vec![AgentConfig::single(1)],
-            model_runtime_parameters: ModelRuntimeParameters {
-                n_batch: BatchSize::try_from(
-                    u32::try_from(N_BATCH).expect("the value must fit its target type"),
-                )
-                .expect("the value must fit its target type"),
-                context_size: NonZeroU32::try_from(2048)
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                n_batch: ModelDefaultOr::Explicit(
+                    BatchSize::try_from(
+                        u32::try_from(N_BATCH).expect("the value must fit its target type"),
+                    )
                     .expect("the value must fit its target type"),
-                ..ModelRuntimeParameters::default()
+                ),
+                context_size: ModelDefaultOr::Explicit(
+                    NonZeroU32::try_from(2048).expect("the value must fit its target type"),
+                ),
+                ..DesiredModelRuntimeParameters::default()
             },
             ..EmbeddingClusterParams::default()
         }

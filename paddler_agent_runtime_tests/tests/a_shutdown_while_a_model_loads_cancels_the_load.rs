@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::llama_model_loader::LlamaModelLoader;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
+use paddler_agent_runtime::model_placement::ModelPlacement;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
 use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingThread;
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
@@ -29,7 +30,9 @@ fn a_shutdown_while_a_model_loads_cancels_the_load() {
                         model_path: kev_0_8b()
                             .cached_path()
                             .expect("the kev model must be in the Hugging Face cache"),
-                        n_gpu_layers: ALL_GPU_LAYERS,
+                        placement: ModelPlacement::Offloaded {
+                            n_gpu_layers: ALL_GPU_LAYERS,
+                        },
                     },
                 }
                 .load_unless_shutting_down(&agent_shutdown)

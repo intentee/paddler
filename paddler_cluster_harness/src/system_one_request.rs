@@ -1,9 +1,9 @@
 use serde_json::Value;
 use serde_json::json;
 
-use crate::constants::TYPESAFE_REQUEST_MODEL;
+use crate::typesafe_request_model::typesafe_request_model;
 
 #[must_use]
 pub fn system_one_request(state: &Value, questions: &Value) -> Value {
-    json!({"model": TYPESAFE_REQUEST_MODEL, "state": state, "questions": questions})
+    json!({"model": typesafe_request_model(), "state": state, "questions": questions})
 }

@@ -4,11 +4,12 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_text_generation_tests::constants::JPEG_AND_WEBP_IMAGE_FIXTURES;
 use paddler_agent_text_generation_tests::single_image_question::SingleImageQuestion;
 use paddler_agent_text_generation_tests::start_cluster_with_smolvlm2_and_n_batch::start_cluster_with_smolvlm2_and_n_batch;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_inference_parameters::batch_size::BatchSize;
+
+use crate::constants::JPEG_AND_WEBP_IMAGE_FIXTURES;
 
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
 const N_BATCH_SMALLER_THAN_ONE_IMAGE: u32 = 32;
@@ -46,8 +47,7 @@ async fn agent_streams_tokens_for_a_causal_image_larger_than_n_batch() {
                 .any(|token_result_with_producer| token_result_with_producer
                     .token_result
                     .is_token()),
-            "fixture {} must stream tokens: {:?}",
-            image_fixture.fixture_name,
+            "fixture {image_fixture:?} must stream tokens: {:?}",
             collected.token_results
         );
         assert!(

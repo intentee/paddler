@@ -66,7 +66,7 @@ mod tests {
 
     use super::HalfClosedClient;
     use crate::cluster_harness_error::ClusterHarnessError;
-    use crate::constants::EPHEMERAL_LOOPBACK_ADDR;
+    use crate::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
     const RESPONSE_AFTER_HALF_CLOSE: &[u8] = b"HTTP/1.1 204 No Content\r\n\r\n";
 
@@ -91,7 +91,7 @@ mod tests {
 
     #[tokio::test]
     async fn sends_the_request_and_leaves_the_read_side_open() {
-        let listener = TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
+        let listener = TcpListener::bind(ephemeral_loopback_addr())
             .await
             .expect("the receiving socket must bind");
         let addr = listener

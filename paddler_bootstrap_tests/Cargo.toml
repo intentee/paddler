@@ -21,7 +21,7 @@ path = "tests/main.rs"
 cuda = ["paddler_bootstrap/cuda"]
 metal = ["paddler_bootstrap/metal"]
 tests_that_use_llms = []
-web_admin_panel = ["paddler_bootstrap/web_admin_panel"]
+web_admin_panel = ["paddler_bootstrap/web_admin_panel", "paddler_cluster_harness/web_admin_panel"]
 
 [dependencies]
 futures-util = { workspace = true }

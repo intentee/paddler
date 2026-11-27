@@ -7,8 +7,8 @@ use paddler_balancer_state_database::state_database_type::StateDatabaseType;
 use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
-use paddler_cluster_harness::constants::LONGER_THAN_ANY_TEST_RUN;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
+use paddler_cluster_harness::longer_than_any_test_run::longer_than_any_test_run;
 use paddler_cluster_harness::unexpiring_shutdown_options::unexpiring_shutdown_options;
 
 #[must_use]
@@ -17,14 +17,14 @@ pub fn ephemeral_balancer_runner_params(
 ) -> BalancerRunnerParams {
     BalancerRunnerParams {
         bootstrap_config: BalancerBootstrapConfig {
-            buffered_request_timeout: LONGER_THAN_ANY_TEST_RUN,
+            buffered_request_timeout: longer_than_any_test_run(),
             inference_service_configuration: InferenceServiceConfiguration {
-                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+                addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
                 cors_allowed_hosts: vec![],
-                inference_item_timeout: LONGER_THAN_ANY_TEST_RUN,
+                inference_item_timeout: longer_than_any_test_run(),
             },
             management_service_configuration: ManagementServiceConfiguration {
-                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+                addr: ResolvedSocketAddr::from(ephemeral_loopback_addr()),
                 cors_allowed_hosts: vec![],
             },
             max_buffered_requests: 30,

@@ -52,7 +52,7 @@ fn rendered_prompt(model: &LlamaModel, chat_completion_request: Value) -> Result
                 .and_then(|chat_templates| {
                     ChatSession::new(
                         model,
-                        chat_templates,
+                        &chat_templates,
                         &messages,
                         &[],
                         &ChatSessionOptions {

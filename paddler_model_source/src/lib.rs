@@ -6,6 +6,7 @@ pub mod download_error_agent_issue;
 pub mod huggingface_cache_location;
 pub mod huggingface_download_agent_issue;
 pub mod huggingface_download_progress;
+pub mod huggingface_endpoint;
 pub mod huggingface_hub;
 pub mod huggingface_model_reference;
 pub mod huggingface_model_source;

@@ -4,7 +4,6 @@ pub mod agent_hang_up_on_a_frame;
 pub mod agent_runner_connected_to;
 pub mod agent_tests_error;
 pub mod arbiter_under_test;
-pub mod constants;
 pub mod desired_state_with_halved_image_resize;
 pub mod reconciliation_after_replacement;
 pub mod reconciliation_replaced_before_its_worker_runs;

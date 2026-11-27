@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use anyhow::Result;
-use async_trait::async_trait;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -43,14 +41,15 @@ impl ReconciliationService {
     }
 }
 
-#[async_trait]
 impl Service for ReconciliationService {
+    type Error = BalancerError;
+
     fn name(&self) -> &'static str {
         "balancer::reconciliation_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        Ok(self.apply_desired_states_until_shutdown(shutdown).await?)
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), BalancerError> {
+        self.apply_desired_states_until_shutdown(shutdown).await
     }
 }
 
@@ -60,7 +59,7 @@ mod tests {
 
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
-    use trzcina::Service as _;
+    use trzcina::service::Service as _;
 
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
@@ -106,8 +105,8 @@ mod tests {
             .expect_err("a closed desired state store must fail the reconciliation service");
 
         assert!(matches!(
-            reconciliation_error.downcast_ref::<BalancerError>(),
-            Some(BalancerError::ApplicableStatesNoLongerAnnounced(_))
+            reconciliation_error,
+            BalancerError::ApplicableStatesNoLongerAnnounced(_)
         ));
     }
 }

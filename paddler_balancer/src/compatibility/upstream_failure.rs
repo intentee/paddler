@@ -26,7 +26,9 @@ impl From<&RelayFailure> for UpstreamFailure {
     fn from(relay_failure: &RelayFailure) -> Self {
         match relay_failure {
             RelayFailure::AgentDisconnected => Self::RelayFailed,
-            RelayFailure::BalancerShuttingDown | RelayFailure::BufferOverflow => Self::Unavailable,
+            RelayFailure::BalancerShuttingDown
+            | RelayFailure::BufferOverflow
+            | RelayFailure::ClusterLacksCapability(_) => Self::Unavailable,
             RelayFailure::BufferedRequestTimedOut | RelayFailure::ItemTimedOut { .. } => {
                 Self::TimedOut
             }
@@ -39,8 +41,10 @@ mod tests {
     use std::time::Duration;
 
     use actix_web::http::StatusCode;
+    use paddler_messaging::requested_capability::RequestedCapability;
 
     use super::UpstreamFailure;
+    use crate::cluster_lacks_capability::ClusterLacksCapability;
     use crate::relay_failure::RelayFailure;
 
     #[test]
@@ -58,6 +62,12 @@ mod tests {
             (
                 RelayFailure::BufferedRequestTimedOut,
                 UpstreamFailure::TimedOut,
+            ),
+            (
+                RelayFailure::ClusterLacksCapability(ClusterLacksCapability {
+                    requested_capability: RequestedCapability::Decisions,
+                }),
+                UpstreamFailure::Unavailable,
             ),
             (
                 RelayFailure::ItemTimedOut {

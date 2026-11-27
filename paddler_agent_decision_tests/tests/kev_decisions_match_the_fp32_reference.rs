@@ -3,6 +3,7 @@
 use std::fs::read_to_string;
 use std::mem::discriminant;
 
+use llama_cpp_bindings_types::decision_answer::DecisionAnswer;
 use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 
@@ -11,16 +12,23 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::decision_done_discriminant::decision_done_discriminant;
 use paddler_cluster_harness::test_cluster_preset::TestClusterPreset;
 use paddler_file_fixture::fixture_path::fixture_path;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
+use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 
-const KEV_DOCUMENTED_GPU_BF16_DEVIATION: f32 = 0.03;
+const KEV_DOCUMENTED_GPU_BF16_DEVIATION: f64 = 0.03;
 
-fn most_probable_option(probabilities: &[f32]) -> Option<usize> {
+fn most_probable_option(probabilities: &[f64]) -> Option<usize> {
     probabilities
         .iter()
         .enumerate()
         .max_by(|(_, left), (_, right)| left.total_cmp(right))
         .map(|(option_index, _)| option_index)
+}
+
+fn choice_probabilities(answer: &DecisionAnswer) -> Vec<f64> {
+    match answer {
+        DecisionAnswer::Choice { probabilities, .. } => probabilities.values().copied().collect(),
+        DecisionAnswer::Noul { .. } | DecisionAnswer::Score { .. } => Vec::new(),
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -36,20 +44,18 @@ async fn kev_decisions_match_the_fp32_reference() {
 
     for KevParityRecord {
         probabilities,
-        questions,
-        state,
+        request,
     } in records
     {
         let collected = cluster
-            .decide(
-                CancellationToken::new(),
-                &RawDecideParams {
-                    questions: questions.clone(),
-                    state,
-                },
-            )
+            .decide(CancellationToken::new(), &request)
             .await
             .expect("the decision must be answered");
+        let served_probabilities: Vec<Vec<f64>> = collected
+            .answers
+            .iter()
+            .map(|AnsweredDecisionQuestion { answer, .. }| choice_probabilities(answer))
+            .collect();
 
         assert_eq!(
             discriminant(&collected.terminal_result),
@@ -59,18 +65,18 @@ async fn kev_decisions_match_the_fp32_reference() {
             collected
                 .answers
                 .iter()
-                .map(|answer| answer.id.as_str())
+                .map(|answered_question| answered_question.id.as_str())
                 .collect::<Vec<_>>(),
-            questions
-                .iter()
-                .map(|question| question.id.as_str())
+            request
+                .questions
+                .keys()
+                .map(String::as_str)
                 .collect::<Vec<_>>()
         );
         assert_eq!(
-            collected
-                .answers
+            served_probabilities
                 .iter()
-                .map(|answer| most_probable_option(&answer.probabilities))
+                .map(|served| most_probable_option(served))
                 .collect::<Vec<_>>(),
             probabilities
                 .iter()
@@ -78,18 +84,18 @@ async fn kev_decisions_match_the_fp32_reference() {
                 .collect::<Vec<_>>()
         );
 
-        let largest_deviation = collected
-            .answers
+        let largest_deviation = served_probabilities
             .iter()
             .zip(&probabilities)
-            .flat_map(|(answer, reference_probabilities)| {
-                answer
-                    .probabilities
+            .flat_map(|(served_probabilities, reference_probabilities)| {
+                assert_eq!(served_probabilities.len(), reference_probabilities.len());
+
+                served_probabilities
                     .iter()
                     .zip(reference_probabilities)
                     .map(|(served, reference)| (served - reference).abs())
             })
-            .fold(0.0_f32, f32::max);
+            .fold(0.0_f64, f64::max);
 
         assert!(
             largest_deviation <= KEV_DOCUMENTED_GPU_BF16_DEVIATION,

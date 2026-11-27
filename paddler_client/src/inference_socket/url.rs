@@ -1,6 +1,6 @@
 use url::Url;
 
-use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
+use paddler_messaging::api_path::ApiPath;
 
 use crate::error::Error;
 use crate::result::Result;
@@ -24,7 +24,7 @@ pub fn url(input: Url) -> Result<Url> {
         .and_then(|scheme| url.set_scheme(scheme))
     {
         Ok(()) => {
-            url.set_path(API_PATH_INFERENCE_SOCKET);
+            url.set_path(ApiPath::inference_socket());
 
             Ok(url)
         }
@@ -39,7 +39,7 @@ pub fn url(input: Url) -> Result<Url> {
 mod tests {
     use url::Url;
 
-    use paddler_messaging::constants::API_PATH_INFERENCE_SOCKET;
+    use paddler_messaging::api_path::ApiPath;
 
     use super::url;
     use crate::error::Error;
@@ -49,7 +49,7 @@ mod tests {
         let result = url(Url::parse("http://localhost:8080/some/path").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "ws");
-        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
+        assert_eq!(result.path(), ApiPath::inference_socket());
         assert_eq!(result.host_str(), Some("localhost"));
         assert_eq!(result.port(), Some(8080));
     }
@@ -59,7 +59,7 @@ mod tests {
         let result = url(Url::parse("https://example.com/ignored").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "wss");
-        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
+        assert_eq!(result.path(), ApiPath::inference_socket());
     }
 
     #[test]
@@ -67,14 +67,14 @@ mod tests {
         let result = url(Url::parse("ws://localhost:9090").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "ws");
-        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
+        assert_eq!(result.path(), ApiPath::inference_socket());
     }
 
     #[test]
     fn a_url_path_is_replaced_by_the_inference_socket_path() {
         let result = url(Url::parse("http://host/deeply/nested/path?query=1").unwrap()).unwrap();
 
-        assert_eq!(result.path(), API_PATH_INFERENCE_SOCKET);
+        assert_eq!(result.path(), ApiPath::inference_socket());
     }
 
     #[test]

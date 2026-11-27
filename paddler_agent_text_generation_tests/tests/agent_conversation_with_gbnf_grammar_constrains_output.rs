@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -31,12 +32,13 @@ async fn agent_conversation_with_gbnf_grammar_constrains_output() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: Some(GrammarConstraint::Gbnf {
                     grammar: r"root ::= [Yy][Ee][Ss] | [Nn][Oo]".to_owned(),
                     root: "root".to_owned(),
                 }),
                 max_tokens: NonZeroU32::new(10).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

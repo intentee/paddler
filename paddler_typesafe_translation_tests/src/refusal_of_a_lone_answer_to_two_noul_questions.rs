@@ -1,7 +1,9 @@
 use serde_json::Error as JsonError;
 use serde_json::from_str;
 
-use paddler_messaging::decision_answer::DecisionAnswer;
+use llama_cpp_bindings_types::decision_answer::DecisionAnswer;
+
+use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_summary::DecisionSummary;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 use paddler_typesafe_translation::translated_system_one_request::TranslatedSystemOneRequest;
@@ -19,7 +21,6 @@ const SUMMARY: DecisionSummary = DecisionSummary {
 /// Returns the [`JsonError`] of a request with two noul questions that does not parse.
 pub fn refusal_of_a_lone_answer_to_two_noul_questions(
     id: &str,
-    probabilities: Vec<f32>,
 ) -> Result<Option<TypeSafeTranslationError>, JsonError> {
     from_str::<SystemOneRequest>(TWO_NOUL_QUESTIONS_REQUEST).map(|system_one_request| {
         system_one_request
@@ -29,9 +30,9 @@ pub fn refusal_of_a_lone_answer_to_two_noul_questions(
                      response_layout, ..
                  }| {
                     response_layout.respond(
-                        &[DecisionAnswer {
+                        vec![AnsweredDecisionQuestion {
+                            answer: DecisionAnswer::Noul { noul: 0.5 },
                             id: id.to_owned(),
-                            probabilities,
                         }],
                         &SUMMARY,
                     )

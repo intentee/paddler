@@ -40,10 +40,7 @@ impl EmbeddingRequestPreparerUnderTest {
                 agent_name: llama_runtime.inference_runtime_context.agent_name.clone(),
                 preparation: EmbeddingBatchPreparer {
                     loaded_llama_model: llama_runtime.loaded_llama_model.clone(),
-                    n_batch: llama_runtime
-                        .model_runtime_parameters
-                        .n_batch
-                        .tokens_usize(),
+                    n_batch: llama_runtime.n_batch_tokens(),
                     sequence_context_limit: SequenceContextLimit::Unlimited,
                 },
                 preparation_tasks: TaskTracker::new(),

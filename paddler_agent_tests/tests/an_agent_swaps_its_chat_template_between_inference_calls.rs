@@ -12,6 +12,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -31,9 +32,10 @@ fn capital_of_france(
                 content: ConversationMessageContent::Text("The capital of France is".to_owned()),
                 role: "user".to_owned(),
             }]),
-            enable_thinking: false,
+            enable_thinking: ModelDefaultOr::Explicit(false),
             grammar: None,
             max_tokens: CAPITAL_OF_FRANCE_MAX_TOKENS,
+            parallel_tool_calls: ModelDefaultOr::ModelDefault,
             parse_tool_calls: false,
             tools: vec![],
         },

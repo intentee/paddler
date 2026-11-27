@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_text_generation_tests::gbnf_literal::gbnf_literal;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -29,9 +30,10 @@ async fn agent_reports_only_content_tokens_in_usage_for_plain_content() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: Some(gbnf_literal("Hello there, nice to meet you.")),
                 max_tokens: NonZeroU32::new(60).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

@@ -14,7 +14,6 @@ const terminalErrorCodes = [
   { code: 500, variant: "GrammarInitializationFailed" },
   { code: 500, variant: "GrammarRejectedModelOutput" },
   { code: 400, variant: "GrammarSyntaxError" },
-  { code: 400, variant: "ImageDecodingFailed" },
   { code: 500, variant: "KvCacheClearFailed" },
   { code: 503, variant: "ModelNotLoaded" },
   { code: 500, variant: "MultimodalIngestionFailed" },
@@ -27,6 +26,7 @@ const terminalErrorCodes = [
   { code: 500, variant: "SamplerError" },
   { code: 500, variant: "SamplingCandidatesExhausted" },
   { code: 503, variant: "SchedulerUnavailable" },
+  { code: 503, variant: "TextGenerationNotServed" },
   { code: 400, variant: "ToolSchemaInvalid" },
 ] as const;
 

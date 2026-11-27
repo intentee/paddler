@@ -21,7 +21,7 @@ use paddler_messaging::reserved_request::ReservedRequest;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_request_id() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     let AgentConnectedToAnUntrustedBalancer {
         agent_runner: _agent_runner,
@@ -46,6 +46,7 @@ async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_r
             to_string(&AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::SetState(Box::new(SetStateParams {
                     desired_state: AgentDesiredState::from(&qwen3_desired_state()),
+                    version: 0,
                 })),
             ))
             .expect("the desired state must serialize"),
@@ -71,7 +72,8 @@ async fn agent_ends_a_management_connection_whose_balancer_reuses_an_in_flight_r
     first_connection.wait_for_the_agent_to_hang_up().await;
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::balancer_message_context")
+        capturing_logger
+            .records_for("paddler_agent::balancer_message_context")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Error)
     );

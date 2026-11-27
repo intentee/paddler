@@ -12,7 +12,7 @@ use paddler_request_params_fixture::numbered_embedding_documents::numbered_embed
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_request_prepared_for_a_stopped_scheduler_is_refused_as_unavailable() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     let embedding_request_preparer = EmbeddingRequestPreparerUnderTest::load()
         .expect("the embedding request preparer must load its model");
@@ -43,7 +43,8 @@ async fn a_request_prepared_for_a_stopped_scheduler_is_refused_as_unavailable() 
         Err(TryRecvError::Disconnected)
     );
     assert!(
-        CapturingLogger::records_for("paddler_agent_runtime::scheduler_request_preparer")
+        capturing_logger
+            .records_for("paddler_agent_runtime::scheduler_request_preparer")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Info)
     );

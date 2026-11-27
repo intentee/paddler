@@ -4,14 +4,14 @@ use serde_json::Value;
 use paddler_balancer_openai_service::constants::OPENAI_API_PATH_CHAT_COMPLETIONS;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_cluster_harness::minimal_openai_chat_completion::minimal_openai_chat_completion;
+use paddler_cluster_harness::short_buffered_request_timeout::short_buffered_request_timeout;
 use paddler_openai_schema_validator::openai_validator::OpenAIValidator;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_reports_a_buffered_request_timeout_as_a_gateway_timeout() {
     let cluster = Cluster::start_in_process(ClusterParams {
-        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
+        buffered_request_timeout: short_buffered_request_timeout(),
         ..ClusterParams::without_agents()
     })
     .await

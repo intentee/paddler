@@ -6,7 +6,7 @@ use paddler_agent::pipeline_request::PipelineRequest;
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_balancer_desired_state_fixture::decision_desired_state::DecisionDesiredState;
-use paddler_messaging::constants::DECISION_SLOTS_MINIMUM;
+use paddler_messaging::constants::DECISION_SLOTS_WITH_A_QUESTION_LANE;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
@@ -14,8 +14,9 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_a_decision_model_refuses_embeddings() {
-    let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get())
-        .expect("the model downloader must start");
+    let mut serving_pipeline_arbiter =
+        ServingPipelineArbiter::new(DECISION_SLOTS_WITH_A_QUESTION_LANE.get())
+            .expect("the model downloader must start");
 
     serving_pipeline_arbiter
         .serve(DecisionDesiredState::default().into_balancer_desired_state())
@@ -36,7 +37,7 @@ async fn an_agent_serving_a_decision_model_refuses_embeddings() {
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
             response_tx,
-            slot_guard: serving_pipeline_arbiter.slot_guard(DECISION_SLOTS_MINIMUM),
+            slot_guard: serving_pipeline_arbiter.slot_guard(DECISION_SLOTS_WITH_A_QUESTION_LANE),
             stop_rx,
         }));
 

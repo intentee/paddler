@@ -1,3 +1,5 @@
+use paddler_agent_model_capabilities::agent_pooling_type::AgentPoolingType;
+use paddler_agent_model_capabilities::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType as _;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::llama_context_settings::LlamaContextSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
@@ -5,8 +7,6 @@ use paddler_agent_runtime::resident_llama_context::ResidentLlamaContext;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::inference_capability::InferenceCapability;
 
-use crate::agent_pooling_type::AgentPoolingType;
-use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType as _;
 use crate::embedding_error::EmbeddingError;
 
 pub struct EmbeddingLlamaContextSettings<'parameters> {
@@ -27,20 +27,15 @@ impl EmbeddingLlamaContextSettings<'_> {
             llama_context_settings,
             pooling_type,
         } = self;
-        let n_ubatch = llama_context_settings
-            .model_runtime_parameters
-            .n_batch
-            .tokens()
-            .get();
+        let llama_context_params = llama_context_settings.into_llama_context_params();
 
         loaded_llama_model
             .create_llama_context(
                 inference_runtime_context,
                 InferenceCapability::Embeddings,
-                llama_context_settings
-                    .into_llama_context_params()
+                llama_context_params
                     .with_embeddings(true)
-                    .with_n_ubatch(n_ubatch)
+                    .with_n_ubatch(llama_context_params.n_batch())
                     .with_pooling_type(AgentPoolingType(pooling_type).to_llama_pooling_type()),
             )
             .map_err(EmbeddingError::AgentRuntime)

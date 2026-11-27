@@ -6,7 +6,8 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_file_fixture::constants::LLAMAS_JPEG;
+use paddler_file_fixture::image_fixture::ImageFixture;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -21,7 +22,9 @@ async fn agent_text_only_model_rejects_image_input() {
         .await
         .expect("the cluster must start");
 
-    let image_data_uri = LLAMAS_JPEG.data_uri().expect("the test image must load");
+    let image_data_uri = ImageFixture::LlamasJpeg
+        .data_uri()
+        .expect("the test image must load");
 
     let outcome = cluster
         .continue_from_conversation_history(
@@ -43,9 +46,10 @@ async fn agent_text_only_model_rejects_image_input() {
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(20).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

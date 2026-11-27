@@ -1,20 +1,17 @@
 import React, { useContext } from "react";
 
-import { AgentsResponseSchema } from "@intentee/paddler-client/schemas/AgentsResponse";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
-import { useEventSourceUpdates } from "../hooks/useEventSourceUpdates";
+import { useAgentsStream } from "../hooks/useAgentsStream";
 import { matchEventSourceUpdateState } from "../matchEventSourceUpdateState";
 import { AgentList } from "./AgentList";
+import { ClusterModelCapabilities } from "./ClusterModelCapabilities";
 
 import { agentListStream__placeholder } from "./AgentListStream.module.css";
 import { dashboardSectionStreamLoader } from "./dashboardSectionStreamLoader.module.css";
 
 export function AgentListStream() {
   const { managementAddr } = useContext(PaddlerConfigurationContext);
-  const eventSourceUpdateState = useEventSourceUpdates({
-    schema: AgentsResponseSchema,
-    endpoint: `//${managementAddr}/api/v1/agents/stream`,
-  });
+  const eventSourceUpdateState = useAgentsStream({ managementAddr });
 
   return matchEventSourceUpdateState(eventSourceUpdateState, {
     connected() {
@@ -41,7 +38,12 @@ export function AgentListStream() {
         );
       }
 
-      return <AgentList agents={agents} managementAddr={managementAddr} />;
+      return (
+        <>
+          <AgentList agents={agents} managementAddr={managementAddr} />
+          <ClusterModelCapabilities agents={agents} />
+        </>
+      );
     },
     deserializationError() {
       return (

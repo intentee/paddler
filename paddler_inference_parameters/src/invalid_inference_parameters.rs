@@ -4,20 +4,10 @@ pub enum InvalidInferenceParameters {
     BatchSizeZero,
     #[error("n_batch {n_batch} exceeds the largest batch llama.cpp accepts ({max_batch_size})")]
     BatchSizeTooLarge { n_batch: u32, max_batch_size: u32 },
-    #[error("n_batch {n_batch} exceeds context_size {context_size}")]
-    BatchSizeExceedsContextSize { n_batch: u32, context_size: u32 },
     #[error("n_gpu_layers {n_gpu_layers} is below -1; use -1 to offload all layers")]
     GpuLayersBelowAllLayers { n_gpu_layers: i32 },
     #[error("min_p {min_p} is outside the range 0 to 1")]
     MinPOutOfRange { min_p: f32 },
-    #[error(
-        "penalty strengths (repeat {penalty_repeat}, frequency {penalty_frequency}, presence {penalty_presence}) are set, but penalty_last_n is 0, which disables penalties"
-    )]
-    PenaltiesWithoutWindow {
-        penalty_frequency: f32,
-        penalty_presence: f32,
-        penalty_repeat: f32,
-    },
     #[error("penalty_frequency {penalty_frequency} is not a finite number")]
     PenaltyFrequencyNotFinite { penalty_frequency: f32 },
     #[error("penalty_last_n {penalty_last_n} is negative; use 0 to disable penalties")]
@@ -26,10 +16,6 @@ pub enum InvalidInferenceParameters {
     PenaltyPresenceNotFinite { penalty_presence: f32 },
     #[error("penalty_repeat {penalty_repeat} must be a finite number greater than 0")]
     PenaltyRepeatNotPositive { penalty_repeat: f32 },
-    #[error(
-        "penalty_last_n {penalty_last_n} is set, but every penalty strength is neutral, so no penalty applies"
-    )]
-    PenaltyWindowWithoutPenalties { penalty_last_n: i32 },
     #[error(
         "penalty_last_n {penalty_last_n} exceeds the sequence context of {sequence_context_size} tokens"
     )]

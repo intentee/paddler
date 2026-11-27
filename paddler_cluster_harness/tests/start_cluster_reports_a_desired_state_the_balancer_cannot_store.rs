@@ -11,8 +11,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
 
 const READ_ONLY_DIRECTORY_MODE: u32 = 0o555;
 
@@ -51,7 +51,7 @@ async fn start_cluster_reports_a_desired_state_the_balancer_cannot_store() {
                         state_directory.path().display()
                     )
                 && Url::parse(url).is_ok_and(|desired_state_url| {
-                    desired_state_url.path() == API_PATH_BALANCER_DESIRED_STATE
+                    desired_state_url.path() == ApiPath::balancer_desired_state()
                 })
     ));
 }

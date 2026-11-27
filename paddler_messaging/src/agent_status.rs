@@ -6,13 +6,15 @@ use serde::Serialize;
 use crate::agent_issue::AgentIssue;
 use crate::agent_runtime_status::AgentRuntimeStatus;
 use crate::agent_state_application_status::AgentStateApplicationStatus;
-use crate::inference_capability::InferenceCapability;
+use crate::desired_state_version::DesiredStateVersion;
 use crate::model_download_status::ModelDownloadStatus;
+use crate::requested_capability::RequestedCapability;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentStatus {
     pub desired_slots_total: u16,
+    pub desired_state_version: DesiredStateVersion,
     pub download_status: ModelDownloadStatus,
     pub issues: BTreeSet<AgentIssue>,
     pub model_path: Option<String>,
@@ -23,8 +25,8 @@ pub struct AgentStatus {
 
 impl AgentStatus {
     #[must_use]
-    pub const fn may_serve(&self, inference_capability: InferenceCapability) -> bool {
-        self.runtime.serves(inference_capability) || self.is_applying_its_desired_state()
+    pub const fn may_serve(&self, requested_capability: RequestedCapability) -> bool {
+        self.runtime.serves(requested_capability) || self.is_applying_its_desired_state()
     }
 
     const fn is_applying_its_desired_state(&self) -> bool {
@@ -42,12 +44,13 @@ impl AgentStatus {
 
 #[cfg(test)]
 mod tests {
+    use paddler_model_capabilities_fixture::decision_model_capabilities::decision_model_capabilities;
+
     use super::AgentStatus;
-    use crate::agent_decisions_serving::AgentDecisionsServing;
     use crate::agent_runtime_status::AgentRuntimeStatus;
     use crate::agent_state_application_status::AgentStateApplicationStatus;
-    use crate::inference_capability::InferenceCapability;
     use crate::model_download_status::ModelDownloadStatus;
+    use crate::requested_capability::RequestedCapability;
 
     fn settled_agent(state_application_status: AgentStateApplicationStatus) -> AgentStatus {
         AgentStatus {
@@ -60,21 +63,21 @@ mod tests {
     fn a_settled_agent_may_serve_only_what_it_serves() {
         let serving_decisions = AgentStatus {
             runtime: AgentRuntimeStatus::Serving {
-                decisions: AgentDecisionsServing::Served,
+                capabilities: decision_model_capabilities(),
                 slots_total: 2,
             },
             ..settled_agent(AgentStateApplicationStatus::Applied)
         };
 
-        assert!(serving_decisions.may_serve(InferenceCapability::Decisions));
-        assert!(!serving_decisions.may_serve(InferenceCapability::Embeddings));
+        assert!(serving_decisions.may_serve(RequestedCapability::Decisions));
+        assert!(!serving_decisions.may_serve(RequestedCapability::Embeddings));
     }
 
     #[test]
     fn an_agent_that_gave_up_applying_its_state_may_serve_nothing_it_does_not_serve() {
         assert!(
             !settled_agent(AgentStateApplicationStatus::Stuck)
-                .may_serve(InferenceCapability::Decisions)
+                .may_serve(RequestedCapability::Decisions)
         );
     }
 
@@ -85,7 +88,7 @@ mod tests {
             AgentStateApplicationStatus::Fresh,
         ] {
             assert!(
-                settled_agent(state_application_status).may_serve(InferenceCapability::Decisions)
+                settled_agent(state_application_status).may_serve(RequestedCapability::Decisions)
             );
         }
     }
@@ -100,7 +103,7 @@ mod tests {
                 },
                 ..settled_agent(AgentStateApplicationStatus::Applied)
             }
-            .may_serve(InferenceCapability::Decisions)
+            .may_serve(RequestedCapability::Decisions)
         );
     }
 }

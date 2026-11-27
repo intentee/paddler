@@ -11,7 +11,7 @@ use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::error::Error;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
+use paddler_cluster_harness::short_buffered_request_timeout::short_buffered_request_timeout;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
@@ -28,7 +28,7 @@ const fn raw_prompt_params(raw_prompt: String) -> ContinueFromRawPromptParams {
 #[tokio::test(flavor = "multi_thread")]
 async fn client_inference_reconnects_after_the_balancer_closes_its_socket() {
     let cluster = Cluster::start_in_process(ClusterParams {
-        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
+        buffered_request_timeout: short_buffered_request_timeout(),
         max_buffered_requests: 1,
         ..ClusterParams::without_agents()
     })

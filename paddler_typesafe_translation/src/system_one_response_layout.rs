@@ -1,52 +1,49 @@
-use serde_json::Map;
+use indexmap::IndexMap;
 
-use paddler_messaging::decision_answer::DecisionAnswer;
+use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_summary::DecisionSummary;
 
-use crate::system_one_answer_layout::SystemOneAnswerLayout;
+use crate::system_one_answer::SystemOneAnswer;
 use crate::system_one_response::SystemOneResponse;
 use crate::system_one_usage::SystemOneUsage;
 use crate::typesafe_translation_error::TypeSafeTranslationError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SystemOneResponseLayout {
-    pub answer_layouts: Vec<SystemOneAnswerLayout>,
     pub model: String,
+    pub question_ids: Vec<String>,
 }
 
 impl SystemOneResponseLayout {
     /// # Errors
     ///
-    /// Returns [`TypeSafeTranslationError::AnswerMissing`] when the agent answered fewer questions than were asked, [`TypeSafeTranslationError::AnswerOutOfOrder`] when an answer belongs to a question other than the one due, and [`TypeSafeTranslationError::AnswerProbabilitiesMismatch`] when an answer carries a different number of probabilities than its question has options.
+    /// Returns [`TypeSafeTranslationError::AnswerMissing`] when the agent answered fewer questions than were asked, and [`TypeSafeTranslationError::AnswerOutOfOrder`] when an answer belongs to a question other than the one due.
     pub fn respond(
         &self,
-        decision_answers: &[DecisionAnswer],
+        answered_questions: Vec<AnsweredDecisionQuestion>,
         DecisionSummary {
             input_tokens,
             processing_milliseconds,
         }: &DecisionSummary,
     ) -> Result<SystemOneResponse, TypeSafeTranslationError> {
-        let mut answers = Map::new();
-        let mut decision_answers = decision_answers.iter();
+        let mut answers = IndexMap::new();
+        let mut answered_questions = answered_questions.into_iter();
 
-        for answer_layout in &self.answer_layouts {
-            let Some(DecisionAnswer { id, probabilities }) = decision_answers.next() else {
+        for question_id in &self.question_ids {
+            let Some(AnsweredDecisionQuestion { answer, id }) = answered_questions.next() else {
                 return Err(TypeSafeTranslationError::AnswerMissing {
-                    question_id: answer_layout.id().to_owned(),
+                    question_id: question_id.clone(),
                 });
             };
 
-            if id != answer_layout.id() {
+            if id != *question_id {
                 return Err(TypeSafeTranslationError::AnswerOutOfOrder {
-                    expected_question_id: answer_layout.id().to_owned(),
-                    received_question_id: id.clone(),
+                    expected_question_id: question_id.clone(),
+                    received_question_id: id,
                 });
             }
 
-            answers.insert(
-                id.clone(),
-                answer_layout.answer(probabilities)?.into_value(),
-            );
+            answers.insert(id, SystemOneAnswer::from(answer));
         }
 
         Ok(SystemOneResponse {

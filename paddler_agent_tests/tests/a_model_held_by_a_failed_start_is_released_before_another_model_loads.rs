@@ -2,12 +2,14 @@
 
 use std::mem::discriminant;
 
+use llama_cpp_bindings_types::decisions_capability::DecisionsCapability;
+use llama_cpp_bindings_types::model_capabilities::ModelCapabilities;
 use paddler_agent_pipeline_harness::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
+
 use paddler_agent_pipeline_harness::serving_pipeline_arbiter::ServingPipelineArbiter;
 use paddler_balancer_desired_state_fixture::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_balancer_desired_state_fixture::qwen3_desired_state::qwen3_desired_state;
 use paddler_balancer_desired_state_fixture::uncompilable_chat_template::uncompilable_chat_template;
-use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
@@ -39,7 +41,7 @@ async fn a_model_held_by_a_failed_start_is_released_before_another_model_loads()
     serving_pipeline_arbiter.conclude_next_startup().await;
     serving_pipeline_arbiter.conclude_next_startup().await;
 
-    assert_eq!(
+    assert!(matches!(
         serving_pipeline_arbiter
             .inference_runtime_context
             .slot_aggregated_status
@@ -47,10 +49,13 @@ async fn a_model_held_by_a_failed_start_is_released_before_another_model_loads()
             .status
             .runtime,
         AgentRuntimeStatus::Serving {
-            decisions: AgentDecisionsServing::NotServed,
+            capabilities: ModelCapabilities {
+                decisions: DecisionsCapability::Unsupported(_),
+                ..
+            },
             slots_total: 1,
         }
-    );
+    ));
 
     serving_pipeline_arbiter.shut_down().await;
 }

@@ -16,14 +16,37 @@ import {
 
 import iconArrowUpward from "../../icons/arrow_upward.svg";
 
+import { type ConversationFeatures } from "../ConversationFeatures";
+import { type PromptMedia } from "../PromptMedia";
 import { PromptContext } from "../contexts/PromptContext";
-import { PromptImageContext } from "../contexts/PromptImageContext";
+import { PromptMediaContext } from "../contexts/PromptMediaContext";
+import { PromptSystemMessageContext } from "../contexts/PromptSystemMessageContext";
 import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
+import { ConversationPromptInputAudioButton } from "./ConversationPromptInputAudioButton";
 import { ConversationPromptInputImageButton } from "./ConversationPromptInputImageButton";
-import { ConversationPromptInputImagePreview } from "./ConversationPromptInputImagePreview";
+import { ConversationPromptInputMediaPreview } from "./ConversationPromptInputMediaPreview";
 import { ConversationPromptInputThinkingToggle } from "./ConversationPromptInputThinkingToggle";
 
-export function ConversationPromptInput() {
+function isMediaAccepted(
+  media: PromptMedia,
+  {
+    acceptsAudio,
+    acceptsImages,
+  }: Pick<ConversationFeatures, "acceptsAudio" | "acceptsImages">,
+): boolean {
+  return "audio" === media.kind ? acceptsAudio : acceptsImages;
+}
+
+export function ConversationPromptInput({
+  conversationFeatures: {
+    acceptsAudio,
+    acceptsImages,
+    supportsSystemRole,
+    supportsThinking,
+  },
+}: {
+  conversationFeatures: ConversationFeatures;
+}) {
   const {
     currentPrompt,
     isCurrentPromptEmpty,
@@ -31,14 +54,18 @@ export function ConversationPromptInput() {
     setSubmittedPrompt,
   } = useContext(PromptContext);
 
-  const {
-    currentImageDataUri,
-    isImageAttached,
-    setCurrentImageDataUri,
-    setSubmittedImageDataUri,
-  } = useContext(PromptImageContext);
+  const { currentMedia, setCurrentMedia, setSubmittedMedia } =
+    useContext(PromptMediaContext);
+  const acceptedMedia =
+    currentMedia !== null &&
+    isMediaAccepted(currentMedia, { acceptsAudio, acceptsImages })
+      ? currentMedia
+      : null;
   const { isThinkingEnabled, setSubmittedIsThinkingEnabled } = useContext(
     PromptThinkingContext,
+  );
+  const { setSubmittedIsSystemMessageIncluded } = useContext(
+    PromptSystemMessageContext,
   );
 
   const onSubmit = useCallback(
@@ -47,22 +74,26 @@ export function ConversationPromptInput() {
 
       if (currentPrompt.trim() === "") {
         setSubmittedPrompt(null);
-        setSubmittedImageDataUri(null);
+        setSubmittedMedia(null);
       } else {
         setSubmittedPrompt(currentPrompt);
-        setSubmittedImageDataUri(currentImageDataUri);
-        setSubmittedIsThinkingEnabled(isThinkingEnabled);
-        setCurrentImageDataUri(null);
+        setSubmittedMedia(acceptedMedia);
+        setSubmittedIsThinkingEnabled(supportsThinking && isThinkingEnabled);
+        setSubmittedIsSystemMessageIncluded(supportsSystemRole);
+        setCurrentMedia(null);
       }
     },
     [
-      currentImageDataUri,
+      acceptedMedia,
       currentPrompt,
       isThinkingEnabled,
-      setCurrentImageDataUri,
-      setSubmittedImageDataUri,
+      setCurrentMedia,
+      setSubmittedMedia,
+      setSubmittedIsSystemMessageIncluded,
       setSubmittedIsThinkingEnabled,
       setSubmittedPrompt,
+      supportsSystemRole,
+      supportsThinking,
     ],
   );
 
@@ -75,11 +106,9 @@ export function ConversationPromptInput() {
 
   return (
     <form className={conversationPromptInput} onSubmit={onSubmit}>
-      {isImageAttached && (
+      {acceptedMedia !== null && (
         <div className={conversationPromptInput__attachments}>
-          <ConversationPromptInputImagePreview
-            imageDataUri={currentImageDataUri as string}
-          />
+          <ConversationPromptInputMediaPreview media={acceptedMedia} />
         </div>
       )}
       <input
@@ -91,10 +120,11 @@ export function ConversationPromptInput() {
       />
       <div className={conversationPromptInput__controls}>
         <div className={conversationPromptInput__controls__track}>
-          <ConversationPromptInputThinkingToggle />
+          {supportsThinking && <ConversationPromptInputThinkingToggle />}
         </div>
         <div className={conversationPromptInput__controls__track}>
-          <ConversationPromptInputImageButton />
+          {acceptsAudio && <ConversationPromptInputAudioButton />}
+          {acceptsImages && <ConversationPromptInputImageButton />}
           <button
             className={conversationPromptInput__button}
             disabled={isCurrentPromptEmpty}

@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
@@ -13,7 +13,7 @@ pub struct BalancerDesiredStateV2 {
     decision: IgnoredAny,
     embeddings: EmbeddingParameters,
     model: AgentDesiredModel,
-    model_runtime_parameters: ModelRuntimeParameters,
+    model_runtime_parameters: DesiredModelRuntimeParameters,
     text_generation: BalancerTextGenerationSettings,
 }
 

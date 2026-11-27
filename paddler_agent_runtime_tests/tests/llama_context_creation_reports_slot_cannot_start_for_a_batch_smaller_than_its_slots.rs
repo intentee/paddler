@@ -7,8 +7,9 @@ use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
@@ -25,11 +26,13 @@ async fn llama_context_creation_reports_slot_cannot_start_for_a_batch_smaller_th
         let mut cluster = Cluster::start_in_process(ClusterParams {
             agents: vec![AgentConfig::single(SLOTS)],
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-                model_runtime_parameters: ModelRuntimeParameters {
-                    n_batch: BatchSize::try_from(u32::from(SLOTS) - 1)
-                        .expect("a batch of one token is valid"),
-                    n_gpu_layers: ALL_GPU_LAYERS,
-                    ..ModelRuntimeParameters::default()
+                model_runtime_parameters: DesiredModelRuntimeParameters {
+                    n_batch: ModelDefaultOr::Explicit(
+                        BatchSize::try_from(u32::from(SLOTS) - 1)
+                            .expect("a batch of one token is valid"),
+                    ),
+                    n_gpu_layers: ModelDefaultOr::Explicit(ALL_GPU_LAYERS),
+                    ..DesiredModelRuntimeParameters::default()
                 },
                 ..desired_state
             })),

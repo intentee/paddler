@@ -2,14 +2,14 @@ use llama_cpp_bindings_types::chat_message::ChatMessage;
 
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
-use paddler_messaging::image_url::ImageUrl;
 
 use crate::chat_template_message::ChatTemplateMessage;
+use crate::conversation_media::ConversationMedia;
 use crate::media_marker::MediaMarker;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ChatTemplateConversation {
-    pub image_urls: Vec<ImageUrl>,
+    pub media: Vec<ConversationMedia>,
     pub messages: Vec<ChatMessage>,
 }
 
@@ -19,7 +19,7 @@ impl ChatTemplateConversation {
         ConversationHistory { messages }: ConversationHistory,
         media_marker: &MediaMarker,
     ) -> Self {
-        let mut image_urls = Vec::new();
+        let mut media = Vec::new();
         let mut chat_messages = Vec::with_capacity(messages.len());
         let mut conversation_messages = messages.into_iter().peekable();
 
@@ -28,31 +28,23 @@ impl ChatTemplateConversation {
                 ConversationMessage::AssistantReasoning { reasoning_content } => {
                     match conversation_messages.next_if(ConversationMessage::is_assistant_reply) {
                         Some(assistant_reply) => ChatTemplateMessage(assistant_reply)
-                            .into_chat_message(
-                                media_marker,
-                                &mut image_urls,
-                                Some(reasoning_content),
-                            ),
+                            .into_chat_message(media_marker, &mut media, Some(reasoning_content)),
                         None => ChatTemplateMessage(ConversationMessage::AssistantReasoning {
                             reasoning_content,
                         })
-                        .into_chat_message(
-                            media_marker,
-                            &mut image_urls,
-                            None,
-                        ),
+                        .into_chat_message(media_marker, &mut media, None),
                     }
                 }
                 unreasoned_message => ChatTemplateMessage(unreasoned_message).into_chat_message(
                     media_marker,
-                    &mut image_urls,
+                    &mut media,
                     None,
                 ),
             });
         }
 
         Self {
-            image_urls,
+            media,
             messages: chat_messages,
         }
     }
@@ -74,6 +66,7 @@ mod tests {
     use paddler_messaging::image_url::ImageUrl;
 
     use super::ChatTemplateConversation;
+    use crate::conversation_media::ConversationMedia;
     use crate::media_marker::MediaMarker;
 
     fn weather_tool_call() -> ConversationToolCall {
@@ -101,7 +94,7 @@ mod tests {
     }
 
     #[test]
-    fn collects_image_urls_and_replaces_images_with_the_media_marker() {
+    fn collects_media_and_replaces_them_with_the_media_marker() {
         let history = ConversationHistory::new(vec![
             ConversationMessage::from_text("assistant", "hello"),
             ConversationMessage::Message {
@@ -128,9 +121,9 @@ mod tests {
                 &MediaMarker::new("[IMAGE]".to_owned())
             ),
             ChatTemplateConversation {
-                image_urls: vec![ImageUrl {
+                media: vec![ConversationMedia::Image(ImageUrl {
                     url: "http://example.com/img.png".to_owned(),
-                }],
+                })],
                 messages: vec![
                     ChatMessage::Message {
                         role: "assistant".to_owned(),

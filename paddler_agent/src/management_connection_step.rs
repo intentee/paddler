@@ -15,7 +15,7 @@ pub enum ManagementConnectionStep {
     Deregister,
     End(ManagementConnectionEnd),
     StreamResponses(BoxStream<'static, ManagementJsonRpcMessage>),
-    Write(ManagementJsonRpcMessage),
+    Write(Box<ManagementJsonRpcMessage>),
 }
 
 impl ManagementConnectionStep {
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn ends_the_connection_when_the_message_cannot_be_serialized() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let (outbound_tx, _outbound_rx) = mpsc::unbounded_channel();
         let map_with_a_non_string_key = BTreeMap::from([(vec![1_u8], 1_u8)]);
@@ -89,7 +89,8 @@ mod tests {
                 if management_connection_end == ManagementConnectionEnd::OutgoingMessageUnserializable
         ));
         assert!(
-            CapturingLogger::records_for("paddler_agent::management_connection_step")
+            capturing_logger
+                .records_for("paddler_agent::management_connection_step")
                 .iter()
                 .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );

@@ -1,31 +1,63 @@
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use std::sync::Arc;
 use std::time::Instant;
 
-use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_decision::decision_model::DecisionModel;
+use llama_cpp_decision::decision_prompt::DecisionPrompt;
+use llama_cpp_decision::decision_prompts::DecisionPrompts;
+use llama_cpp_decision::prepared_decision_request::PreparedDecisionRequest;
 
+use paddler_agent_model_capabilities::established_model_capabilities::EstablishedModelCapabilities;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
-use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 use paddler_messaging::request_params::decide_params::DecideParams;
 
-use crate::decision_delimiter_tokens::DecisionDelimiterTokens;
 use crate::decision_error::DecisionError;
-use crate::decision_text_tokenizer::DecisionTextTokenizer;
-use crate::decision_token_layout::DecisionTokenLayout;
-use crate::prepared_decision_request::PreparedDecisionRequest;
+use crate::decision_plan::DecisionPlan;
+use crate::planned_decision_prompt::PlannedDecisionPrompt;
 use crate::reports_decision_outcome::ReportsDecisionOutcome as _;
-use crate::tokenized_decision_question::TokenizedDecisionQuestion;
+use crate::scheduled_decision_request::ScheduledDecisionRequest;
 
 pub struct DecisionRequestPreparer {
+    pub batch_tokens: usize,
     pub cells_per_slot: u32,
-    pub delimiter_tokens: DecisionDelimiterTokens,
-    pub text_tokenizer: DecisionTextTokenizer,
+    pub decision_model: DecisionModel,
+    pub model_capabilities: Arc<EstablishedModelCapabilities>,
 }
 
 impl DecisionRequestPreparer {
+    fn plan(&self, DecideParams { request }: &DecideParams) -> Result<DecisionPlan, DecisionError> {
+        let prepared = PreparedDecisionRequest::new(&self.decision_model, request)
+            .map_err(DecisionError::RequestRejected)?;
+        let DecisionPrompts {
+            prompts,
+            shared_prefix_length,
+        } = self
+            .model_capabilities
+            .projector
+            .with_multimodal_context(|projector| prepared.prompts(projector))
+            .map_err(DecisionError::PromptsRejected)?;
+
+        for prompt in &prompts {
+            self.require_prompt_fits_its_batch(prompt)?;
+        }
+
+        Ok(DecisionPlan {
+            prepared,
+            prompts: self
+                .model_capabilities
+                .projector
+                .with_multimodal_context(|projector| {
+                    prompts
+                        .into_iter()
+                        .map(|prompt| PlannedDecisionPrompt::new(prompt, projector))
+                        .collect()
+                }),
+            shared_prefix_length,
+        })
+    }
+
     fn prepare(
         &self,
         AgentRequest {
@@ -34,26 +66,12 @@ impl DecisionRequestPreparer {
             slot_guard,
             stop_rx: decision_stop_rx,
         }: AgentRequest<DecideParams, DecisionResult>,
-    ) -> Result<PreparedDecisionRequest, DecisionError> {
+    ) -> Result<ScheduledDecisionRequest, DecisionError> {
         let started_at = Instant::now();
         let reserved_context_size =
             u32::from(slot_guard.slots().get()).checked_mul(self.cells_per_slot);
-        let DecideParams {
-            last_question,
-            leading_questions,
-            state,
-        } = params;
-        let mut tokens_by_text = HashMap::new();
-        let layout = DecisionTokenLayout::new(
-            &self.delimiter_tokens,
-            self.text_tokenizer.tokenize(&state)?,
-            leading_questions
-                .into_iter()
-                .map(|question| self.tokenize_question(&mut tokens_by_text, question))
-                .collect::<Result<Vec<_>, _>>()?,
-            self.tokenize_question(&mut tokens_by_text, last_question)?,
-        );
-        let required_tokens = layout.required_cells();
+        let plan = self.plan(&params)?;
+        let required_tokens = plan.required_cells();
 
         if let Some(context_size) = reserved_context_size
             && required_tokens > context_size as usize
@@ -66,52 +84,48 @@ impl DecisionRequestPreparer {
             });
         }
 
-        Ok(PreparedDecisionRequest {
+        Ok(ScheduledDecisionRequest {
             decision_result_tx,
             decision_stop_rx,
-            layout,
+            plan,
             slot_guard,
             started_at,
         })
     }
 
-    fn tokenize_once(
-        &self,
-        tokens_by_text: &mut HashMap<String, Vec<LlamaToken>>,
-        text: String,
-    ) -> Result<Vec<LlamaToken>, DecisionError> {
-        match tokens_by_text.entry(text) {
-            Entry::Occupied(tokenized_text) => Ok(tokenized_text.get().clone()),
-            Entry::Vacant(untokenized_text) => {
-                let tokens = self.text_tokenizer.tokenize(untokenized_text.key())?;
+    fn require_prompt_fits_its_batch(&self, prompt: &DecisionPrompt) -> Result<(), DecisionError> {
+        let prompt_tokens = prompt.tokens().len();
 
-                Ok(untokenized_text.insert(tokens).clone())
-            }
+        if prompt.must_be_decoded_at_once() && prompt_tokens > self.batch_tokens {
+            return Err(DecisionError::PromptExceedsBatch {
+                batch_tokens: self.batch_tokens,
+                prompt_tokens,
+            });
         }
+
+        self.require_read_span_fits_a_batch(prompt_tokens, prompt.first_read_position())
     }
 
-    fn tokenize_question(
+    const fn require_read_span_fits_a_batch(
         &self,
-        tokens_by_text: &mut HashMap<String, Vec<LlamaToken>>,
-        DecisionQuestion {
-            id,
-            instructions,
-            options,
-        }: DecisionQuestion,
-    ) -> Result<TokenizedDecisionQuestion, DecisionError> {
-        Ok(TokenizedDecisionQuestion {
-            id,
-            instructions: self.tokenize_once(tokens_by_text, instructions)?,
-            options: options
-                .into_iter()
-                .map(|option| self.tokenize_once(tokens_by_text, option))
-                .collect::<Result<Vec<_>, _>>()?,
-        })
+        prompt_tokens: usize,
+        first_read_position: usize,
+    ) -> Result<(), DecisionError> {
+        let read_tokens = prompt_tokens.saturating_sub(first_read_position);
+
+        if read_tokens > self.batch_tokens {
+            return Err(DecisionError::PromptReadSpanExceedsBatch {
+                batch_tokens: self.batch_tokens,
+                read_tokens,
+            });
+        }
+
+        Ok(())
     }
 }
 
 impl PreparesSchedulerCommand for DecisionRequestPreparer {
-    type Command = PreparedDecisionRequest;
+    type Command = ScheduledDecisionRequest;
     type Request = AgentRequest<DecideParams, DecisionResult>;
 
     fn prepare_scheduler_command(

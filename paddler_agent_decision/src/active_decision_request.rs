@@ -1,125 +1,269 @@
-use std::collections::VecDeque;
 use std::mem;
 use std::time::Instant;
 
-use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_decision::decision_prompt::DecisionPrompt;
+use llama_cpp_decision::decision_prompt_outputs::DecisionPromptOutputs;
+use llama_cpp_mtmd::mtmd_context::MtmdContext;
 use tokio::sync::mpsc;
 
 use paddler_agent_runtime::receives_stop_request::ReceivesStopRequest as _;
 use paddler_agent_runtime::sequence_id::SequenceId;
 use paddler_agent_runtime::sequence_id_guard::SequenceIdGuard;
 use paddler_agent_status::slot_guard::SlotGuard;
-use paddler_messaging::decision_answer::DecisionAnswer;
+use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
 
+use crate::constants::DECISION_PROMPT_START;
 use crate::decision_admission::DecisionAdmission;
 use crate::decision_advance::DecisionAdvance;
+use crate::decision_decode_step::DecisionDecodeStep;
 use crate::decision_decoder::DecisionDecoder;
 use crate::decision_error::DecisionError;
-use crate::decision_question_row::DecisionQuestionRow;
+use crate::decision_plan::DecisionPlan;
+use crate::decision_prompt_cursor::DecisionPromptCursor;
+use crate::decision_prompt_outputs_request::DecisionPromptOutputsRequest;
+use crate::decision_prompt_position::DecisionPromptPosition;
+use crate::decision_prompt_span::DecisionPromptSpan;
 use crate::decision_request_phase::DecisionRequestPhase;
-use crate::decision_token_layout::DecisionTokenLayout;
-use crate::kev_option_scorer::KevOptionScorer;
-use crate::prepared_decision_request::PreparedDecisionRequest;
 use crate::question_lane::QuestionLane;
 use crate::reports_decision_outcome::ReportsDecisionOutcome;
+use crate::scheduled_decision_request::ScheduledDecisionRequest;
+
+const fn prompt_sequence_id(
+    question_lane: &QuestionLane,
+    state_sequence: &SequenceIdGuard,
+    is_last_prompt: bool,
+) -> SequenceId {
+    match question_lane {
+        QuestionLane::Reserved(lane) if !is_last_prompt => lane.sequence_id(),
+        QuestionLane::Released | QuestionLane::Reserved(_) => state_sequence.sequence_id(),
+    }
+}
+
+fn release_question_lane(
+    DecisionDecoder { llama_context, .. }: &DecisionDecoder,
+    question_lane: &mut QuestionLane,
+    agent_name: Option<&str>,
+) {
+    if let QuestionLane::Reserved(lane) = mem::replace(question_lane, QuestionLane::Released) {
+        lane.sequence_id()
+            .release_kv_cache_in(llama_context, agent_name);
+    }
+}
+
+fn start_prompt(
+    decoder: &DecisionDecoder,
+    question_lane: &mut QuestionLane,
+    state_sequence: &SequenceIdGuard,
+    DecisionPromptPosition { is_first, is_last }: DecisionPromptPosition,
+    agent_name: Option<&str>,
+) -> Result<(), DecisionError> {
+    match question_lane {
+        QuestionLane::Reserved(lane) if !is_last => {
+            decoder.copy_sequence(state_sequence.sequence_id(), lane.sequence_id())
+        }
+        QuestionLane::Reserved(_) => {
+            release_question_lane(decoder, question_lane, agent_name);
+
+            Ok(())
+        }
+        QuestionLane::Released if is_first => Ok(()),
+        QuestionLane::Released => decoder.remove_sequence(state_sequence.sequence_id()),
+    }
+}
+
+fn forward_answers(
+    answered_questions: impl IntoIterator<Item = AnsweredDecisionQuestion>,
+    decision_result_tx: &mpsc::UnboundedSender<DecisionResult>,
+) -> Result<(), DecisionError> {
+    answered_questions
+        .into_iter()
+        .try_for_each(|answered_question| {
+            decision_result_tx
+                .send(DecisionResult::QuestionAnswered(answered_question))
+                .map_err(Box::new)
+                .map_err(DecisionError::ClientDisconnected)
+        })
+}
+
+fn final_outputs_of(prompt: &DecisionPrompt) -> DecisionPromptOutputsRequest {
+    if prompt.outputs_every_token() {
+        DecisionPromptOutputsRequest::EveryToken
+    } else {
+        DecisionPromptOutputsRequest::LastToken
+    }
+}
 
 pub struct ActiveDecisionRequest {
-    pub current_question: DecisionQuestionRow,
     pub decision_result_tx: mpsc::UnboundedSender<DecisionResult>,
     pub decision_stop_rx: mpsc::UnboundedReceiver<()>,
-    pub hidden_states: Vec<Vec<f32>>,
-    pub input_tokens: usize,
+    pub evaluated_tokens: usize,
     pub phase: DecisionRequestPhase,
+    pub plan: DecisionPlan,
+    pub prompt_index: usize,
+    pub prompts_start: DecisionPromptCursor,
     pub question_lane: QuestionLane,
-    pub remaining_questions: VecDeque<DecisionQuestionRow>,
     pub slot_guard: SlotGuard,
     pub started_at: Instant,
-    pub state: Vec<LlamaToken>,
     pub state_sequence: SequenceIdGuard,
 }
 
 impl ActiveDecisionRequest {
     #[must_use]
     pub fn new(
-        PreparedDecisionRequest {
+        ScheduledDecisionRequest {
             decision_result_tx,
             decision_stop_rx,
-            layout,
+            plan,
             slot_guard,
             started_at,
-        }: PreparedDecisionRequest,
+        }: ScheduledDecisionRequest,
         DecisionAdmission {
             question_lane,
             state_sequence,
         }: DecisionAdmission,
     ) -> Self {
-        let input_tokens = layout.total_tokens();
-        let DecisionTokenLayout {
-            first_question,
-            remaining_questions,
-            state,
-        } = layout;
+        let phase = if plan.shared_prefix_length > 0 {
+            DecisionRequestPhase::DecodingSharedPrefix(DECISION_PROMPT_START)
+        } else {
+            DecisionRequestPhase::DecodingPrompt(DECISION_PROMPT_START)
+        };
 
         Self {
-            current_question: first_question,
             decision_result_tx,
             decision_stop_rx,
-            hidden_states: Vec::new(),
-            input_tokens,
-            phase: DecisionRequestPhase::IngestingState { next_offset: 0 },
+            evaluated_tokens: 0,
+            phase,
+            plan,
+            prompt_index: 0,
+            prompts_start: DECISION_PROMPT_START,
             question_lane,
-            remaining_questions,
             slot_guard,
             started_at,
-            state,
             state_sequence,
         }
     }
 
     /// # Errors
     ///
-    /// Returns [`DecisionError::BatchAssemblyFailed`] when a token does not fit the batch, [`DecisionError::DecodeFailed`] when llama.cpp rejects the batch, [`DecisionError::HiddenStateUnavailable`] when the hidden state of an option cannot be read, [`DecisionError::KvCacheRemovalFailed`] or [`DecisionError::KvCacheCopyFailed`] when the state cannot be copied into the question lane, and [`DecisionError::ClientDisconnected`] when the client stops listening for answers.
+    /// Returns the errors of [`DecisionPromptSpan::decode_step`] when a chunk of the prompt cannot be decoded, [`DecisionError::KvCacheRemovalFailed`] or [`DecisionError::KvCacheCopyFailed`] when a prompt cannot start from the shared tokens, [`DecisionError::AnswersUnreadable`] when the answers of a prompt cannot be read, and [`DecisionError::ClientDisconnected`] when the client stops listening for answers.
     pub fn advance(
         &mut self,
         decoder: &mut DecisionDecoder,
-        option_scorer: &KevOptionScorer,
+        projector: Option<&MtmdContext>,
         agent_name: Option<&str>,
     ) -> Result<DecisionAdvance, DecisionError> {
-        match self.phase {
-            DecisionRequestPhase::IngestingState { next_offset } => {
-                let next_offset = decoder.ingest_state_chunk(
-                    self.state_sequence.sequence_id(),
-                    &self.state,
-                    next_offset,
-                )?;
+        let Self {
+            decision_result_tx,
+            evaluated_tokens,
+            phase,
+            plan,
+            prompt_index,
+            prompts_start,
+            question_lane,
+            state_sequence,
+            ..
+        } = self;
+        let DecisionPlan {
+            prepared,
+            prompts,
+            shared_prefix_length,
+        } = plan;
+        let Some(planned_prompt) = prompts.get(*prompt_index) else {
+            return Ok(DecisionAdvance::Completed);
+        };
+        let (cursor, step) = match *phase {
+            DecisionRequestPhase::DecodingSharedPrefix(cursor) => {
+                let step = DecisionPromptSpan {
+                    end: *shared_prefix_length,
+                    final_outputs: DecisionPromptOutputsRequest::None,
+                    projector,
+                    planned_prompt,
+                    sequence_id: state_sequence.sequence_id(),
+                }
+                .decode_step(decoder, cursor)?;
 
-                self.phase = if next_offset < self.state.len() {
-                    DecisionRequestPhase::IngestingState { next_offset }
-                } else {
-                    DecisionRequestPhase::AnsweringQuestion { next_offset: 0 }
+                *phase = match &step {
+                    DecisionDecodeStep::Advanced(next_cursor) => {
+                        DecisionRequestPhase::DecodingSharedPrefix(*next_cursor)
+                    }
+                    DecisionDecodeStep::Finished { next_cursor, .. } => {
+                        *prompts_start = *next_cursor;
+
+                        DecisionRequestPhase::DecodingPrompt(*next_cursor)
+                    }
                 };
 
-                Ok(DecisionAdvance::Continuing)
+                (cursor, step)
             }
-            DecisionRequestPhase::AnsweringQuestion { next_offset } => match &self.question_lane {
-                QuestionLane::Reserved(lane) => {
-                    let lane_sequence_id = lane.sequence_id();
+            DecisionRequestPhase::DecodingPrompt(cursor) => {
+                let prompt_position = DecisionPromptPosition::among(*prompt_index, prompts.len());
 
-                    self.answer_leading_question(
+                if cursor == *prompts_start {
+                    start_prompt(
                         decoder,
-                        option_scorer,
+                        question_lane,
+                        state_sequence,
+                        prompt_position,
                         agent_name,
-                        lane_sequence_id,
-                        next_offset,
-                    )
+                    )?;
                 }
-                QuestionLane::Released => {
-                    self.answer_last_question(decoder, option_scorer, agent_name, next_offset)
+
+                let sequence_id =
+                    prompt_sequence_id(question_lane, state_sequence, prompt_position.is_last);
+                let step = DecisionPromptSpan {
+                    end: planned_prompt.prompt.tokens().len(),
+                    final_outputs: final_outputs_of(&planned_prompt.prompt),
+                    projector,
+                    planned_prompt,
+                    sequence_id,
                 }
-            },
-        }
+                .decode_step(decoder, cursor)?;
+
+                *phase = match &step {
+                    DecisionDecodeStep::Advanced(next_cursor) => {
+                        DecisionRequestPhase::DecodingPrompt(*next_cursor)
+                    }
+                    DecisionDecodeStep::Finished {
+                        output_batch_indices,
+                        ..
+                    } => {
+                        let answers = prepared
+                            .read_answers(
+                                &planned_prompt.prompt,
+                                decoder.llama_context,
+                                DecisionPromptOutputs {
+                                    batch_indices: output_batch_indices,
+                                    sequence_id: sequence_id.llama_sequence_id(),
+                                },
+                            )
+                            .map_err(DecisionError::AnswersUnreadable)?;
+
+                        forward_answers(
+                            answers
+                                .into_iter()
+                                .map(|(id, answer)| AnsweredDecisionQuestion { answer, id }),
+                            decision_result_tx,
+                        )?;
+
+                        *prompt_index = prompt_index.saturating_add(1);
+
+                        DecisionRequestPhase::DecodingPrompt(*prompts_start)
+                    }
+                };
+
+                (cursor, step)
+            }
+        };
+
+        *evaluated_tokens = evaluated_tokens.saturating_add(
+            step.next_cursor()
+                .token_index
+                .saturating_sub(cursor.token_index),
+        );
+
+        Ok(DecisionAdvance::Continuing)
     }
 
     pub fn finish_with<TOutcome: ReportsDecisionOutcome>(
@@ -131,7 +275,7 @@ impl ActiveDecisionRequest {
         self.state_sequence
             .sequence_id()
             .release_kv_cache_in(decoder.llama_context, agent_name);
-        self.release_question_lane(decoder, agent_name);
+        release_question_lane(decoder, &mut self.question_lane, agent_name);
 
         outcome.report(agent_name, &self.decision_result_tx);
     }
@@ -143,114 +287,8 @@ impl ActiveDecisionRequest {
     #[must_use]
     pub fn summary(&self) -> DecisionResult {
         DecisionResult::Done(DecisionSummary {
-            input_tokens: self.input_tokens,
+            input_tokens: self.evaluated_tokens,
             processing_milliseconds: self.started_at.elapsed().as_millis(),
         })
-    }
-
-    fn answer_last_question(
-        &mut self,
-        decoder: &mut DecisionDecoder,
-        option_scorer: &KevOptionScorer,
-        agent_name: Option<&str>,
-        next_offset: usize,
-    ) -> Result<DecisionAdvance, DecisionError> {
-        let next_offset =
-            self.decode_question_chunk(decoder, self.state_sequence.sequence_id(), next_offset)?;
-
-        if next_offset < self.current_question.tokens.len() {
-            self.phase = DecisionRequestPhase::AnsweringQuestion { next_offset };
-
-            return Ok(DecisionAdvance::Continuing);
-        }
-
-        self.send_answer(option_scorer)?;
-
-        Ok(self.finish_question(decoder, agent_name))
-    }
-
-    fn answer_leading_question(
-        &mut self,
-        decoder: &mut DecisionDecoder,
-        option_scorer: &KevOptionScorer,
-        agent_name: Option<&str>,
-        lane_sequence_id: SequenceId,
-        next_offset: usize,
-    ) -> Result<DecisionAdvance, DecisionError> {
-        if next_offset == 0 {
-            decoder.copy_sequence(self.state_sequence.sequence_id(), lane_sequence_id)?;
-        }
-
-        let next_offset = self.decode_question_chunk(decoder, lane_sequence_id, next_offset)?;
-
-        if next_offset < self.current_question.tokens.len() {
-            self.phase = DecisionRequestPhase::AnsweringQuestion { next_offset };
-
-            return Ok(DecisionAdvance::Continuing);
-        }
-
-        self.send_answer(option_scorer)?;
-
-        Ok(self.finish_question(decoder, agent_name))
-    }
-
-    fn decode_question_chunk(
-        &mut self,
-        decoder: &mut DecisionDecoder,
-        sequence_id: SequenceId,
-        next_offset: usize,
-    ) -> Result<usize, DecisionError> {
-        decoder.decode_row_chunk(
-            sequence_id,
-            &self.current_question,
-            next_offset,
-            self.state.len(),
-            &mut self.hidden_states,
-        )
-    }
-
-    fn finish_question(
-        &mut self,
-        decoder: &mut DecisionDecoder,
-        agent_name: Option<&str>,
-    ) -> DecisionAdvance {
-        let Some(next_question) = self.remaining_questions.pop_front() else {
-            return DecisionAdvance::Completed;
-        };
-
-        self.current_question = next_question;
-
-        if self.remaining_questions.is_empty() {
-            self.release_question_lane(decoder, agent_name);
-        }
-
-        self.phase = DecisionRequestPhase::AnsweringQuestion { next_offset: 0 };
-
-        DecisionAdvance::Continuing
-    }
-
-    fn release_question_lane(
-        &mut self,
-        DecisionDecoder { llama_context, .. }: &mut DecisionDecoder,
-        agent_name: Option<&str>,
-    ) {
-        if let QuestionLane::Reserved(lane) =
-            mem::replace(&mut self.question_lane, QuestionLane::Released)
-        {
-            lane.sequence_id()
-                .release_kv_cache_in(llama_context, agent_name);
-        }
-    }
-
-    fn send_answer(&mut self, option_scorer: &KevOptionScorer) -> Result<(), DecisionError> {
-        let probabilities = option_scorer.option_probabilities(&self.hidden_states);
-
-        self.hidden_states.clear();
-        self.decision_result_tx
-            .send(DecisionResult::QuestionAnswered(DecisionAnswer {
-                id: self.current_question.id.clone(),
-                probabilities,
-            }))
-            .map_err(DecisionError::ClientDisconnected)
     }
 }

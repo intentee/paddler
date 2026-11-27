@@ -1,16 +1,9 @@
 use serde_json::Error as JsonError;
 
+use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum TypeSafeTranslationError {
-    #[error(
-        "question {question_id} expected {expected} probabilities, the agent answered with {received}"
-    )]
-    AnswerProbabilitiesMismatch {
-        expected: usize,
-        question_id: String,
-        received: usize,
-    },
-
     #[error("the agent finished without answering question {question_id}")]
     AnswerMissing { question_id: String },
 
@@ -30,10 +23,8 @@ pub enum TypeSafeTranslationError {
         question_id: String,
     },
 
-    #[error(
-        "the System One request is not a valid decision: a decision needs at least one question"
-    )]
-    DecisionWithoutQuestions,
+    #[error("the System One request is not a valid decision")]
+    DecisionInvalid(#[from] RequestParamsValidationError),
     #[error("question {question_id} is malformed")]
     QuestionMalformed {
         question_id: String,

@@ -70,12 +70,14 @@ impl AgentIssueFix {
             },
             AgentIssue::AgentModelUriIsNotAnAbsoluteLocalPath(_)
             | AgentIssue::AgentModelUriIsNotCanonical(_)
-            | AgentIssue::DecisionModelIsMalformed(_)
-            | AgentIssue::DecisionTypeIsUnsupported(_)
+            | AgentIssue::ChatTemplateCapabilitiesUnreadable(_)
+            | AgentIssue::DecisionModelCannotBeServed(_)
+            | AgentIssue::EmbeddingPoolingProducesNoVectors(_)
             | AgentIssue::HuggingFaceModelUriIsMalformed(_)
+            | AgentIssue::ModelDeclaresAnUnknownPoolingType(_)
+            | AgentIssue::ModelTrainingContextIsUnrepresentable(_)
             | AgentIssue::ModelUriIsUnparseable(_)
-            | AgentIssue::SlotsInsufficientForDecisions(_)
-            | AgentIssue::UnableToFindChatTemplate(_) => false,
+            | AgentIssue::SlotsInsufficientForDecisions(_) => false,
             AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
                 matches!(self, Self::MultimodalProjectionIsLoaded(_))
             }
@@ -120,9 +122,11 @@ mod tests {
     use paddler_messaging::agent_issue_params::hugging_face_download_failed_params::HuggingFaceDownloadFailedParams;
     use paddler_messaging::agent_issue_params::hugging_face_download_failure::HuggingFaceDownloadFailure;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+    use paddler_messaging::agent_issue_params::model_capability_failure_params::ModelCapabilityFailureParams;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
     use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
+    use paddler_messaging::chat_template_source::ChatTemplateSource;
     use paddler_messaging::inference_capability::InferenceCapability;
 
     use super::AgentIssueFix;
@@ -136,15 +140,26 @@ mod tests {
                 canonical_uri: "agent:///model_a".to_owned(),
                 model_path: issue_path.clone(),
             }),
-            AgentIssue::DecisionModelIsMalformed(issue_path.clone()),
-            AgentIssue::DecisionTypeIsUnsupported(issue_path.clone()),
+            AgentIssue::ChatTemplateCapabilitiesUnreadable(ModelCapabilityFailureParams {
+                error: "unreadable".to_owned(),
+                model_path: issue_path.clone(),
+            }),
+            AgentIssue::DecisionModelCannotBeServed(ModelCapabilityFailureParams {
+                error: "rejected".to_owned(),
+                model_path: issue_path.clone(),
+            }),
+            AgentIssue::EmbeddingPoolingProducesNoVectors(issue_path.clone()),
             AgentIssue::HuggingFaceModelUriIsMalformed(issue_path.clone()),
+            AgentIssue::ModelDeclaresAnUnknownPoolingType(ModelCapabilityFailureParams {
+                error: "unknown".to_owned(),
+                model_path: issue_path.clone(),
+            }),
+            AgentIssue::ModelTrainingContextIsUnrepresentable(issue_path.clone()),
             AgentIssue::ModelUriIsUnparseable(issue_path.clone()),
             AgentIssue::SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams {
                 desired_slots: 1,
                 required_slots: 2,
             }),
-            AgentIssue::UnableToFindChatTemplate(issue_path.clone()),
         ];
         let targeted_fixes = [
             AgentIssueFix::ChatTemplateIsCompiled(issue_path.clone()),
@@ -210,7 +225,7 @@ mod tests {
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
             error: "syntax error".to_owned(),
             model_path: ModelPath::from("model_a"),
-            template_content: "template".to_owned(),
+            template_source: ChatTemplateSource::EmbeddedInModel,
         });
 
         assert!(fix.can_fix(&issue));
@@ -222,7 +237,7 @@ mod tests {
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
             error: "syntax error".to_owned(),
             model_path: ModelPath::from("model_b"),
-            template_content: "template".to_owned(),
+            template_source: ChatTemplateSource::EmbeddedInModel,
         });
 
         assert!(!fix.can_fix(&issue));
@@ -396,7 +411,7 @@ mod tests {
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
             error: "error".to_owned(),
             model_path: ModelPath::from("model_a"),
-            template_content: "template".to_owned(),
+            template_source: ChatTemplateSource::EmbeddedInModel,
         });
 
         assert!(!fix.can_fix(&issue));

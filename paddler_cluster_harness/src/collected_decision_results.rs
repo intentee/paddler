@@ -1,8 +1,8 @@
-use paddler_messaging::decision_answer::DecisionAnswer;
+use paddler_messaging::answered_decision_question::AnsweredDecisionQuestion;
 use paddler_messaging::decision_result::DecisionResult;
 
 #[derive(Debug)]
 pub struct CollectedDecisionResults {
-    pub answers: Vec<DecisionAnswer>,
+    pub answers: Vec<AnsweredDecisionQuestion>,
     pub terminal_result: DecisionResult,
 }

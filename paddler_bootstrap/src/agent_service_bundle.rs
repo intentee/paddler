@@ -2,17 +2,18 @@ use std::sync::Arc;
 
 use nanoid::nanoid;
 use tokio::sync::watch;
-use trzcina::ServiceManager;
+use trzcina::service_manager::ServiceManager;
 
 use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
 use paddler_agent::balancer_message_context::BalancerMessageContext;
+use paddler_agent::delivered_desired_state::DeliveredDesiredState;
 use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
 use paddler_agent::llamacpp_arbiter_service::LlamaCppArbiterService;
 use paddler_agent::management_socket_client_service::ManagementSocketClientService;
+use paddler_agent::reconciled_state_holder::ReconciledStateHolder;
 use paddler_agent::reconciliation_service::ReconciliationService;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::inference_runtime_context_params::InferenceRuntimeContextParams;
-use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::api_path::ApiPath;
 use paddler_outbox::outbox::Outbox;
 
@@ -39,14 +40,12 @@ impl AgentServiceBundle {
                 },
         }: AgentBootstrapConfig,
     ) -> Self {
-        let (agent_desired_state_tx, mut agent_desired_state_rx) =
-            watch::channel(AgentDesiredState::default());
-
-        agent_desired_state_rx.mark_changed();
+        let (delivered_desired_state_tx, delivered_desired_state_rx) =
+            watch::channel(DeliveredDesiredState::default());
 
         let pipeline_requests = Arc::new(Outbox::default());
 
-        let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
+        let reconciled_state_holder = Arc::new(ReconciledStateHolder::default());
         let served_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
         let inference_runtime_context =
             InferenceRuntimeContext::new(InferenceRuntimeContextParams {
@@ -57,15 +56,15 @@ impl AgentServiceBundle {
         let slot_aggregated_status = inference_runtime_context.slot_aggregated_status.clone();
 
         let llamacpp_arbiter = LlamaCppArbiterService {
-            agent_applicable_state_holder: agent_applicable_state_holder.clone(),
             inference_runtime_context,
             pipeline_requests: pipeline_requests.clone(),
+            reconciled_state_holder: reconciled_state_holder.clone(),
             served_applicable_state_holder: served_applicable_state_holder.clone(),
         };
 
         let management_socket_client = ManagementSocketClientService {
             balancer_message_context: BalancerMessageContext {
-                agent_desired_state_tx,
+                delivered_desired_state_tx,
                 model_metadata_holder,
                 pipeline_requests,
                 request_stoppers: Arc::default(),
@@ -80,12 +79,12 @@ impl AgentServiceBundle {
         };
 
         let reconciliation = ReconciliationService {
-            agent_applicable_state_holder,
-            agent_desired_state_rx,
+            delivered_desired_state_rx,
             desired_state_reconciler: DesiredStateReconciler {
                 desired_model_resolver,
                 slot_aggregated_status,
             },
+            reconciled_state_holder,
         };
 
         Self {

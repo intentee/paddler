@@ -9,6 +9,7 @@ use paddler_download_manager::download_manager::DownloadManager;
 
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::huggingface_cache_location::HuggingFaceCacheLocation;
+use crate::huggingface_endpoint::HuggingFaceEndpoint;
 use crate::huggingface_hub::HuggingFaceHub;
 use crate::huggingface_model_source::HuggingFaceModelSource;
 use crate::local_model_path::LocalModelPath;
@@ -28,7 +29,9 @@ impl DesiredModelResolver {
     /// # Errors
     ///
     /// Returns [`ModelSourceError::DownloadClientUnavailable`] when the download client cannot be built, and [`ModelSourceError::HuggingFaceClientUnavailable`] when the Hugging Face client cannot be built.
-    pub fn from_process_env(huggingface_endpoint: String) -> Result<Self, ModelSourceError> {
+    pub fn from_process_env(
+        huggingface_endpoint: HuggingFaceEndpoint,
+    ) -> Result<Self, ModelSourceError> {
         Ok(Self {
             cache_dir: CacheDir::from_process_env(),
             download_manager: DownloadManager::new()
@@ -94,14 +97,16 @@ mod tests {
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 
     use super::DesiredModelResolver;
-    use crate::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use crate::desired_model_resolution::DesiredModelResolution;
+    use crate::huggingface_endpoint::HuggingFaceEndpoint;
     use crate::model_source_error::ModelSourceError;
 
     #[test]
     fn a_malformed_hugging_face_endpoint_keeps_the_resolver_from_being_built() {
         assert!(matches!(
-            DesiredModelResolver::from_process_env("not an endpoint".to_owned()),
+            DesiredModelResolver::from_process_env(HuggingFaceEndpoint::Explicit(
+                "not an endpoint".to_owned()
+            )),
             Err(ModelSourceError::HuggingFaceClientUnavailable(
                 HFError::Url(ParseError::RelativeUrlWithoutBase)
             ))
@@ -115,19 +120,18 @@ mod tests {
 
         File::create(&model_path).unwrap();
 
-        let resolution =
-            DesiredModelResolver::from_process_env(HUGGINGFACE_DEFAULT_ENDPOINT.to_owned())
-                .unwrap()
-                .resolve_uri(
-                    &CancellationToken::new(),
-                    &format!(
-                        "agent://{}/my%20mod%C3%A8l.gguf",
-                        Url::from_file_path(model_directory.path()).unwrap().path()
-                    ),
-                    Arc::new(SlotAggregatedStatus::new(1)),
-                )
-                .await
-                .unwrap();
+        let resolution = DesiredModelResolver::from_process_env(HuggingFaceEndpoint::HubDefault)
+            .unwrap()
+            .resolve_uri(
+                &CancellationToken::new(),
+                &format!(
+                    "agent://{}/my%20mod%C3%A8l.gguf",
+                    Url::from_file_path(model_directory.path()).unwrap().path()
+                ),
+                Arc::new(SlotAggregatedStatus::new(1)),
+            )
+            .await
+            .unwrap();
 
         assert_eq!(resolution, DesiredModelResolution::Resolved(model_path));
     }

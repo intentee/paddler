@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_runtime::llama_model_loader::LlamaModelLoader;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
+use paddler_agent_runtime::model_placement::ModelPlacement;
 use paddler_agent_runtime::startup_outcome::StartupOutcome;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
@@ -21,7 +22,7 @@ async fn a_model_load_requested_during_shutdown_loads_nothing() {
         inference_runtime_context: inference_runtime_context.clone(),
         llama_model_settings: LlamaModelSettings {
             model_path: PathBuf::from("model-that-is-never-read.gguf"),
-            n_gpu_layers: 0,
+            placement: ModelPlacement::Offloaded { n_gpu_layers: 0 },
         },
     }
     .load_unless_shutting_down(&agent_shutdown)

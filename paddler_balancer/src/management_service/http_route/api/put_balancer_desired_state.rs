@@ -5,8 +5,8 @@ use actix_web::error::ErrorInternalServerError;
 use actix_web::web;
 use actix_web::web::put;
 
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
 
 use crate::management_service::app_data::AppData;
 
@@ -24,7 +24,7 @@ async fn respond(
 }
 
 pub fn put_balancer_desired_state(cfg: &mut web::ServiceConfig) {
-    cfg.route(API_PATH_BALANCER_DESIRED_STATE, put().to(respond));
+    cfg.route(ApiPath::balancer_desired_state(), put().to(respond));
 }
 
 #[cfg(test)]
@@ -47,8 +47,8 @@ mod tests {
     use paddler_balancer_state_database::state_database_file::StateDatabaseFile;
     use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::constants::API_PATH_BALANCER_DESIRED_STATE;
 
     use super::put_balancer_desired_state;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -91,7 +91,7 @@ mod tests {
         .await;
         let applied_model = AgentDesiredModel::Uri("applied-model".to_owned());
         let request = TestRequest::put()
-            .uri(API_PATH_BALANCER_DESIRED_STATE)
+            .uri(ApiPath::balancer_desired_state())
             .set_json(BalancerDesiredState {
                 model: applied_model.clone(),
                 ..BalancerDesiredState::default()
@@ -131,7 +131,7 @@ mod tests {
             .expect("the desired state must carry the number of GPU layers") = json!(-2);
 
         let request = TestRequest::put()
-            .uri(API_PATH_BALANCER_DESIRED_STATE)
+            .uri(ApiPath::balancer_desired_state())
             .set_json(invalid_desired_state)
             .to_request();
 
@@ -159,7 +159,7 @@ mod tests {
         )
         .await;
         let request = TestRequest::put()
-            .uri(API_PATH_BALANCER_DESIRED_STATE)
+            .uri(ApiPath::balancer_desired_state())
             .set_json(BalancerDesiredState {
                 model: AgentDesiredModel::Uri("unstorable-model".to_owned()),
                 ..BalancerDesiredState::default()

@@ -1,3 +1,4 @@
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::token_usage::TokenUsage;
@@ -16,10 +17,10 @@ use crate::responses_usage::ResponsesUsage;
 pub struct ResponsesResponseHeader {
     pub created_at: u64,
     pub id: String,
-    pub instructions: Option<String>,
+    pub instructions: Option<EncodedOnceText>,
     pub model: String,
-    pub temperature: f32,
-    pub top_p: f32,
+    pub temperature: ModelDefaultOr<f32>,
+    pub top_p: ModelDefaultOr<f32>,
 }
 
 impl ResponsesResponseHeader {
@@ -104,7 +105,7 @@ impl CompletesGeneration for ResponsesResponseHeader {
             output.push(ResponsesOutputItem::completed_function_call(
                 ResponsesOutputItemKind::FunctionCall.item_id(),
                 parsed_call,
-                arguments_to_tool_call_string(&parsed_call.arguments),
+                EncodedOnceText::new(arguments_to_tool_call_string(&parsed_call.arguments)),
             ));
         }
 
@@ -119,6 +120,7 @@ mod tests {
     use serde_json::to_value;
 
     use paddler_generation_result_fixture::weather_call::weather_call;
+    use paddler_inference_parameters::model_default_or::ModelDefaultOr;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::token_usage::TokenUsage;
@@ -137,8 +139,8 @@ mod tests {
             created_at: 1_234,
             model: "test-model".to_owned(),
             instructions: None,
-            temperature: 0.25,
-            top_p: 0.5,
+            temperature: ModelDefaultOr::Explicit(0.25),
+            top_p: ModelDefaultOr::Explicit(0.5),
         }
     }
 

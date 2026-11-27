@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn fails_the_request_whose_message_cannot_be_decoded() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
@@ -209,17 +209,16 @@ mod tests {
             Ok(Err(Error::UndecodableInferenceMessage { request_id, .. })) if request_id == "request-1"
         ));
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inbound_message_router"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inbound_message_router")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 
     #[test]
     fn leaves_other_requests_pending_when_an_undecodable_message_names_an_unknown_request() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
@@ -240,17 +239,16 @@ mod tests {
                 .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
         );
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inbound_message_router"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Warn)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inbound_message_router")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Warn)
         );
     }
 
     #[test]
     fn leaves_requests_pending_when_an_undecodable_message_names_no_request() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
@@ -268,11 +266,10 @@ mod tests {
                 .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
         );
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inbound_message_router"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inbound_message_router")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 
@@ -325,7 +322,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_binary_frame_drops_every_pending_request_without_waiting_for_more_frames() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
@@ -345,17 +342,16 @@ mod tests {
             Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inbound_message_router"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inbound_message_router")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 
     #[tokio::test]
     async fn a_read_error_drops_every_pending_request_without_waiting_for_more_frames() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let exchange = Arc::new(InferenceSocketExchange::default());
         let mut response_rx = exchange
@@ -375,11 +371,10 @@ mod tests {
             Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
         assert!(
-            CapturingLogger::records_for(
-                "paddler_client::inference_socket::inbound_message_router"
-            )
-            .iter()
-            .any(|CapturedRecord { level, .. }| *level == Level::Error)
+            capturing_logger
+                .records_for("paddler_client::inference_socket::inbound_message_router")
+                .iter()
+                .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
     }
 

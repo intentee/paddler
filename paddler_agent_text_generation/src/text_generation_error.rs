@@ -1,6 +1,4 @@
-use std::ffi::NulError;
-use std::path::PathBuf;
-
+use base64::DecodeError;
 use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
 use llama_cpp_chat::chat_error::ChatError;
 use llama_cpp_context::context_error::ContextError;
@@ -17,28 +15,45 @@ use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_agent_runtime::send_result_or_warn::send_result_or_warn;
 use paddler_image_decoder::decoded_image_error::DecodedImageError;
 use paddler_inference_parameters::invalid_inference_parameters::InvalidInferenceParameters;
-use paddler_messaging::agent_issue_params::model_path::ModelPath;
+use paddler_messaging::conversation_feature::ConversationFeature;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::media_kind::MediaKind;
 use paddler_messaging::oversized_media_details::OversizedMediaDetails;
 use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
+use paddler_messaging::undecodable_media::UndecodableMedia;
+use paddler_messaging::unsupported_conversation_feature::UnsupportedConversationFeature;
 use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
+
+const fn conversation_feature_not_supported(
+    feature: ConversationFeature,
+    description: String,
+) -> GeneratedTokenResult {
+    GeneratedTokenResult::ConversationFeatureNotSupported(UnsupportedConversationFeature {
+        description,
+        feature,
+    })
+}
+
+const fn media_decoding_failed(media: MediaKind, description: String) -> GeneratedTokenResult {
+    GeneratedTokenResult::MediaDecodingFailed(UndecodableMedia { description, media })
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum TextGenerationError {
     #[error(transparent)]
     AgentRuntime(#[from] AgentRuntimeError),
 
-    #[error(
-        "the model {} has no chat template, so it cannot continue a conversation",
-        model_path.model_path
-    )]
-    ConversationRequiresChatTemplate { model_path: ModelPath },
+    #[error("llama.cpp cannot read the audio")]
+    AudioBitmapCreationFailed(#[source] MtmdError),
 
-    #[error("llama.cpp cannot prepare the chat template")]
-    ChatTemplateDoesNotCompile(#[source] ModelError),
+    #[error("the audio data is not valid base64")]
+    AudioDataNotBase64(#[source] DecodeError),
 
-    #[error("the chat template holds a NUL character")]
-    ChatTemplateContainsNul(#[source] NulError),
+    #[error("the model of the agent cannot hear audio")]
+    AudioInputUnsupported,
+
+    #[error("the model has no chat template, so it cannot continue a conversation")]
+    ConversationUnsupported,
 
     #[error("the chat template cannot render the conversation")]
     ChatSessionCreationFailed(#[source] ChatError),
@@ -63,13 +78,6 @@ pub enum TextGenerationError {
 
     #[error("failed to classify a sampled token")]
     TokenIngestionFailed(#[source] LlamaCppError),
-
-    #[error("unable to load the multimodal projection from {multimodal_projection_path}")]
-    MultimodalProjectionLoadFailed {
-        multimodal_projection_path: PathBuf,
-        #[source]
-        source: MtmdError,
-    },
 
     #[error("failed to apply the grammar sampler to the token candidates")]
     GrammarConstraintFailed(#[source] SamplerError),
@@ -100,6 +108,20 @@ pub enum TextGenerationError {
 
     #[error("received images but model does not support multimodal input")]
     MultimodalNotSupported,
+
+    #[error("the model of the agent generates no text")]
+    TextGenerationNotServed,
+
+    #[error("the chat template of the model does not support thinking")]
+    ThinkingUnsupported,
+
+    #[error("the chat template of the model does not support tool calls")]
+    ToolCallingUnsupported,
+
+    #[error(
+        "the chat template of the model makes one tool call per turn, so it cannot call tools in parallel"
+    )]
+    ParallelToolCallingUnsupported,
 
     #[error("no model is loaded")]
     ModelNotLoaded,
@@ -219,20 +241,35 @@ impl TextGenerationError {
                 GeneratedTokenResult::GrammarSyntaxError(message)
             }
             Self::ImageDecodingFailed(_) | Self::ImageBitmapCreationFailed(_) => {
-                GeneratedTokenResult::ImageDecodingFailed(message)
+                media_decoding_failed(MediaKind::Image, message)
+            }
+            Self::AudioBitmapCreationFailed(_) | Self::AudioDataNotBase64(_) => {
+                media_decoding_failed(MediaKind::Audio, message)
+            }
+            Self::AudioInputUnsupported => {
+                conversation_feature_not_supported(ConversationFeature::AudioInput, message)
             }
             Self::AgentRuntime(_)
             | Self::ModelNotLoaded
-            | Self::MultimodalProjectionLoadFailed { .. }
             | Self::SamplingParametersUnfitForTheSequenceContext(_) => {
                 GeneratedTokenResult::ModelNotLoaded(message)
             }
             Self::MultimodalNotSupported => GeneratedTokenResult::MultimodalNotSupported(message),
-            Self::ChatTemplateDoesNotCompile(_)
-            | Self::ChatTemplateContainsNul(_)
-            | Self::ChatSessionCreationFailed(_)
-            | Self::ChatPromptUnreadable(_)
-            | Self::ConversationRequiresChatTemplate { .. } => {
+            Self::ConversationUnsupported => {
+                conversation_feature_not_supported(ConversationFeature::ChatTemplate, message)
+            }
+            Self::ParallelToolCallingUnsupported => conversation_feature_not_supported(
+                ConversationFeature::ParallelToolCalling,
+                message,
+            ),
+            Self::TextGenerationNotServed => GeneratedTokenResult::TextGenerationNotServed(message),
+            Self::ThinkingUnsupported => {
+                conversation_feature_not_supported(ConversationFeature::Thinking, message)
+            }
+            Self::ToolCallingUnsupported => {
+                conversation_feature_not_supported(ConversationFeature::ToolCalling, message)
+            }
+            Self::ChatSessionCreationFailed(_) | Self::ChatPromptUnreadable(_) => {
                 GeneratedTokenResult::ChatTemplateError(message)
             }
             Self::AnswerClassifierUnavailable(_) | Self::AnswerClassificationFailed(_) => {
@@ -298,6 +335,13 @@ impl TextGenerationError {
     ) {
         Self::ModelNotLoaded.report(agent_name, generated_tokens_tx);
     }
+
+    pub fn report_text_generation_not_served(
+        agent_name: Option<&str>,
+        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    ) {
+        Self::TextGenerationNotServed.report(agent_name, generated_tokens_tx);
+    }
 }
 
 #[cfg(test)]
@@ -306,6 +350,7 @@ mod tests {
     use std::io;
     use std::mem::discriminant;
 
+    use base64::DecodeError;
     use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
     use llama_cpp_chat::chat_error::ChatError;
     use llama_cpp_context::context_error::ContextError;
@@ -322,8 +367,9 @@ mod tests {
     use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
     use paddler_image_decoder::decoded_image_error::DecodedImageError;
     use paddler_inference_parameters::invalid_inference_parameters::InvalidInferenceParameters;
-    use paddler_messaging::agent_issue_params::model_path::ModelPath;
+    use paddler_messaging::conversation_feature::ConversationFeature;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::media_kind::MediaKind;
     use paddler_messaging::oversized_media_details::OversizedMediaDetails;
     use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -331,6 +377,8 @@ mod tests {
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+    use paddler_messaging::undecodable_media::UndecodableMedia;
+    use paddler_messaging::unsupported_conversation_feature::UnsupportedConversationFeature;
     use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
     use super::TextGenerationError;
@@ -408,31 +456,82 @@ mod tests {
         assert_each_reported_as(
             GeneratedTokenResult::ChatTemplateError,
             [
-                TextGenerationError::ChatTemplateDoesNotCompile(ModelError::ModelHasNoChatTemplate),
-                TextGenerationError::ChatTemplateContainsNul(CString::new("{{ \0 }}").unwrap_err()),
                 TextGenerationError::ChatSessionCreationFailed(
                     ChatError::TemplateCannotServeRequest {
                         message: "roles must alternate".to_owned(),
                     },
                 ),
                 TextGenerationError::ChatPromptUnreadable(ChatError::SessionNotEnoughMemory),
-                TextGenerationError::ConversationRequiresChatTemplate {
-                    model_path: ModelPath {
-                        model_path: "nomic.gguf".to_owned(),
-                    },
-                },
             ],
         );
     }
 
     #[test]
-    fn reports_image_failures_as_image_decoding_failures() {
-        assert_each_reported_as(
-            GeneratedTokenResult::ImageDecodingFailed,
-            [
+    fn reports_each_media_failure_as_undecodable_media_of_its_kind() {
+        for (rejection, expected_media) in [
+            (
                 TextGenerationError::ImageDecodingFailed(DecodedImageError::MissingCommaSeparator),
+                MediaKind::Image,
+            ),
+            (
                 TextGenerationError::ImageBitmapCreationFailed(MtmdError::BitmapNotEnoughMemory),
-            ],
+                MediaKind::Image,
+            ),
+            (
+                TextGenerationError::AudioBitmapCreationFailed(MtmdError::BitmapNotEnoughMemory),
+                MediaKind::Audio,
+            ),
+            (
+                TextGenerationError::AudioDataNotBase64(DecodeError::InvalidPadding),
+                MediaKind::Audio,
+            ),
+        ] {
+            assert!(matches!(
+                reported(rejection),
+                GeneratedTokenResult::MediaDecodingFailed(UndecodableMedia { media, .. })
+                    if media == expected_media
+            ));
+        }
+    }
+
+    #[test]
+    fn reports_each_unsupported_conversation_feature_as_that_feature() {
+        for (rejection, expected_feature) in [
+            (
+                TextGenerationError::ConversationUnsupported,
+                ConversationFeature::ChatTemplate,
+            ),
+            (
+                TextGenerationError::ThinkingUnsupported,
+                ConversationFeature::Thinking,
+            ),
+            (
+                TextGenerationError::ToolCallingUnsupported,
+                ConversationFeature::ToolCalling,
+            ),
+            (
+                TextGenerationError::ParallelToolCallingUnsupported,
+                ConversationFeature::ParallelToolCalling,
+            ),
+            (
+                TextGenerationError::AudioInputUnsupported,
+                ConversationFeature::AudioInput,
+            ),
+        ] {
+            assert!(matches!(
+                reported(rejection),
+                GeneratedTokenResult::ConversationFeatureNotSupported(
+                    UnsupportedConversationFeature { feature, .. }
+                ) if feature == expected_feature
+            ));
+        }
+    }
+
+    #[test]
+    fn reports_a_model_generating_no_text_as_text_generation_not_served() {
+        assert_each_reported_as(
+            GeneratedTokenResult::TextGenerationNotServed,
+            [TextGenerationError::TextGenerationNotServed],
         );
     }
 
@@ -567,10 +666,6 @@ mod tests {
                 TextGenerationError::AgentRuntime(AgentRuntimeError::AvailableParallelismUnknown(
                     io::Error::other("parallelism unknown"),
                 )),
-                TextGenerationError::MultimodalProjectionLoadFailed {
-                    multimodal_projection_path: "mmproj.gguf".into(),
-                    source: MtmdError::InitNotEnoughMemory,
-                },
                 TextGenerationError::SamplingParametersUnfitForTheSequenceContext(
                     InvalidInferenceParameters::PenaltyWindowExceedsSequenceContext {
                         penalty_last_n: 2048,

@@ -2,6 +2,7 @@ import React, { useCallback, useContext } from "react";
 
 import { type SamplingParameters } from "@intentee/paddler-client/schemas/SamplingParameters";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
+import { ModelDefaultNumberInput } from "./ModelDefaultNumberInput";
 import { ParameterNumberInput } from "./ParameterNumberInput";
 
 const samplingParameterDescriptions: ReadonlyArray<{
@@ -37,7 +38,7 @@ export function TextGenerationSettingsFields() {
   const { text_generation: textGenerationSettings } = balancerDesiredState;
 
   const setSamplingParameter = useCallback(
-    function (name: keyof SamplingParameters, value: number) {
+    function (name: keyof SamplingParameters, value: number | null) {
       setBalancerDesiredState({
         ...balancerDesiredState,
         text_generation: {
@@ -78,7 +79,7 @@ export function TextGenerationSettingsFields() {
       />
       {samplingParameterDescriptions.map(function ({ description, name }) {
         return (
-          <ParameterNumberInput
+          <ModelDefaultNumberInput
             description={description}
             key={name}
             name={name}

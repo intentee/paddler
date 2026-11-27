@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::constants::API_PATH_HEALTH;
+use paddler_messaging::api_path::ApiPath;
 
 use crate::error::Error;
 use crate::http_client::HttpClient;
@@ -19,7 +19,7 @@ pub trait ReportsHealth: Sync {
     ) -> impl Future<Output = Result<String>> + Send {
         async move {
             self.http_client()
-                .get_text(cancellation_token, API_PATH_HEALTH)
+                .get_text(cancellation_token, ApiPath::health())
                 .await
         }
     }

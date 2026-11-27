@@ -1,17 +1,26 @@
+use std::num::NonZeroU32;
+use std::path::Path;
+use std::pin::Pin;
+use std::pin::pin;
 use std::sync::Arc;
 
+use llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_ERROR;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_context_memory::context_memory::ContextMemory as _;
-use llama_cpp_model::decision_type::DecisionType;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_params::fit_defaults::FitDefaults;
+use llama_cpp_params::fit_result::FitResult;
 use llama_cpp_params::llama_context_params::LlamaContextParams;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
+use llama_cpp_params::params_error::ParamsError;
 
 use paddler_agent_status::agent_issue_fix::AgentIssueFix;
 use paddler_error_chain::error_chain::ErrorChain;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use paddler_messaging::inference_capability::InferenceCapability;
@@ -24,6 +33,7 @@ use crate::inference_runtime_context::InferenceRuntimeContext;
 use crate::llama_context_settings::LlamaContextSettings;
 use crate::llama_model_settings::LlamaModelSettings;
 use crate::model_file_prefetch::ModelFilePrefetch;
+use crate::model_placement::ModelPlacement;
 use crate::resident_llama_context::ResidentLlamaContext;
 use crate::resident_llama_model::ResidentLlamaModel;
 use crate::vram_occupancy::VramOccupancy;
@@ -45,9 +55,37 @@ fn read_model_metadata(model: &LlamaModel) -> Result<ModelMetadata, AgentRuntime
     Ok(model_metadata)
 }
 
+fn context_size_after_fitting_like_llama_server(
+    llama_model_params: Pin<&mut LlamaModelParams>,
+    model_path: &Path,
+    mut fit_context_params: LlamaContextParams,
+) -> Result<ModelDefaultOr<NonZeroU32>, AgentRuntimeError> {
+    let fit_defaults = FitDefaults::of_llama_cpp();
+
+    match llama_model_params.fit_params(
+        model_path,
+        &mut fit_context_params,
+        &mut fit_defaults.margins(),
+        fit_defaults.n_ctx_min,
+        None,
+        GGML_LOG_LEVEL_ERROR,
+    ) {
+        Ok(FitResult { .. })
+        | Err(
+            ParamsError::FitAborted
+            | ParamsError::FitSequencesExceedOutputCapacity { .. }
+            | ParamsError::NoFittingMemoryLayout,
+        ) => Ok(ModelDefaultOr::from(fit_context_params.n_ctx())),
+        Err(fit_error) => Err(AgentRuntimeError::ModelFitFailed {
+            model_path: model_path.to_path_buf(),
+            source: fit_error,
+        }),
+    }
+}
+
 #[derive(Clone)]
 pub struct LoadedLlamaModel {
-    pub decision_type: DecisionType,
+    pub fitted_context_size: ModelDefaultOr<NonZeroU32>,
     pub inference_parallelism: InferenceParallelism,
     pub llama_model_settings: LlamaModelSettings,
     pub model: Arc<ResidentLlamaModel>,
@@ -57,7 +95,7 @@ pub struct LoadedLlamaModel {
 impl LoadedLlamaModel {
     /// # Errors
     ///
-    /// Returns [`AgentRuntimeError::AvailableParallelismUnknown`] or [`AgentRuntimeError::ThreadCountOutOfRange`] when the inference thread count cannot be determined, [`AgentRuntimeError::ModelWeightsAlreadyResident`] when another model occupies the VRAM, [`AgentRuntimeError::BackendInitializationFailed`] when the llama.cpp backend cannot start, [`AgentRuntimeError::ModelFilePrefetchFailed`] when the model file cannot be read, [`AgentRuntimeError::ModelLoadFailed`] when llama.cpp cannot load the model file, [`AgentRuntimeError::ModelMetadataUnreadable`] when its metadata cannot be read, and [`AgentRuntimeError::ModelDecisionTypeUnreadable`] when llama.cpp cannot tell whether it is a decision model.
+    /// Returns [`AgentRuntimeError::AvailableParallelismUnknown`] or [`AgentRuntimeError::ThreadCountOutOfRange`] when the inference thread count cannot be determined, [`AgentRuntimeError::ModelWeightsAlreadyResident`] when another model occupies the VRAM, [`AgentRuntimeError::BackendInitializationFailed`] when the llama.cpp backend cannot start, [`AgentRuntimeError::ModelFilePrefetchFailed`] when the model file cannot be read, [`AgentRuntimeError::ModelLoadFailed`] when llama.cpp cannot load the model file, and [`AgentRuntimeError::ModelMetadataUnreadable`] when its metadata cannot be read.
     pub fn load(
         inference_runtime_context: &InferenceRuntimeContext,
         llama_model_settings: LlamaModelSettings,
@@ -96,7 +134,11 @@ impl LoadedLlamaModel {
     }
 
     fn load_from_file(
-        InferenceRuntimeContext { llama_backend, .. }: &InferenceRuntimeContext,
+        InferenceRuntimeContext {
+            llama_backend,
+            slot_aggregated_status,
+            ..
+        }: &InferenceRuntimeContext,
         inference_parallelism: InferenceParallelism,
         llama_model_settings: LlamaModelSettings,
         vram_occupancy: VramOccupancy,
@@ -104,6 +146,23 @@ impl LoadedLlamaModel {
         let llama_backend = llama_backend
             .get_or_init()
             .map_err(AgentRuntimeError::BackendInitializationFailed)?;
+        let mut llama_model_params = pin!(llama_model_settings.to_llama_model_params());
+        let fitted_context_size = match &llama_model_settings.placement {
+            ModelPlacement::FittedToDeviceMemory(model_runtime_parameters) => {
+                context_size_after_fitting_like_llama_server(
+                    llama_model_params.as_mut(),
+                    &llama_model_settings.model_path,
+                    LlamaContextSettings {
+                        context_size: model_runtime_parameters.context_size,
+                        model_runtime_parameters,
+                        n_seq_max: u32::from(slot_aggregated_status.desired_slots_total),
+                        thread_count: inference_parallelism.inference_thread_count,
+                    }
+                    .into_llama_context_params(),
+                )?
+            }
+            ModelPlacement::Offloaded { .. } => ModelDefaultOr::ModelDefault,
+        };
 
         let model = ModelFilePrefetch {
             model_path: &llama_model_settings.model_path,
@@ -113,7 +172,7 @@ impl LoadedLlamaModel {
             LlamaModel::load_from_file(
                 &llama_backend,
                 &llama_model_settings.model_path,
-                &llama_model_settings.to_llama_model_params(),
+                &llama_model_params,
             )
             .map_err(|source| AgentRuntimeError::ModelLoadFailed {
                 model_path: llama_model_settings.model_path.clone(),
@@ -122,20 +181,17 @@ impl LoadedLlamaModel {
         })?;
         let model_metadata = read_model_metadata(&model)?;
 
-        model
-            .decision_type()
-            .map_err(AgentRuntimeError::ModelDecisionTypeUnreadable)
-            .map(|decision_type| Self {
-                decision_type,
-                inference_parallelism,
-                llama_model_settings,
-                model: Arc::new(ResidentLlamaModel {
-                    llama_model: Arc::new(model),
-                    llama_backend,
-                    vram_occupancy,
-                }),
-                model_metadata: Arc::new(model_metadata),
-            })
+        Ok(Self {
+            fitted_context_size,
+            inference_parallelism,
+            llama_model_settings,
+            model: Arc::new(ResidentLlamaModel {
+                llama_model: Arc::new(model),
+                llama_backend,
+                vram_occupancy,
+            }),
+            model_metadata: Arc::new(model_metadata),
+        })
     }
 
     /// # Errors
@@ -187,12 +243,15 @@ impl LoadedLlamaModel {
     }
 
     #[must_use]
-    pub const fn llama_context_settings<'parameters>(
+    pub fn llama_context_settings<'parameters>(
         &self,
-        model_runtime_parameters: &'parameters ModelRuntimeParameters,
+        model_runtime_parameters: &'parameters DesiredModelRuntimeParameters,
         n_seq_max: u32,
     ) -> LlamaContextSettings<'parameters> {
         LlamaContextSettings {
+            context_size: model_runtime_parameters
+                .context_size
+                .or(self.fitted_context_size),
             model_runtime_parameters,
             n_seq_max,
             thread_count: self.inference_parallelism.inference_thread_count,

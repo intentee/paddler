@@ -5,7 +5,8 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -23,9 +24,9 @@ async fn llama_context_creation_reports_slot_cannot_start_for_excessive_slots() 
             slot_count: 257,
         }],
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                n_gpu_layers: ALL_GPU_LAYERS,
-                ..ModelRuntimeParameters::default()
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                n_gpu_layers: ModelDefaultOr::Explicit(ALL_GPU_LAYERS),
+                ..DesiredModelRuntimeParameters::default()
             },
             model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
             ..BalancerDesiredState::default()
@@ -41,14 +42,14 @@ async fn llama_context_creation_reports_slot_cannot_start_for_excessive_slots() 
             matches!(
                 issue,
                 AgentIssue::SlotCannotStart(SlotCannotStartParams {
-                    inference_capability: InferenceCapability::Embeddings,
+                    inference_capability: InferenceCapability::TextGeneration,
                     slot_index: 0,
                     ..
                 })
             )
         })
         .await
-        .expect("the agent must report that its first embedding slot cannot start");
+        .expect("the agent must report that its first text generation slot cannot start");
 
     cluster
         .shutdown()

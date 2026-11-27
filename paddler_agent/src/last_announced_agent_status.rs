@@ -26,11 +26,11 @@ impl LastAnnouncedAgentStatus {
 
         self.agent_status = slot_aggregated_status_snapshot.status.clone();
 
-        ManagementConnectionStep::Write(ManagementJsonRpcMessage::Notification(
+        ManagementConnectionStep::Write(Box::new(ManagementJsonRpcMessage::Notification(
             ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
                 slot_aggregated_status_snapshot,
             }),
-        ))
+        )))
     }
 }
 
@@ -61,7 +61,7 @@ mod tests {
         assert!(matches!(
             last_announced_agent_status.announce_if_changed(changed_snapshot.clone()),
             ManagementConnectionStep::Write(announced_message)
-                if announced_message == ManagementJsonRpcMessage::Notification(
+                if *announced_message == ManagementJsonRpcMessage::Notification(
                     ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
                         slot_aggregated_status_snapshot: changed_snapshot.clone(),
                     })

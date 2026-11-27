@@ -116,9 +116,9 @@ mod tests {
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
+    use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
     use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::DesiredStateReconciliationAttempt;
@@ -128,7 +128,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_reconciliation_that_cannot_create_its_runtime_stays_pending() {
-        CapturingLogger::install();
+        let capturing_logger = CapturingLogger::install();
 
         let (soft_descriptor_limit, hard_descriptor_limit) =
             getrlimit(Resource::RLIMIT_NOFILE).unwrap();
@@ -136,7 +136,7 @@ mod tests {
         let mut reconciliation_attempt = DesiredStateReconciliationAttempt::start(
             DesiredStateReconciler {
                 desired_model_resolver: DesiredModelResolver::from_process_env(
-                    HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                    HuggingFaceEndpoint::HubDefault,
                 )
                 .unwrap(),
                 slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
@@ -167,7 +167,8 @@ mod tests {
             DesiredStateReconciliation::Pending(Box::default())
         );
         assert!(
-            CapturingLogger::records_for("paddler_agent::desired_state_reconciliation_attempt")
+            capturing_logger
+                .records_for("paddler_agent::desired_state_reconciliation_attempt")
                 .iter()
                 .any(|CapturedRecord { level, .. }| *level == Level::Error)
         );
@@ -190,7 +191,7 @@ mod tests {
                     download_manager: DownloadManager::new().unwrap(),
                     huggingface_client: HuggingFaceHub {
                         cache_location: HuggingFaceCacheLocation::HubDefault,
-                        endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                        endpoint: HuggingFaceEndpoint::HubDefault,
                     }
                     .client()
                     .unwrap(),

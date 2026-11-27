@@ -7,5 +7,6 @@ pub mod first_message_content_chat_template;
 pub mod nomic_embed_desired_state_with_chat_template_override;
 pub mod qwen3_desired_state;
 pub mod smolvlm2_desired_state;
+pub mod ultravox_desired_state;
 pub mod uncompilable_chat_template;
 pub mod uncompilable_chat_template_issue;

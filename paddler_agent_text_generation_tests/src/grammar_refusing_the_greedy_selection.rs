@@ -9,11 +9,12 @@ use llama_cpp_sampler::sampler_error::SamplerError;
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPositions;
-use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
-use crate::constants::GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT;
+use crate::ready_to_sample_request::ReadyToSampleRequest;
 
-const GREEDY_SELECTION_AFTER_THE_PROMPT: LlamaToken = LlamaToken::new(264);
+const GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT: &str = "Paddler balances";
+const GREEDY_SELECTION_AFTER_THE_PROMPT: LlamaToken = LlamaToken::new(383);
 const GRAMMAR_REFUSING_EVERY_PROSE_TOKEN: &str = r#"root ::= "{{{{{{""#;
 const GRAMMAR_ROOT: &str = "root";
 
@@ -24,14 +25,14 @@ pub struct GrammarRefusingTheGreedySelection {
 impl GrammarRefusingTheGreedySelection {
     /// # Errors
     ///
-    /// Returns an error when the kev model cannot load, and when the greedy selection after the prompt ends the generation, which llama.cpp aborts on instead of reporting a grammar that refuses it.
+    /// Returns an error when the Qwen3.5 model cannot load, and when the greedy selection after the prompt ends the generation, which llama.cpp aborts on instead of reporting a grammar that refuses it.
     pub fn load() -> Result<Self> {
-        kev_0_8b()
+        qwen3_5_0_8b()
             .cached_path()
-            .context("the kev model must be in the Hugging Face cache")
+            .context("the Qwen3.5 model must be in the Hugging Face cache")
             .and_then(|model_path| {
                 LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
-                    .context("the kev model must load")
+                    .context("the Qwen3.5 model must load")
             })
         .and_then(|runtime| {
             let greedy_selection_ends_the_generation = runtime
@@ -78,5 +79,19 @@ impl GrammarRefusingTheGreedySelection {
             &[],
             &[GREEDY_SELECTION_AFTER_THE_PROMPT],
         )
+    }
+
+    #[must_use]
+    pub const fn ready_to_sample<'runtime>(
+        &'runtime self,
+        llama_context: &'runtime LlamaContext<'runtime>,
+        prompt_sampling_positions: PromptSamplingPositions,
+    ) -> ReadyToSampleRequest<'runtime> {
+        ReadyToSampleRequest {
+            llama_context,
+            prompt: GRAMMAR_REFUSING_THE_GREEDY_SELECTION_PROMPT,
+            prompt_sampling_positions,
+            runtime: &self.runtime,
+        }
     }
 }

@@ -12,7 +12,7 @@ use paddler_tcp_buffer_limits::tcp_buffer_limits_file::TcpBufferLimitsFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_whose_balancer_stops_reading_reconnects() {
-    CapturingLogger::install();
+    let capturing_logger = CapturingLogger::install();
 
     let largest_send_buffer = TcpBufferLimitsFile::of_kernel_send_buffers()
         .largest_buffer()
@@ -47,7 +47,8 @@ async fn an_agent_whose_balancer_stops_reading_reconnects() {
         .expect("the agent must reconnect once its balancer stops reading its answers");
 
     assert!(
-        CapturingLogger::records_for("paddler_agent::management_socket_client_service")
+        capturing_logger
+            .records_for("paddler_agent::management_socket_client_service")
             .iter()
             .any(|CapturedRecord { level, .. }| *level == Level::Info)
     );

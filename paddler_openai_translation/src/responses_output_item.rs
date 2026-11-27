@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use paddler_messaging::constants::ASSISTANT_ROLE;
+use paddler_messaging::conversation_role::ConversationRole;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::encoded_once_text::EncodedOnceText;
@@ -12,7 +12,7 @@ use crate::responses_reasoning_part::ResponsesReasoningPart;
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum ResponsesOutputItem {
     FunctionCall {
-        arguments: String,
+        arguments: EncodedOnceText,
         call_id: String,
         id: String,
         name: String,
@@ -39,7 +39,7 @@ impl ResponsesOutputItem {
         GeneratedToolCall {
             id: call_id, name, ..
         }: &GeneratedToolCall,
-        arguments: String,
+        arguments: EncodedOnceText,
     ) -> Self {
         Self::FunctionCall {
             arguments,
@@ -55,7 +55,7 @@ impl ResponsesOutputItem {
         Self::Message {
             content: vec![ResponsesContentPart::output_text(text)],
             id,
-            role: ASSISTANT_ROLE,
+            role: ConversationRole::Assistant.name(),
             status: ResponsesItemStatus::Completed,
         }
     }
@@ -78,7 +78,7 @@ impl ResponsesOutputItem {
         }: &GeneratedToolCall,
     ) -> Self {
         Self::FunctionCall {
-            arguments: String::new(),
+            arguments: EncodedOnceText::new(String::new()),
             call_id: call_id.clone(),
             id,
             name: name.clone(),
@@ -91,7 +91,7 @@ impl ResponsesOutputItem {
         Self::Message {
             content: Vec::new(),
             id,
-            role: ASSISTANT_ROLE,
+            role: ConversationRole::Assistant.name(),
             status: ResponsesItemStatus::InProgress,
         }
     }

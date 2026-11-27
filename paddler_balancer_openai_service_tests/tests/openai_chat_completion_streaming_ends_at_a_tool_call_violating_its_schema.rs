@@ -6,7 +6,7 @@ use serde_json::json;
 use paddler_balancer_openai_service_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
+use paddler_request_params_fixture::weather_tool_question::weather_tool_question;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_streaming_ends_at_a_tool_call_violating_its_schema() {
@@ -17,7 +17,7 @@ async fn openai_chat_completion_streaming_ends_at_a_tool_call_violating_its_sche
     let chunks = cluster
         .openai_chat_completion_streaming(&json!({
             "model": "qwen3-test",
-            "messages": [{"role": "user", "content": WEATHER_TOOL_QUESTION}],
+            "messages": [{"role": "user", "content": weather_tool_question()}],
             "max_completion_tokens": 400,
             "stream": true,
             "tools": [{

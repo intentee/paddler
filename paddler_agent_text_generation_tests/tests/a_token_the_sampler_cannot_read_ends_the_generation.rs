@@ -6,17 +6,17 @@ use paddler_agent_pipeline_harness::prompt_sampling_positions::PromptSamplingPos
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation_tests::ready_to_sample_request::ReadyToSampleRequest;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
+use paddler_model_card_fixture::qwen3_5_0_8b::qwen3_5_0_8b;
 
 #[test]
 fn a_token_the_sampler_cannot_read_ends_the_generation() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b()
+        &qwen3_5_0_8b()
             .cached_path()
-            .expect("the kev model must be in the Hugging Face cache"),
+            .expect("the Qwen3.5 model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )
-    .expect("the kev model must load");
+    .expect("the Qwen3.5 model must load");
     let llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");

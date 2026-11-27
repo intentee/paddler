@@ -1,6 +1,7 @@
 use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
 
+use paddler_balancer::cluster_lacks_capability::ClusterLacksCapability;
 use paddler_balancer::compatibility::upstream_failure::UpstreamFailure;
 use paddler_balancer::relay_failure::RelayFailure;
 use paddler_openai_translation::generation_failure::GenerationFailure;
@@ -11,6 +12,7 @@ use crate::openai_error_body::OpenAIErrorBody;
 use crate::openai_error_type::OpenAIErrorType;
 
 pub enum OpenAIFailure {
+    ClusterLacksCapability(ClusterLacksCapability),
     Generation(GenerationFailure),
     Relay(RelayFailure),
     RequestUntranslatable(OpenAITranslationError),
@@ -41,6 +43,9 @@ impl OpenAIFailure {
 
     fn into_message(self) -> String {
         match self {
+            Self::ClusterLacksCapability(cluster_lacks_capability) => {
+                cluster_lacks_capability.to_string()
+            }
             Self::Generation(GenerationFailure { message, .. }) => message,
             Self::Relay(relay_failure) => relay_failure.description(),
             Self::RequestUntranslatable(translation_error) => translation_error.to_string(),
@@ -62,7 +67,8 @@ impl OpenAIFailure {
                 | OpenAITranslationError::ToolRejected(_)
                 | OpenAITranslationError::ToolResultWithoutToolCallId,
             ) => StatusCode::BAD_REQUEST,
-            Self::Generation(GenerationFailure {
+            Self::ClusterLacksCapability(_)
+            | Self::Generation(GenerationFailure {
                 cause: GenerationFailureCause::Unavailable,
                 ..
             }) => UpstreamFailure::Unavailable.status_code(),
@@ -88,8 +94,10 @@ mod tests {
     use serde_json::Value;
     use serde_json::from_str;
 
+    use paddler_balancer::cluster_lacks_capability::ClusterLacksCapability;
     use paddler_balancer::relay_failure::RelayFailure;
     use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
+    use paddler_messaging::requested_capability::RequestedCapability;
     use paddler_openai_translation::chat_completion_message_role::ChatCompletionMessageRole;
     use paddler_openai_translation::generation_failure::GenerationFailure;
     use paddler_openai_translation::generation_failure_cause::GenerationFailureCause;
@@ -189,6 +197,17 @@ mod tests {
         assert_answered_with(
             OpenAIFailure::Relay(RelayFailure::BufferedRequestTimedOut),
             StatusCode::GATEWAY_TIMEOUT,
+            OpenAIErrorType::ServerError,
+        );
+    }
+
+    #[test]
+    fn answers_a_cluster_lacking_the_capability_as_unavailable() {
+        assert_answered_with(
+            OpenAIFailure::ClusterLacksCapability(ClusterLacksCapability {
+                requested_capability: RequestedCapability::Conversation,
+            }),
+            StatusCode::SERVICE_UNAVAILABLE,
             OpenAIErrorType::ServerError,
         );
     }

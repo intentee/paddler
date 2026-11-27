@@ -1,6 +1,8 @@
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
+use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::chat_template_source::ChatTemplateSource;
 
 use crate::constants::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
 
@@ -15,10 +17,10 @@ impl UncompilableChatTemplateIssue {
             issue,
             AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
                 model_path,
-                template_content,
+                template_source: ChatTemplateSource::Override(ChatTemplate { content }),
                 ..
             }) if *model_path == self.model_path
-                && template_content == UNCOMPILABLE_CHAT_TEMPLATE_CONTENT
+                && content == UNCOMPILABLE_CHAT_TEMPLATE_CONTENT
         )
     }
 }

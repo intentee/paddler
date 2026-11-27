@@ -1,9 +1,6 @@
-use crate::decision_delimiters::DecisionDelimiters;
+use crate::decision_prompt_cursor::DecisionPromptCursor;
 
-pub const KEV_DECISION_DELIMITERS: DecisionDelimiters<'static> = DecisionDelimiters {
-    decide: "<|fim_suffix|>",
-    option_end: "<|box_end|>",
-    option_start: "<|box_start|>",
-    question: "<|fim_middle|>",
-    state: "<|fim_prefix|>",
+pub const DECISION_PROMPT_START: DecisionPromptCursor = DecisionPromptCursor {
+    llama_position: 0,
+    token_index: 0,
 };

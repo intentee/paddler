@@ -32,7 +32,7 @@ fn a_tool_call_answer_llama_cpp_fails_to_map_is_reported_as_a_parse_failure() {
     let model = &runtime.loaded_llama_model.model;
     let reading = weather_chat_session(
         model,
-        model
+        &model
             .chat_templates()
             .expect("the model must embed a chat template"),
     )

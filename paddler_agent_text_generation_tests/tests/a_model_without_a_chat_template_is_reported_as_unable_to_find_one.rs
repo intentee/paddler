@@ -1,42 +1,51 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::mem::discriminant;
+use llama_cpp_bindings_types::conversation_capability::ConversationCapability;
+use llama_cpp_bindings_types::conversation_unsupported_reason::ConversationUnsupportedReason;
+use llama_cpp_bindings_types::model_capabilities::ModelCapabilities;
 
+use paddler_agent_text_generation_tests::qwen3_with_a_patched_chat_template::Qwen3WithAPatchedChatTemplate;
 use paddler_cluster_harness::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
-use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
-use paddler_model_source::model_source::ModelSource;
+use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_model_without_a_chat_template_is_reported_as_unable_to_find_one() {
-    let model_card = nomic_embed_text_v1_5();
-    let expected_issue = AgentIssue::UnableToFindChatTemplate(ModelPath::from(
-        model_card
-            .cached_path()
-            .expect("the model must be in the Hugging Face cache")
-            .as_path(),
-    ));
-    let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
-        model: ModelSource::HuggingFace(model_card.reference).into_agent_desired_model(),
-        ..BalancerDesiredState::default()
-    })
+    let qwen3_without_a_chat_template = Qwen3WithAPatchedChatTemplate::without_a_chat_template()
+        .expect("the model without a chat template must be written");
+    let mut cluster = start_single_agent_cluster_with_desired_state(
+        qwen3_without_a_chat_template
+            .desired_state()
+            .expect("the model without a chat template must be at an absolute path"),
+    )
     .await
     .expect("a single-agent cluster must start");
 
     let snapshot = cluster
-        .wait_for_first_agent_issue(|issue| discriminant(issue) == discriminant(&expected_issue))
+        .wait_for_first_agent_to_serve()
         .await
-        .expect("the agent must report UnableToFindChatTemplate for an embedding-only model");
-    let issues = &snapshot
+        .expect("the agent must serve the model without a chat template");
+    let runtime = snapshot
         .agents
         .first()
         .expect("the snapshot must hold the agent")
         .status
-        .issues;
+        .runtime;
 
-    assert!(issues.contains(&expected_issue), "{issues:?}");
+    assert!(
+        matches!(
+            runtime,
+            AgentRuntimeStatus::Serving {
+                capabilities: ModelCapabilities {
+                    conversation: ConversationCapability::Unsupported(
+                        ConversationUnsupportedReason::ModelHasNoChatTemplate
+                    ),
+                    ..
+                },
+                ..
+            }
+        ),
+        "{runtime:?}"
+    );
 
     cluster
         .shutdown()

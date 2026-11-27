@@ -8,13 +8,14 @@ use paddler_agent_text_generation_tests::get_weather_tool::get_weather_tool;
 use paddler_agent_text_generation_tests::start_cluster_with_gemma_4::start_cluster_with_gemma_4;
 use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_request_params_fixture::constants::WEATHER_TOOL_QUESTION;
+use paddler_request_params_fixture::weather_tool_question::weather_tool_question;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn gemma4_internal_endpoint_emits_tool_call_parsed_event() {
@@ -29,13 +30,14 @@ async fn gemma4_internal_endpoint_emits_tool_call_parsed_event() {
                 add_generation_prompt: true,
                 conversation_history: ConversationHistory::new(vec![
                     ConversationMessage::Message {
-                        content: ConversationMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
+                        content: ConversationMessageContent::Text(weather_tool_question()),
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: None,
                 max_tokens: NonZeroU32::new(400).unwrap(),
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: true,
                 tools: vec![get_weather_tool()],
             },

@@ -9,8 +9,9 @@ use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
@@ -34,9 +35,9 @@ async fn agent_reports_a_document_exceeding_its_sequence_context_and_embeds_the_
     let cluster = Cluster::start_in_process(ClusterParams {
         agents: AgentConfig::uniform(1, SLOTS),
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model_runtime_parameters: ModelRuntimeParameters {
-                context_size,
-                n_batch: BatchSize::default().at_most(context_size),
+            model_runtime_parameters: DesiredModelRuntimeParameters {
+                context_size: ModelDefaultOr::Explicit(context_size),
+                n_batch: ModelDefaultOr::Explicit(BatchSize::default().at_most(context_size)),
                 ..desired_state.model_runtime_parameters
             },
             ..desired_state

@@ -159,9 +159,9 @@ mod tests {
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
 
     use super::HuggingFaceModelSource;
-    use crate::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
     use crate::desired_model_resolution::DesiredModelResolution;
     use crate::huggingface_cache_location::HuggingFaceCacheLocation;
+    use crate::huggingface_endpoint::HuggingFaceEndpoint;
     use crate::huggingface_hub::HuggingFaceHub;
     use crate::huggingface_model_reference::HuggingFaceModelReference;
     use crate::model_source::ModelSource;
@@ -193,7 +193,7 @@ mod tests {
     fn offline_client_of(cache_dir: &Path) -> HFClient {
         HuggingFaceHub {
             cache_location: HuggingFaceCacheLocation::Directory(cache_dir.to_path_buf()),
-            endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+            endpoint: HuggingFaceEndpoint::HubDefault,
         }
         .client()
         .unwrap()

@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use paddler_inference_parameters::constants::ALL_GPU_LAYERS;
+use paddler_inference_parameters::desired_model_runtime_parameters::DesiredModelRuntimeParameters;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_card_fixture::model_card::ModelCard;
 use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
@@ -10,7 +11,7 @@ use paddler_model_card_fixture::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use crate::agent_config::AgentConfig;
 use crate::cluster_desired_state::ClusterDesiredState;
 use crate::cluster_params::ClusterParams;
-use crate::constants::LONGER_THAN_ANY_TEST_RUN;
+use crate::longer_than_any_test_run::longer_than_any_test_run;
 
 pub struct EmbeddingClusterParams {
     pub agents: Vec<AgentConfig>,
@@ -18,7 +19,7 @@ pub struct EmbeddingClusterParams {
     pub embedding_parameters: EmbeddingParameters,
     pub max_buffered_requests: u64,
     pub model_card: ModelCard,
-    pub model_runtime_parameters: ModelRuntimeParameters,
+    pub model_runtime_parameters: DesiredModelRuntimeParameters,
 }
 
 impl EmbeddingClusterParams {
@@ -37,8 +38,8 @@ impl EmbeddingClusterParams {
             agents,
             buffered_request_timeout,
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-                model_runtime_parameters: ModelRuntimeParameters {
-                    n_gpu_layers: ALL_GPU_LAYERS,
+                model_runtime_parameters: DesiredModelRuntimeParameters {
+                    n_gpu_layers: ModelDefaultOr::Explicit(ALL_GPU_LAYERS),
                     ..model_runtime_parameters
                 },
                 ..model_card.into_desired_state_with_embedding_parameters(embedding_parameters)
@@ -54,11 +55,11 @@ impl Default for EmbeddingClusterParams {
     fn default() -> Self {
         Self {
             agents: AgentConfig::uniform(1, 4),
-            buffered_request_timeout: LONGER_THAN_ANY_TEST_RUN,
+            buffered_request_timeout: longer_than_any_test_run(),
             embedding_parameters: EmbeddingParameters::default(),
             max_buffered_requests: 10,
             model_card: nomic_embed_text_v1_5(),
-            model_runtime_parameters: ModelRuntimeParameters::default(),
+            model_runtime_parameters: DesiredModelRuntimeParameters::default(),
         }
     }
 }

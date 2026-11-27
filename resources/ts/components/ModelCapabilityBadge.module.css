@@ -1,0 +1,13 @@
+.modelCapabilityBadge {
+  --color-button-background: honeydew;
+
+  composes: modelDetailsPreviewButton from "./modelDetailsPreviewButton.module.css";
+  cursor: help;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.modelCapabilityBadge.modelCapabilityBadgeUnsupported {
+  --color-button-background: whitesmoke;
+  --color-button-text: dimgray;
+}

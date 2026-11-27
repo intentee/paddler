@@ -65,7 +65,7 @@ mod tests {
             token_classification: TokenClassification::Undeterminable,
             token_sampling: TokenSampling {
                 chain: SamplerChainFactory {
-                    sampling_parameters: SamplingParameters::default(),
+                    sampling_parameters: SamplingParameters::deterministic(),
                     n_vocab: 1,
                 }
                 .create(0)

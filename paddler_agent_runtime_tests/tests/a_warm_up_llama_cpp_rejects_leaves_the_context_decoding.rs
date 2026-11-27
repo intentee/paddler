@@ -9,8 +9,10 @@ use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 
 use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_inference_runtime_context;
+use paddler_agent_pipeline_harness::established_decision_capabilities::EstablishedDecisionCapabilities;
 use paddler_agent_pipeline_harness::llama_runtime::LlamaRuntime;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_model_card_fixture::kev_0_8b::kev_0_8b;
 
 const SLOTS: u16 = 200;
@@ -26,10 +28,17 @@ fn a_warm_up_llama_cpp_rejects_leaves_the_context_decoding() {
     )
     .expect("the kev model must load");
 
-    runtime.model_runtime_parameters.context_size = CACHE_CELLS_FEWER_THAN_TWO_PER_SLOT;
+    let EstablishedDecisionCapabilities {
+        decision_model,
+        model_capabilities,
+    } = EstablishedDecisionCapabilities::of(&runtime)
+        .expect("llama.cpp must serve decisions of the kev model");
+
+    runtime.model_runtime_parameters.context_size =
+        ModelDefaultOr::Explicit(CACHE_CELLS_FEWER_THAN_TWO_PER_SLOT);
 
     let mut llama_context = runtime
-        .create_decision_llama_context(u32::from(SLOTS))
+        .create_decision_llama_context(&decision_model, &model_capabilities, u32::from(SLOTS))
         .expect("the context must be created");
     let mut batch = LlamaBatch::new(llama_context.limits());
 

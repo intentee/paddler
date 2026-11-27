@@ -9,6 +9,7 @@ use paddler_cluster_harness::agent_config::AgentConfig;
 use paddler_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster_harness::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 use paddler_cluster_harness::unending_grammar::unending_grammar;
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -47,9 +48,10 @@ async fn an_agent_drains_in_flight_inference_before_swapping_its_chat_template()
                         role: "user".to_owned(),
                     },
                 ]),
-                enable_thinking: false,
+                enable_thinking: ModelDefaultOr::Explicit(false),
                 grammar: Some(unending_grammar()),
                 max_tokens: NonZeroU32::MAX,
+                parallel_tool_calls: ModelDefaultOr::ModelDefault,
                 parse_tool_calls: false,
                 tools: vec![],
             },

@@ -1,5 +1,5 @@
-use anyhow::Result;
-use async_trait::async_trait;
+use std::convert::Infallible;
+
 use futures_util::StreamExt as _;
 use futures_util::stream::BoxStream;
 use futures_util::stream::SelectAll;
@@ -19,7 +19,7 @@ use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::service::Service;
 
 use paddler_error_chain::error_chain::ErrorChain;
 use paddler_frame_writer::frame_writing_end::FrameWritingEnd;
@@ -97,12 +97,13 @@ impl ManagementSocketClientService {
             SelectAll::<BoxStream<'static, ManagementJsonRpcMessage>>::new();
         let mut ping_ticker = ping_ticker();
         let mut ping_liveness = PingLiveness::default();
-        let mut step = ManagementConnectionStep::Write(ManagementJsonRpcMessage::Notification(
-            ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
-                name: self.name.clone(),
-                slot_aggregated_status_snapshot: registration_snapshot,
-            }),
-        ));
+        let mut step =
+            ManagementConnectionStep::Write(Box::new(ManagementJsonRpcMessage::Notification(
+                ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
+                    name: self.name.clone(),
+                    slot_aggregated_status_snapshot: registration_snapshot,
+                }),
+            )));
 
         let connection_end = loop {
             step = match step {
@@ -133,7 +134,7 @@ impl ManagementSocketClientService {
                     Ok(()) = update_rx.changed() => last_announced_agent_status
                         .announce_if_changed(slot_aggregated_status.make_snapshot()),
                     Some(pipeline_response) = pipeline_responses.next() => {
-                        ManagementConnectionStep::Write(pipeline_response)
+                        ManagementConnectionStep::Write(Box::new(pipeline_response))
                     }
                 },
                 ManagementConnectionStep::Deregister => {
@@ -228,13 +229,14 @@ impl ManagementSocketClientService {
     }
 }
 
-#[async_trait]
 impl Service for ManagementSocketClientService {
+    type Error = Infallible;
+
     fn name(&self) -> &'static str {
         "agent::management_socket_client_service"
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<(), Infallible> {
         self.reconnect_to_the_balancer_until_shutdown(shutdown)
             .await;
 

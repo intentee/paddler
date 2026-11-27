@@ -1,5 +1,8 @@
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
+use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
+use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
 
 use crate::balancer_error::BalancerError;
 
@@ -22,6 +25,16 @@ impl BalancerApplicableState {
             balancer_desired_state,
             version,
         }
+    }
+
+    #[must_use]
+    pub fn agent_notification(&self) -> AgentJsonRpcMessage {
+        AgentJsonRpcMessage::Notification(AgentJsonRpcNotification::SetState(Box::new(
+            SetStateParams {
+                desired_state: self.agent_desired_state.clone(),
+                version: self.version,
+            },
+        )))
     }
 
     /// # Errors

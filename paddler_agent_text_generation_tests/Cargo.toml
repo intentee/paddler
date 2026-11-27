@@ -20,7 +20,7 @@ path = "tests/main.rs"
 [features]
 cuda = ["paddler_cluster_harness/cuda"]
 metal = ["paddler_cluster_harness/metal"]
-tests_that_use_llms = []
+tests_that_use_llms = ["dep:libc", "dep:paddler_refused_syscalls", "dep:seccompiler"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -29,9 +29,11 @@ llama-cpp-bindings-types = { workspace = true }
 llama-cpp-chat = { workspace = true }
 llama-cpp-context = { workspace = true }
 llama-cpp-fault-injection = { workspace = true }
+llama-cpp-gguf = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-sampler = { workspace = true }
 log = { workspace = true }
+paddler_agent_model_capabilities = { workspace = true }
 paddler_agent_pipeline_harness = { workspace = true }
 paddler_agent_runtime = { workspace = true }
 paddler_agent_text_generation = { workspace = true }
@@ -51,13 +53,14 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
+base64 = { workspace = true }
 futures-util = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libc = { workspace = true }
-paddler_refused_syscalls = { workspace = true }
-seccompiler = { workspace = true }
+libc = { workspace = true, optional = true }
+paddler_refused_syscalls = { workspace = true, optional = true }
+seccompiler = { workspace = true, optional = true }
 
 [lints]
 workspace = true

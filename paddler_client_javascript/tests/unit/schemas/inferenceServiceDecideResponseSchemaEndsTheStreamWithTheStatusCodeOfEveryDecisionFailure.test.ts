@@ -5,14 +5,15 @@ import { InferenceServiceDecideResponseSchema } from "../../../src/schemas/Infer
 import { decisionResponse } from "./decisionResponse";
 
 const decisionFailureCodes = [
+  { code: 500, variant: "AnswersUnreadable" },
   { code: 500, variant: "BatchAssemblyFailed" },
   { code: 503, variant: "DecisionsNotServed" },
   { code: 500, variant: "DecodeFailed" },
-  { code: 500, variant: "HiddenStateUnavailable" },
-  { code: 400, variant: "InputTokenizationFailed" },
   { code: 500, variant: "KvCacheCopyFailed" },
   { code: 500, variant: "KvCacheRemovalFailed" },
+  { code: 500, variant: "MediaEvaluationFailed" },
   { code: 503, variant: "ModelNotLoaded" },
+  { code: 400, variant: "RequestRejected" },
   { code: 503, variant: "SchedulerUnavailable" },
 ];
 

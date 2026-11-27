@@ -1,7 +1,7 @@
 use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
 
-use paddler_balancer::cluster_serves_no_decisions::ClusterServesNoDecisions;
+use paddler_balancer::cluster_lacks_capability::ClusterLacksCapability;
 use paddler_balancer::compatibility::upstream_failure::UpstreamFailure;
 use paddler_balancer::relay_failure::RelayFailure;
 use paddler_error_chain::error_chain::ErrorChain;
@@ -25,10 +25,10 @@ impl TypeSafeDecisionFailure {
     }
 }
 
-impl From<ClusterServesNoDecisions> for TypeSafeDecisionFailure {
-    fn from(cluster_serves_no_decisions: ClusterServesNoDecisions) -> Self {
+impl From<ClusterLacksCapability> for TypeSafeDecisionFailure {
+    fn from(cluster_lacks_capability: ClusterLacksCapability) -> Self {
         Self {
-            detail: cluster_serves_no_decisions.to_string(),
+            detail: cluster_lacks_capability.to_string(),
             status_code: UpstreamFailure::Unavailable.status_code(),
         }
     }

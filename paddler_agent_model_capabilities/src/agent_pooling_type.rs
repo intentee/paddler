@@ -1,0 +1,91 @@
+use llama_cpp_model_capabilities::embedding_pooling_choice::EmbeddingPoolingChoice;
+use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
+
+use paddler_inference_parameters::pooling_type::PoolingType;
+
+use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
+
+pub struct AgentPoolingType(pub PoolingType);
+
+impl AgentPoolingType {
+    #[must_use]
+    pub fn embedding_pooling_choice(self) -> EmbeddingPoolingChoice {
+        match self.0 {
+            PoolingType::Unspecified => EmbeddingPoolingChoice::ModelDefault,
+            explicit_pooling => {
+                EmbeddingPoolingChoice::Explicit(Self(explicit_pooling).to_llama_pooling_type())
+            }
+        }
+    }
+}
+
+impl ConvertsToLlamaPoolingType for AgentPoolingType {
+    fn to_llama_pooling_type(self) -> LlamaPoolingType {
+        match self.0 {
+            PoolingType::Unspecified => LlamaPoolingType::Unspecified,
+            PoolingType::None => LlamaPoolingType::None,
+            PoolingType::Mean => LlamaPoolingType::Mean,
+            PoolingType::Cls => LlamaPoolingType::Cls,
+            PoolingType::Last => LlamaPoolingType::Last,
+            PoolingType::Rank => LlamaPoolingType::Rank,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
+
+    use paddler_inference_parameters::pooling_type::PoolingType;
+
+    use super::AgentPoolingType;
+    use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
+
+    #[test]
+    fn maps_unspecified_pooling_to_the_llama_unspecified_pooling() {
+        assert_eq!(
+            AgentPoolingType(PoolingType::Unspecified).to_llama_pooling_type(),
+            LlamaPoolingType::Unspecified
+        );
+    }
+
+    #[test]
+    fn maps_none_pooling_to_the_llama_none_pooling() {
+        assert_eq!(
+            AgentPoolingType(PoolingType::None).to_llama_pooling_type(),
+            LlamaPoolingType::None
+        );
+    }
+
+    #[test]
+    fn maps_mean_pooling_to_the_llama_mean_pooling() {
+        assert_eq!(
+            AgentPoolingType(PoolingType::Mean).to_llama_pooling_type(),
+            LlamaPoolingType::Mean
+        );
+    }
+
+    #[test]
+    fn maps_cls_pooling_to_the_llama_cls_pooling() {
+        assert_eq!(
+            AgentPoolingType(PoolingType::Cls).to_llama_pooling_type(),
+            LlamaPoolingType::Cls
+        );
+    }
+
+    #[test]
+    fn maps_last_pooling_to_the_llama_last_pooling() {
+        assert_eq!(
+            AgentPoolingType(PoolingType::Last).to_llama_pooling_type(),
+            LlamaPoolingType::Last
+        );
+    }
+
+    #[test]
+    fn maps_rank_pooling_to_the_llama_rank_pooling() {
+        assert_eq!(
+            AgentPoolingType(PoolingType::Rank).to_llama_pooling_type(),
+            LlamaPoolingType::Rank
+        );
+    }
+}

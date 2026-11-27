@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use llama_cpp_backend::backend_error::BackendError;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_model::model_error::ModelError;
+use llama_cpp_params::params_error::ParamsError;
 
 use paddler_messaging::inference_capability::InferenceCapability;
 
@@ -38,8 +39,12 @@ pub enum AgentRuntimeError {
         source: ModelError,
     },
 
-    #[error("unable to tell which decision type the loaded model is")]
-    ModelDecisionTypeUnreadable(#[source] ModelError),
+    #[error("llama.cpp cannot fit the model at {model_path} to the device memory")]
+    ModelFitFailed {
+        model_path: PathBuf,
+        #[source]
+        source: ParamsError,
+    },
 
     #[error("unable to read the metadata of the loaded model")]
     ModelMetadataUnreadable(#[source] ModelError),

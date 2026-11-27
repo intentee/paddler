@@ -5,6 +5,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::TryFutureExt as _;
 use futures_util::future::ready;
+use llama_cpp_bindings_types::decision_request::DecisionRequest;
 use log::LevelFilter;
 use log::set_max_level;
 use serde_json::Value;
@@ -13,33 +14,34 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_cache_dir::cache_dir::CacheDir;
-use paddler_download_manager::download_manager::DownloadManager;
-use paddler_model_source::constants::HUGGINGFACE_DEFAULT_ENDPOINT;
-use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
-use paddler_model_source::huggingface_hub::HuggingFaceHub;
 use paddler_client::client_health::ClientHealth;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
-use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
-use paddler_messaging::model_download_status::ModelDownloadStatus;
+use paddler_download_manager::download_manager::DownloadManager;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::requested_capability::RequestedCapability;
+use paddler_model_source::huggingface_endpoint::HuggingFaceEndpoint;
+use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
+use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
 use crate::agent_config::AgentConfig;
 use crate::agent_count_is::agent_count_is;
 use crate::agent_readiness::AgentReadiness;
-use crate::agent_serves_decisions::agent_serves_decisions;
+use crate::agent_serves_a_model::agent_serves_a_model;
+use crate::agent_serves_a_model_lacking::agent_serves_a_model_lacking;
 use crate::agent_slots_processing_is::agent_slots_processing_is;
 use crate::agent_spawner::AgentSpawner;
 use crate::buffered_request_count_is::buffered_request_count_is;
@@ -177,7 +179,7 @@ impl Cluster {
             download_manager: DownloadManager::new()?,
             huggingface_client: HuggingFaceHub {
                 cache_location: HuggingFaceCacheLocation::HubDefault,
-                endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                endpoint: HuggingFaceEndpoint::HubDefault,
             }
             .client()?,
         };
@@ -290,7 +292,7 @@ impl Cluster {
     pub fn decide(
         &self,
         cancellation_token: CancellationToken,
-        params: &RawDecideParams,
+        params: &DecisionRequest,
     ) -> impl Future<Output = Result<CollectedDecisionResults>> + Send + use<> {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
@@ -547,6 +549,18 @@ impl Cluster {
 
     /// # Errors
     ///
+    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, [`ClusterHarnessError::AgentLeftThePool`] when the first agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent applies its desired state.
+    pub async fn wait_for_first_agent_to_apply_its_state(
+        &mut self,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
+        self.wait_for_first_agent(|AgentControllerSnapshot { status, .. }| {
+            status.state_application_status == AgentStateApplicationStatus::Applied
+        })
+        .await
+    }
+
+    /// # Errors
+    ///
     /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent downloads its model.
     pub async fn wait_for_first_agent_to_download(
         &mut self,
@@ -559,12 +573,21 @@ impl Cluster {
 
     /// # Errors
     ///
-    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, [`ClusterHarnessError::AgentLeftThePool`] when the first agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent serves the decisions.
+    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, [`ClusterHarnessError::AgentLeftThePool`] when the first agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent serves a model.
     pub async fn wait_for_first_agent_to_serve(
         &mut self,
-        decisions: AgentDecisionsServing,
     ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
-        self.wait_for_first_agent(|agent| agent_serves_decisions(agent, decisions))
+        self.wait_for_first_agent(agent_serves_a_model).await
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ClusterHarnessError::ClusterHasNoRegisteredAgent`] when no agent is registered, [`ClusterHarnessError::AgentLeftThePool`] when the first agent leaves the pool, and [`ClusterHarnessError::SnapshotsStreamClosed`] or [`ClusterHarnessError::SnapshotsStreamFailed`] when the agents stream ends or fails before the first agent serves a model lacking the capability.
+    pub async fn wait_for_first_agent_to_serve_a_model_lacking(
+        &mut self,
+        requested_capability: RequestedCapability,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
+        self.wait_for_first_agent(|agent| agent_serves_a_model_lacking(agent, requested_capability))
             .await
     }
 

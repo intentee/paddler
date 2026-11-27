@@ -26,7 +26,7 @@ default = []
 cuda = ["paddler_cli/cuda"]
 metal = ["paddler_cli/metal"]
 tests_that_use_llms = []
-web_admin_panel = ["paddler_cli/web_admin_panel"]
+web_admin_panel = ["paddler_cli/web_admin_panel", "paddler_cluster_harness/web_admin_panel"]
 
 [dependencies]
 anyhow = { workspace = true }

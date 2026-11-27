@@ -4,7 +4,11 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_balancer::agent_streaming_request::AgentStreamingRequest as _;
+use paddler_balancer::capability_availability::CapabilityAvailability;
 use paddler_balancer::compatibility::compatibility_app_data::CompatibilityAppData;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_openai_translation::responses_delivery::ResponsesDelivery;
 use paddler_openai_translation::responses_request::ResponsesRequest;
 use paddler_openai_translation::translated_responses_request::TranslatedResponsesRequest;
@@ -19,6 +23,14 @@ async fn respond(
     app_data: web::Data<CompatibilityAppData>,
     responses_request: web::Json<ResponsesRequest>,
 ) -> HttpResponse {
+    if let CapabilityAvailability::Lacking(cluster_lacks_capability) =
+        app_data.agent_controller_pool.capability_availability(
+        ContinueFromConversationHistoryParams::<ValidatedParametersSchema>::REQUESTED_CAPABILITY,
+    ) {
+        return OpenAIFailure::ClusterLacksCapability(cluster_lacks_capability)
+            .into_http_response();
+    }
+
     let balancer_applicable_state = app_data
         .balancer_applicable_state_holder
         .get_balancer_applicable_state();

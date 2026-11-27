@@ -7,8 +7,8 @@ use reqwest::get;
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
-use paddler_cluster_harness::constants::EPHEMERAL_LOOPBACK_ADDR;
 use paddler_cluster_harness::dashboard_attributes::dashboard_attributes;
+use paddler_cluster_harness::ephemeral_loopback_addr::ephemeral_loopback_addr;
 
 use crate::bootstrap_tests_error::BootstrapTestsError;
 
@@ -56,7 +56,7 @@ pub async fn rendered_dashboard_attributes(
     params
         .bootstrap_config
         .web_admin_panel_service_configuration = Some(WebAdminPanelServiceConfiguration {
-        addr: EPHEMERAL_LOOPBACK_ADDR,
+        addr: ephemeral_loopback_addr(),
     });
 
     BalancerRunner::start(params)

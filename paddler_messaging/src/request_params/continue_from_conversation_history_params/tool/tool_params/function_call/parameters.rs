@@ -5,7 +5,7 @@ use serde_json::Value;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use crate::request_params_validation_error::RequestParamsValidationError;
-use crate::validates::Validates;
+use crate::request_params::validates::Validates;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -49,7 +49,7 @@ mod tests {
     use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use crate::request_params_validation_error::RequestParamsValidationError;
-use crate::validates::Validates;
+use crate::request_params::validates::Validates;
 use super::Parameters;
 
     fn properties_with_name() -> Map<String, Value> {

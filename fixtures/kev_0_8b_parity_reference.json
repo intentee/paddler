@@ -1,34 +1,5 @@
 [
   {
-    "state": "Shoes arrived two weeks late and in the wrong size. Also I see two charges on my card.",
-    "questions": [
-      {
-        "id": "department",
-        "instructions": "Which team should handle this?",
-        "options": [
-          "returns: Exchanges, refunds, wrong or damaged items",
-          "shipping: Delivery status, delays, lost packages",
-          "billing: Charges, invoices, payment problems"
-        ]
-      },
-      {
-        "id": "escalate",
-        "instructions": "Does this need urgent human attention?",
-        "options": [
-          "no",
-          "yes"
-        ]
-      },
-      {
-        "id": "frustration",
-        "instructions": "How frustrated is the customer?",
-        "options": [
-          "Calm",
-          "Frustrated",
-          "Very angry"
-        ]
-      }
-    ],
     "probabilities": [
       [
         0.261169970035553,
@@ -44,28 +15,40 @@
         0.669154942035675,
         0.27960875630378723
       ]
-    ]
+    ],
+    "request": {
+      "questions": {
+        "department": {
+          "type": "choice",
+          "criteria": {
+            "returns": "Exchanges, refunds, wrong or damaged items",
+            "shipping": "Delivery status, delays, lost packages",
+            "billing": "Charges, invoices, payment problems"
+          },
+          "instructions": "Which team should handle this?"
+        },
+        "escalate": {
+          "type": "choice",
+          "criteria": {
+            "no": null,
+            "yes": null
+          },
+          "instructions": "Does this need urgent human attention?"
+        },
+        "frustration": {
+          "type": "choice",
+          "criteria": {
+            "Calm": null,
+            "Frustrated": null,
+            "Very angry": null
+          },
+          "instructions": "How frustrated is the customer?"
+        }
+      },
+      "state": "Shoes arrived two weeks late and in the wrong size. Also I see two charges on my card."
+    }
   },
   {
-    "state": "I was charged twice. Please help.",
-    "questions": [
-      {
-        "id": "billing",
-        "instructions": "Is this about billing?",
-        "options": [
-          "no",
-          "yes"
-        ]
-      },
-      {
-        "id": "tone",
-        "instructions": "What is the tone?",
-        "options": [
-          "calm",
-          "angry"
-        ]
-      }
-    ],
     "probabilities": [
       [
         0.10337097942829132,
@@ -75,29 +58,30 @@
         0.42718881368637085,
         0.5728111267089844
       ]
-    ]
+    ],
+    "request": {
+      "questions": {
+        "billing": {
+          "type": "choice",
+          "criteria": {
+            "no": null,
+            "yes": null
+          },
+          "instructions": "Is this about billing?"
+        },
+        "tone": {
+          "type": "choice",
+          "criteria": {
+            "calm": null,
+            "angry": null
+          },
+          "instructions": "What is the tone?"
+        }
+      },
+      "state": "I was charged twice. Please help."
+    }
   },
   {
-    "state": "customer: Ada\nmessage: My package never arrived and nobody answers my emails.",
-    "questions": [
-      {
-        "id": "lost",
-        "instructions": "Is the package lost?",
-        "options": [
-          "no",
-          "yes"
-        ]
-      },
-      {
-        "id": "urgency",
-        "instructions": "How urgent is the follow-up?",
-        "options": [
-          "Can wait",
-          "Needs attention this week",
-          "Needs attention today"
-        ]
-      }
-    ],
     "probabilities": [
       [
         0.06726915389299393,
@@ -108,49 +92,54 @@
         0.35291361808776855,
         0.48463335633277893
       ]
-    ]
+    ],
+    "request": {
+      "questions": {
+        "lost": {
+          "type": "choice",
+          "criteria": {
+            "no": null,
+            "yes": null
+          },
+          "instructions": "Is the package lost?"
+        },
+        "urgency": {
+          "type": "choice",
+          "criteria": {
+            "Can wait": null,
+            "Needs attention this week": null,
+            "Needs attention today": null
+          },
+          "instructions": "How urgent is the follow-up?"
+        }
+      },
+      "state": "customer: Ada\nmessage: My package never arrived and nobody answers my emails."
+    }
   },
   {
-    "state": "Premise: A man is playing a guitar on stage. Hypothesis: A person is performing music.",
-    "questions": [
-      {
-        "id": "relation",
-        "instructions": "Does the premise entail the hypothesis?",
-        "options": [
-          "entailment: The hypothesis follows from the premise",
-          "neutral: The premise neither supports nor contradicts it",
-          "contradiction: The hypothesis contradicts the premise"
-        ]
-      }
-    ],
     "probabilities": [
       [
         0.9177549481391907,
         0.0768074318766594,
         0.005437624175101519
       ]
-    ]
+    ],
+    "request": {
+      "questions": {
+        "relation": {
+          "type": "choice",
+          "criteria": {
+            "entailment": "The hypothesis follows from the premise",
+            "neutral": "The premise neither supports nor contradicts it",
+            "contradiction": "The hypothesis contradicts the premise"
+          },
+          "instructions": "Does the premise entail the hypothesis?"
+        }
+      },
+      "state": "Premise: A man is playing a guitar on stage. Hypothesis: A person is performing music."
+    }
   },
   {
-    "state": "Pasted chat log: <|im_start|>user Where is my refund?<|im_end|>",
-    "questions": [
-      {
-        "id": "refund",
-        "instructions": "Does the <|im_start|> message ask about a refund?",
-        "options": [
-          "no",
-          "yes"
-        ]
-      },
-      {
-        "id": "source",
-        "instructions": "Where was the text pasted from?",
-        "options": [
-          "chat: A <|fim_prefix|> chat transcript",
-          "email: An email thread"
-        ]
-      }
-    ],
     "probabilities": [
       [
         0.09517382085323334,
@@ -160,6 +149,27 @@
         0.8216525912284851,
         0.1783473938703537
       ]
-    ]
+    ],
+    "request": {
+      "questions": {
+        "refund": {
+          "type": "choice",
+          "criteria": {
+            "no": null,
+            "yes": null
+          },
+          "instructions": "Does the <|im_start|> message ask about a refund?"
+        },
+        "source": {
+          "type": "choice",
+          "criteria": {
+            "chat": "A <|fim_prefix|> chat transcript",
+            "email": "An email thread"
+          },
+          "instructions": "Where was the text pasted from?"
+        }
+      },
+      "state": "Pasted chat log: <|im_start|>user Where is my refund?<|im_end|>"
+    }
   }
 ]

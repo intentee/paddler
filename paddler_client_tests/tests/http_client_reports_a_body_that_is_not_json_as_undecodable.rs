@@ -6,17 +6,17 @@ use paddler_client::format_api_url::format_api_url;
 use paddler_client::http_client::HttpClient;
 use paddler_cluster_harness::cluster::Cluster;
 use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_messaging::constants::API_PATH_HEALTH;
+use paddler_messaging::api_path::ApiPath;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_client_reports_a_body_that_is_not_json_as_undecodable() {
     let cluster = Cluster::start_in_process(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
-    let health_url = format_api_url(&cluster.balancer.management_base_url, API_PATH_HEALTH);
+    let health_url = format_api_url(&cluster.balancer.management_base_url, ApiPath::health());
 
     let health_as_json = HttpClient::new(cluster.balancer.management_base_url.clone())
-        .get_json::<String>(CancellationToken::new(), API_PATH_HEALTH)
+        .get_json::<String>(CancellationToken::new(), ApiPath::health())
         .await;
 
     assert!(matches!(

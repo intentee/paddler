@@ -12,6 +12,7 @@ version.workspace = true
 doctest = false
 
 [dependencies]
+base64 = { workspace = true }
 encoding_rs = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
@@ -20,10 +21,12 @@ llama-cpp-context = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
 llama-cpp-model = { workspace = true }
+llama-cpp-model-capabilities = { workspace = true }
 llama-cpp-mtmd = { workspace = true }
 llama-cpp-sampler = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
 log = { workspace = true }
+paddler_agent_model_capabilities = { workspace = true }
 paddler_agent_runtime = { workspace = true }
 paddler_agent_status = { workspace = true }
 paddler_error_chain = { workspace = true }
@@ -39,9 +42,21 @@ tokio-util = { workspace = true }
 
 [features]
 default = []
-cuda = ["llama-cpp-bindings/cuda", "paddler_agent_runtime/cuda"]
-metal = ["llama-cpp-bindings/metal", "paddler_agent_runtime/metal"]
-vulkan = ["llama-cpp-bindings/vulkan", "paddler_agent_runtime/vulkan"]
+cuda = [
+    "llama-cpp-bindings/cuda",
+    "paddler_agent_model_capabilities/cuda",
+    "paddler_agent_runtime/cuda",
+]
+metal = [
+    "llama-cpp-bindings/metal",
+    "paddler_agent_model_capabilities/metal",
+    "paddler_agent_runtime/metal",
+]
+vulkan = [
+    "llama-cpp-bindings/vulkan",
+    "paddler_agent_model_capabilities/vulkan",
+    "paddler_agent_runtime/vulkan",
+]
 
 [lints]
 workspace = true

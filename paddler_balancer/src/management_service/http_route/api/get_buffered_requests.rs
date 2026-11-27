@@ -2,7 +2,7 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::get;
 
-use paddler_messaging::constants::API_PATH_BUFFERED_REQUESTS;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
 use crate::management_service::app_data::AppData;
@@ -12,7 +12,7 @@ async fn respond(app_data: web::Data<AppData>) -> HttpResponse {
 }
 
 pub fn get_buffered_requests(cfg: &mut web::ServiceConfig) {
-    cfg.route(API_PATH_BUFFERED_REQUESTS, get().to(respond));
+    cfg.route(ApiPath::buffered_requests(), get().to(respond));
 }
 
 #[cfg(test)]
@@ -31,8 +31,8 @@ mod tests {
 
     use paddler_balancer_state_database::state_database::StateDatabase;
     use paddler_balancer_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
+    use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-    use paddler_messaging::constants::API_PATH_BUFFERED_REQUESTS;
 
     use super::get_buffered_requests;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -79,7 +79,7 @@ mod tests {
         )
         .await;
         let request = TestRequest::get()
-            .uri(API_PATH_BUFFERED_REQUESTS)
+            .uri(ApiPath::buffered_requests())
             .to_request();
         let response = call_service(&app, request).await;
 

@@ -9,7 +9,6 @@ pub mod balancer_runner;
 pub mod balancer_runner_params;
 pub mod balancer_service_bundle;
 pub mod bootstrap_error;
-pub mod constants;
 pub mod registers_services;
 pub mod run_service_manager;
 pub mod service_thread;

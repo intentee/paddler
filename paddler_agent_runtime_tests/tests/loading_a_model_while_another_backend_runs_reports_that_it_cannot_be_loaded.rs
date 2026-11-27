@@ -7,6 +7,7 @@ use paddler_agent_pipeline_harness::agent_inference_runtime_context::agent_infer
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_agent_runtime::model_placement::ModelPlacement;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
@@ -20,7 +21,7 @@ fn loading_a_model_while_another_backend_runs_reports_that_it_cannot_be_loaded()
         &inference_runtime_context,
         LlamaModelSettings {
             model_path: model_path.clone(),
-            n_gpu_layers: 0,
+            placement: ModelPlacement::Offloaded { n_gpu_layers: 0 },
         },
     )
     .err()

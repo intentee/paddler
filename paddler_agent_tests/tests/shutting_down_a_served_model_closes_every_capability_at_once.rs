@@ -22,15 +22,16 @@ fn shutting_down_a_served_model_closes_every_capability_at_once() {
                 .expect("the model must load")
                 .expect("text generation and embeddings must start");
             let embeddings_preparations = serving
-                .embeddings_preparation_tasks()
-                .expect("a model that makes no decisions must serve embeddings");
-            let ModelServingTextGenerationAndEmbeddings { served_model, .. } = serving;
-            let text_generation_preparations = served_model
-                .capabilities
-                .text_generation
-                .request_preparer
+                .embeddings_request_preparer()
+                .expect("a model that makes no decisions must serve embeddings")
                 .preparation_tasks
                 .clone();
+            let text_generation_preparations = serving
+                .text_generation_request_preparer()
+                .expect("the chat model must serve text generation")
+                .preparation_tasks
+                .clone();
+            let ModelServingTextGenerationAndEmbeddings { served_model, .. } = serving;
             let occupied_blocking_thread = OccupiedBlockingThread::occupy();
             let mut shutting_down = pin!(served_model.shut_down());
 

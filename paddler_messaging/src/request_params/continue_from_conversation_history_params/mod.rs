@@ -5,12 +5,14 @@ use std::num::NonZeroU32;
 use serde::Deserialize;
 use serde::Serialize;
 
+use paddler_inference_parameters::model_default_or::ModelDefaultOr;
+
 use crate::conversation_history::ConversationHistory;
 use crate::grammar_constraint::GrammarConstraint;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use crate::request_params_validation_error::RequestParamsValidationError;
-use crate::validates::Validates;
+use crate::request_params::validates::Validates;
 use self::tool::Tool;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -19,10 +21,13 @@ use self::tool::Tool;
 pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
     pub add_generation_prompt: bool,
     pub conversation_history: ConversationHistory,
-    pub enable_thinking: bool,
+    #[serde(default)]
+    pub enable_thinking: ModelDefaultOr<bool>,
     #[serde(default)]
     pub grammar: Option<GrammarConstraint>,
     pub max_tokens: NonZeroU32,
+    #[serde(default)]
+    pub parallel_tool_calls: ModelDefaultOr<bool>,
     #[serde(default)]
     pub parse_tool_calls: bool,
     #[serde(default)]
@@ -48,6 +53,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
             enable_thinking: self.enable_thinking,
             grammar: self.grammar,
             max_tokens: self.max_tokens,
+            parallel_tool_calls: self.parallel_tool_calls,
             parse_tool_calls: self.parse_tool_calls,
             tools: self
                 .tools
@@ -66,7 +72,7 @@ mod tests {
     use crate::request_params_validation_error::RequestParamsValidationError;
     use super::ContinueFromConversationHistoryParams;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use crate::validates::Validates as _;
+use crate::request_params::validates::Validates as _;
 
     #[test]
     fn validate_fails_when_tool_call_parsing_is_requested_without_tools() {

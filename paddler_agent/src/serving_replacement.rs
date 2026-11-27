@@ -69,16 +69,16 @@ impl ServingReplacement {
         desired_settings: ModelServingSettings,
     ) -> ReplacementOutcome {
         let loaded_model_serving_plan = match held.retain_for(desired_settings).await {
-            RetainedServing::LoadedModel(loaded_model_serving_plan) => loaded_model_serving_plan,
+            RetainedServing::LoadedModel(loaded_model_serving_plan) => *loaded_model_serving_plan,
             RetainedServing::ModelToLoad(desired_settings) => match capability_starter
                 .load_model(desired_settings.llama_model_settings())
                 .await
             {
                 ControlFlow::Continue(loaded_llama_model) => {
-                    LoadedModelServingPlan::starting_every_capability(
+                    LoadedModelServingPlan::StartingEveryCapability {
                         loaded_llama_model,
-                        desired_settings,
-                    )
+                        model_serving_settings: desired_settings,
+                    }
                 }
                 ControlFlow::Break(interruption) => {
                     return interruption.into_replacement_outcome(ModelServing::Idle);

@@ -2,7 +2,7 @@
 
 use std::process::Command;
 
-use paddler_cluster_harness::constants::FAILED_RUN_EXIT_CODE;
+use paddler_cluster_harness::failed_run_exit_code::failed_run_exit_code;
 
 #[test]
 fn run_with_test_cluster_fails_without_a_temporary_directory_for_agent_models() {
@@ -13,6 +13,6 @@ fn run_with_test_cluster_fails_without_a_temporary_directory_for_agent_models() 
             .status()
             .expect("the test cluster runner must run")
             .code(),
-        Some(FAILED_RUN_EXIT_CODE)
+        Some(failed_run_exit_code())
     );
 }

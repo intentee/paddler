@@ -1,12 +1,16 @@
 import React, { useCallback, useContext } from "react";
 
-import {
-  poolingTypes,
-  type EmbeddingParameters,
-} from "@intentee/paddler-client/schemas/EmbeddingParameters";
+import { type EmbeddingParameters } from "@intentee/paddler-client/schemas/EmbeddingParameters";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
 import { ParameterNumberInput } from "./ParameterNumberInput";
 import { ParameterSelect } from "./ParameterSelect";
+
+const selectablePoolingTypes = [
+  "Cls",
+  "Last",
+  "Mean",
+  "Unspecified",
+] as const satisfies ReadonlyArray<EmbeddingParameters["pooling_type"]>;
 
 export function EmbeddingParametersFields() {
   const { balancerDesiredState, setBalancerDesiredState } = useContext(
@@ -46,7 +50,7 @@ export function EmbeddingParametersFields() {
         onValue={function (value) {
           setParameter("pooling_type", value);
         }}
-        options={poolingTypes}
+        options={selectablePoolingTypes}
         value={embeddingParameters.pooling_type}
       />
     </>

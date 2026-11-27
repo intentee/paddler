@@ -2,12 +2,14 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_cli_tests::constants::SERVING_AGENT_SLOTS;
-use paddler_cli_tests::subprocess_cluster_with_a_serving_and_a_stuck_agent::subprocess_cluster_with_a_serving_and_a_stuck_agent;
+use paddler_cli_tests::subprocess_cluster_with_a_serving_and_a_stuck_agent::SubprocessClusterWithAServingAndAStuckAgent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_metrics_count_only_the_slots_of_serving_agents() {
-    let cluster = subprocess_cluster_with_a_serving_and_a_stuck_agent(env!(
+    let SubprocessClusterWithAServingAndAStuckAgent {
+        cluster,
+        serving_agent,
+    } = SubprocessClusterWithAServingAndAStuckAgent::start(env!(
         "CARGO_BIN_EXE_paddler_cluster_node"
     ))
     .await
@@ -22,7 +24,7 @@ async fn management_metrics_count_only_the_slots_of_serving_agents() {
     assert!(
         metrics
             .lines()
-            .any(|line| line == format!("paddler_slots_total {SERVING_AGENT_SLOTS}"))
+            .any(|line| line == format!("paddler_slots_total {}", serving_agent.slot_count))
     );
 
     cluster

@@ -4,8 +4,9 @@ import { Route, Router, Switch } from "wouter";
 import { ChangeModelPage } from "./ChangeModelPage";
 import { DashboardPage } from "./DashboardPage";
 import { PromptContextProvider } from "./PromptContextProvider";
-import { PromptImageContextProvider } from "./PromptImageContextProvider";
+import { PromptMediaContextProvider } from "./PromptMediaContextProvider";
 import { PromptPage } from "./PromptPage";
+import { PromptSystemMessageContextProvider } from "./PromptSystemMessageContextProvider";
 import { PromptThinkingContextProvider } from "./PromptThinkingContextProvider";
 import { WorkbenchLayout } from "./WorkbenchLayout";
 
@@ -22,11 +23,13 @@ export function Home() {
           </Route>
           <Route path="/prompt">
             <PromptContextProvider>
-              <PromptImageContextProvider>
+              <PromptMediaContextProvider>
                 <PromptThinkingContextProvider>
-                  <PromptPage />
+                  <PromptSystemMessageContextProvider>
+                    <PromptPage />
+                  </PromptSystemMessageContextProvider>
                 </PromptThinkingContextProvider>
-              </PromptImageContextProvider>
+              </PromptMediaContextProvider>
             </PromptContextProvider>
           </Route>
           <Route>404 :(</Route>

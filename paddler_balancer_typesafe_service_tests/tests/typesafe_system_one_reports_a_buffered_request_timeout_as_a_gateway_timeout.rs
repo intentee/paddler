@@ -2,14 +2,14 @@ use reqwest::StatusCode;
 
 use paddler_cluster_harness::cluster_params::ClusterParams;
 use paddler_cluster_harness::cluster_with_an_agent_downloading_its_model::ClusterWithAnAgentDownloadingItsModel;
-use paddler_cluster_harness::constants::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_cluster_harness::noul_system_one_request::noul_system_one_request;
+use paddler_cluster_harness::short_buffered_request_timeout::short_buffered_request_timeout;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_reports_a_buffered_request_timeout_as_a_gateway_timeout() {
     let cluster_with_a_downloading_agent =
         ClusterWithAnAgentDownloadingItsModel::start(ClusterParams {
-            buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
+            buffered_request_timeout: short_buffered_request_timeout(),
             ..ClusterParams::default()
         })
         .await

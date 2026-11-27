@@ -14,11 +14,11 @@ export const cacheDtypes = [
 
 export const ModelRuntimeParametersSchema = z
   .object({
-    context_size: z.number().int(),
-    k_cache_dtype: z.enum(cacheDtypes),
-    n_batch: z.number().int(),
-    n_gpu_layers: z.number().int(),
-    v_cache_dtype: z.enum(cacheDtypes),
+    context_size: z.number().int().nullable(),
+    k_cache_dtype: z.enum(cacheDtypes).nullable(),
+    n_batch: z.number().int().nullable(),
+    n_gpu_layers: z.number().int().nullable(),
+    v_cache_dtype: z.enum(cacheDtypes).nullable(),
   })
   .strict();
 

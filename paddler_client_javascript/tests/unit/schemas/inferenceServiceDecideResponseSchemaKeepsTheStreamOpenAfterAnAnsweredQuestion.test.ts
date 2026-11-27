@@ -4,15 +4,23 @@ import { test } from "node:test";
 import { InferenceServiceDecideResponseSchema } from "../../../src/schemas/InferenceServiceDecideResponse";
 import { decisionResponse } from "./decisionResponse";
 
+const answeredQuestion = {
+  answer: {
+    choice: "yes",
+    confidence: 0.75,
+    probabilities: { no: 0.25, yes: 0.75 },
+    type: "choice",
+  },
+  id: "paid",
+};
+
 test("InferenceServiceDecideResponseSchema keeps the stream open after an answered question", function () {
   deepStrictEqual(
     InferenceServiceDecideResponseSchema.parse(
-      decisionResponse({
-        QuestionAnswered: { id: "paid", probabilities: [0.25, 0.75] },
-      }),
+      decisionResponse({ QuestionAnswered: answeredQuestion }),
     ),
     {
-      answer: { id: "paid", probabilities: [0.25, 0.75] },
+      answered_question: answeredQuestion,
       done: false,
       error: null,
       generated_by: "agent-1",
